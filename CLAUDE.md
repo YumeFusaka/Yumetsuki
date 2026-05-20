@@ -72,7 +72,7 @@ data/characters/     → 角色包目录
 
 ## 下一步工作
 
-1. MCP transport 适配：stdio 已实现，下一步实现 SSE 会话连接、工具发现和调用
-2. Agent 层：任务规划 + 执行器 + 反思
+1. Agent 层：任务规划 + 执行器 + 反思
+2. MCP 工具实测与兼容性完善
 
 详细架构和进度见 `docs/README.md`。

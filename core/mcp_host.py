@@ -8,6 +8,8 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 
+import requests
+
 from config.schema import MCPServerConfig
 
 MCP_TOOL_SEPARATOR = "__"
@@ -162,6 +164,103 @@ class MCPStdioSession:
         return json.loads(line)
 
 
+class MCPHttpSession:
+    def __init__(self, server: MCPServerConfig):
+        if not server.url.strip():
+            raise ValueError("MCP HTTP server url is empty")
+        self._server = server
+        self._session = requests.Session()
+        self._next_id = 1
+        self._endpoint = server.url.strip()
+        self._headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        }
+        self._request("initialize", {
+            "protocolVersion": MCP_PROTOCOL_VERSION,
+            "capabilities": {},
+            "clientInfo": {
+                "name": "Yumetsuki",
+                "version": "0.1",
+            },
+        })
+        self._notify("notifications/initialized", {})
+
+    def list_tools(self) -> list[MCPTool]:
+        result = self._request("tools/list", {})
+        tools = []
+        for item in result.get("tools", []):
+            tools.append(MCPTool(
+                name=item["name"],
+                description=item.get("description", ""),
+                input_schema=item.get("inputSchema") or item.get("input_schema") or {
+                    "type": "object",
+                    "properties": {},
+                },
+            ))
+        return tools
+
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        result = self._request("tools/call", {
+            "name": name,
+            "arguments": arguments,
+        })
+        content = result.get("content")
+        if isinstance(content, list):
+            text_parts = [
+                item.get("text", "")
+                for item in content
+                if isinstance(item, dict) and item.get("type") == "text"
+            ]
+            if text_parts:
+                return "\n".join(text_parts)
+        return result
+
+    def close(self) -> None:
+        self._session.close()
+
+    def _request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        msg_id = self._next_id
+        self._next_id += 1
+        response = self._session.post(
+            self._endpoint,
+            headers=self._headers,
+            json={
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "method": method,
+                "params": params,
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+        message = self._decode_response(response.text, response.headers.get("Content-Type", ""))
+        if "error" in message:
+            raise RuntimeError(message["error"])
+        return message.get("result", {})
+
+    def _notify(self, method: str, params: dict[str, Any]) -> None:
+        self._session.post(
+            self._endpoint,
+            headers=self._headers,
+            json={
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": params,
+            },
+            timeout=10,
+        ).raise_for_status()
+
+    def _decode_response(self, body: str, content_type: str) -> dict[str, Any]:
+        if "text/event-stream" in content_type:
+            for line in body.splitlines():
+                line = line.strip()
+                if line.startswith("data:"):
+                    return json.loads(line[5:].strip())
+            raise RuntimeError("Empty SSE response from MCP server")
+        return json.loads(body or "{}")
+
+
 class MCPHost:
     def __init__(
         self,
@@ -233,6 +332,8 @@ class MCPHost:
             return self._session_factory(server)
         if server.transport == "stdio":
             return MCPStdioSession(server)
+        if server.transport == "sse":
+            return MCPHttpSession(server)
         return UnsupportedMCPSession(server)
 
 
