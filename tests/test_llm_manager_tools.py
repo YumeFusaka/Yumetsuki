@@ -1,11 +1,11 @@
 from typing import Generator
 
 from core.plugin_host import PluginHost
-from core.mcp_host import MCPHost, MCPTool
 from llm.adapter import LLMAdapter, LLMStreamChunk, ToolCall
 from llm.manager import LLMManager
 from sdk.base import BasePlugin, tool
 from config.schema import LLMConfig
+from core.tool_registry import ToolRegistry
 
 
 class MathPlugin(BasePlugin):
@@ -38,8 +38,9 @@ class FakeAdapter(LLMAdapter):
 def test_llm_manager_executes_plugin_tool_calls():
     host = PluginHost("missing")
     host.plugins = [MathPlugin()]
+    registry = ToolRegistry(plugin_host=host)
     adapter = FakeAdapter()
-    manager = LLMManager(LLMConfig(api_key="test"), plugin_host=host)
+    manager = LLMManager(LLMConfig(api_key="test"), tool_registry=registry)
     manager._adapter = adapter
 
     results = list(manager.chat_stream("2+3 等于多少？"))
@@ -58,7 +59,7 @@ def test_llm_manager_executes_plugin_tool_calls():
     assert manager.get_history()[-1]["content"] == "[emotion:开心]结果是 5"
 
 
-class FakeMCPHost:
+class FakeMCPRegistry:
     def tool_specs(self) -> list[dict]:
         return [
             {
@@ -95,7 +96,7 @@ class FakeMCPAdapter(LLMAdapter):
 
 def test_llm_manager_executes_mcp_tool_calls():
     adapter = FakeMCPAdapter()
-    manager = LLMManager(LLMConfig(api_key="test"), mcp_host=FakeMCPHost())
+    manager = LLMManager(LLMConfig(api_key="test"), tool_registry=FakeMCPRegistry())
     manager._adapter = adapter
 
     results = list(manager.chat_stream("查 memo"))

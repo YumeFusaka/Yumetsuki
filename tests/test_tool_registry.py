@@ -1,0 +1,64 @@
+from config.schema import MCPServerConfig
+from core.mcp_host import MCPHost, MCPTool
+from core.plugin_host import PluginHost
+from core.tool_registry import ToolRegistry
+from sdk.base import BasePlugin, tool
+
+
+class DemoPlugin(BasePlugin):
+    name = "demo"
+    description = "Demo plugin"
+
+    @tool(description="Echo")
+    def echo(self, text: str) -> str:
+        return text
+
+
+class FakeMCPSession:
+    def __init__(self, server: MCPServerConfig):
+        self.server = server
+
+    def list_tools(self) -> list[MCPTool]:
+        return [
+            MCPTool(
+                name="search",
+                description="Search",
+                input_schema={
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            )
+        ]
+
+    def call_tool(self, name: str, arguments: dict):
+        return f"{self.server.name}:{name}:{arguments['query']}"
+
+    def close(self) -> None:
+        pass
+
+
+def test_tool_registry_combines_plugin_and_mcp_tools(tmp_path):
+    plugin_host = PluginHost(tmp_path / "plugins")
+    plugin_host.plugins = [DemoPlugin()]
+    mcp_host = MCPHost([MCPServerConfig(name="notes", transport="stdio", command="python server.py")], session_factory=FakeMCPSession)
+    mcp_host.connect_all()
+
+    registry = ToolRegistry(plugin_host=plugin_host, mcp_host=mcp_host)
+
+    specs = registry.tool_specs()
+    assert [spec["function"]["name"] for spec in specs] == ["demo__echo", "notes__search"]
+    assert registry.call_tool("demo__echo", {"text": "hi"}) == "hi"
+    assert registry.call_tool("notes__search", {"query": "today"}) == "notes:search:today"
+
+
+def test_tool_registry_refreshes_snapshot(tmp_path):
+    plugin_host = PluginHost(tmp_path / "plugins")
+    plugin_host.plugins = []
+    mcp_host = MCPHost([], session_factory=FakeMCPSession)
+
+    registry = ToolRegistry(plugin_host=plugin_host, mcp_host=mcp_host)
+    assert registry.tool_specs() == []
+    plugin_host.plugins = [DemoPlugin()]
+    registry.refresh()
+    assert registry.tool_specs()[0]["function"]["name"] == "demo__echo"

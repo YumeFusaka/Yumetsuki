@@ -9,6 +9,7 @@ from config.manager import ConfigManager
 from config.schema import MCPServerConfig
 from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
+from core.tool_registry import ToolRegistry
 
 
 DIALOG_STYLE = """
@@ -91,6 +92,7 @@ class PluginPage(QWidget):
         super().__init__(parent)
         self._config = ConfigManager()
         self._mcp_host = MCPHost(self._config.mcp.servers)
+        self._tool_registry = ToolRegistry()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(16)
@@ -139,8 +141,9 @@ class PluginPage(QWidget):
         self._host.load()
         self._mcp_host = MCPHost(self._config.mcp.servers)
         self._mcp_host.connect_all()
+        self._tool_registry = ToolRegistry(plugin_host=self._host, mcp_host=self._mcp_host)
 
-        if not self._host.plugins and not self._host.errors and not self._mcp_host.statuses:
+        if not self._tool_registry.tool_specs() and not self._host.errors and not self._mcp_host.statuses:
             self._list.addItem("（暂无已配置的插件）")
             return
 
@@ -156,6 +159,9 @@ class PluginPage(QWidget):
             state = "已连接" if status.connected else "未连接"
             extra = f" / {status.tools_count} 个工具" if status.connected else ""
             self._list.addItem(f"MCP：{status.server} [{status.transport}] {state}{extra} — {status.message}")
+
+        if self._tool_registry.tool_specs():
+            self._list.addItem(f"工具目录：{len(self._tool_registry.tool_specs())} 个统一工具")
 
     def _add_mcp_server(self) -> None:
         dlg = MCPServerDialog(self)

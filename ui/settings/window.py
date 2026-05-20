@@ -13,6 +13,7 @@ from ui.settings.pages.system_page import SystemPage
 from ui.chat.window import ChatWindow
 from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
+from core.tool_registry import ToolRegistry
 
 try:
     from ctypes import windll, c_int, byref, sizeof, Structure, POINTER
@@ -272,10 +273,10 @@ class SettingsWindow(QMainWindow):
         plugin_host.load()
         mcp_host = MCPHost(self._config.mcp.servers)
         mcp_host.connect_all()
+        tool_registry = ToolRegistry(plugin_host=plugin_host, mcp_host=mcp_host)
         self._chat_window = ChatWindow(
             self._config.api.llm,
             character_dir=char_dir,
-            plugin_host=plugin_host,
-            mcp_host=mcp_host,
+            tool_registry=tool_registry,
         )
         self._chat_window.show()

@@ -1,12 +1,11 @@
 from typing import Generator
 import json
 
-from core.mcp_host import MCPHost
 from config.schema import LLMConfig
-from core.plugin_host import PluginHost
 from llm.adapter import LLMAdapter, LLMStreamChunk, ToolCall
 from llm.adapters.openai_compat import OpenAICompatAdapter
 from llm.text_processor import TextProcessor, ProcessedText
+from core.tool_registry import ToolRegistry
 
 
 class LLMManager:
@@ -14,16 +13,14 @@ class LLMManager:
         self,
         config: LLMConfig,
         character_prompt: str = "",
-        plugin_host: PluginHost | None = None,
-        mcp_host: MCPHost | None = None,
+        tool_registry: ToolRegistry | None = None,
     ):
         self._config = config
         self._adapter: LLMAdapter = self._create_adapter(config)
         self._processor = TextProcessor()
         self._character_prompt = character_prompt
         self._history: list[dict] = []
-        self._plugin_host = plugin_host
-        self._mcp_host = mcp_host
+        self._tool_registry = tool_registry
 
     def _create_adapter(self, config: LLMConfig) -> LLMAdapter:
         if config.provider == "openai_compat":
@@ -47,12 +44,7 @@ class LLMManager:
         self._history.append({"role": "user", "content": user_input})
 
         full_response = ""
-        tools = []
-        if self._plugin_host:
-            tools.extend(self._plugin_host.tool_specs())
-        if self._mcp_host:
-            tools.extend(self._mcp_host.tool_specs())
-        tools = tools or None
+        tools = self._tool_registry.tool_specs() if self._tool_registry else None
         for _ in range(3):
             tool_calls: list[ToolCall] = []
             for chunk in self._adapter.stream_chat(messages, tools=tools):
@@ -114,11 +106,6 @@ class LLMManager:
         }
 
     def _dispatch_tool(self, name: str, arguments: dict) -> object:
-        if self._plugin_host:
-            try:
-                return self._plugin_host.call_tool(name, arguments)
-            except ValueError:
-                pass
-        if self._mcp_host:
-            return self._mcp_host.call_tool(name, arguments)
+        if self._tool_registry:
+            return self._tool_registry.call_tool(name, arguments)
         return ""

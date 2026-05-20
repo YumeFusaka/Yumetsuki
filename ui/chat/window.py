@@ -7,8 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize
 from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush
 from ui.chat.sprite import SpriteManager
-from core.mcp_host import MCPHost
-from core.plugin_host import PluginHost
+from core.tool_registry import ToolRegistry
 from llm.manager import LLMManager
 from llm.text_processor import ProcessedText
 from config.schema import LLMConfig
@@ -78,8 +77,7 @@ class ChatWindow(QWidget):
         self,
         config: LLMConfig,
         character_dir: Path | None = None,
-        plugin_host: PluginHost | None = None,
-        mcp_host: MCPHost | None = None,
+        tool_registry: ToolRegistry | None = None,
     ):
         super().__init__()
         self._scale = 1.0
@@ -99,7 +97,7 @@ class ChatWindow(QWidget):
         self._setup_ui()
 
         # LLM
-        self._llm = LLMManager(config, plugin_host=plugin_host, mcp_host=mcp_host)
+        self._llm = LLMManager(config, tool_registry=tool_registry)
         self._worker = None
         self._char_name = ""
         self._sprite_mgr = SpriteManager(self._sprite_label, character_dir)
