@@ -12,6 +12,8 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
     padding: 8px 12px;
     color: #e8e8ed;
     font-size: 13px;
+    min-height: 20px;
+    min-width: 280px;
 }
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
     border-color: #667eea;
