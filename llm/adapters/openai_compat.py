@@ -1,6 +1,6 @@
 from typing import Generator
 from openai import OpenAI
-from llm.adapter import LLMAdapter
+from llm.adapter import LLMAdapter, LLMStreamChunk, ToolCall
 from config.schema import LLMConfig
 
 
@@ -9,7 +9,7 @@ class OpenAICompatAdapter(LLMAdapter):
         self._config = config
         self._client = OpenAI(api_key=config.api_key, base_url=config.base_url)
 
-    def stream_chat(self, messages: list[dict], tools: list[dict] | None = None) -> Generator[str, None, None]:
+    def stream_chat(self, messages: list[dict], tools: list[dict] | None = None) -> Generator[str | LLMStreamChunk, None, None]:
         kwargs = dict(
             model=self._config.model,
             messages=messages,
@@ -21,6 +21,30 @@ class OpenAICompatAdapter(LLMAdapter):
             kwargs["tools"] = tools
 
         response = self._client.chat.completions.create(**kwargs)
+        tool_calls: dict[int, dict[str, str]] = {}
         for chunk in response:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if delta.content:
+                yield delta.content
+            for call_delta in delta.tool_calls or []:
+                index = call_delta.index
+                current = tool_calls.setdefault(index, {"id": "", "name": "", "arguments": ""})
+                if call_delta.id:
+                    current["id"] += call_delta.id
+                if call_delta.function:
+                    if call_delta.function.name:
+                        current["name"] += call_delta.function.name
+                    if call_delta.function.arguments:
+                        current["arguments"] += call_delta.function.arguments
+
+        if tool_calls:
+            yield LLMStreamChunk(tool_calls=[
+                ToolCall(
+                    id=data["id"],
+                    name=data["name"],
+                    arguments=data["arguments"],
+                )
+                for _, data in sorted(tool_calls.items())
+            ])
