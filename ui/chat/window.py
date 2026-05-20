@@ -1,4 +1,5 @@
 from pathlib import Path
+from html import escape
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QPushButton, QMenu,
     QApplication, QSizePolicy,
@@ -41,13 +42,35 @@ class GlassPanel(QWidget):
         p.end()
 
 
+class ConversationPane(QWidget):
+    """Keeps speaker name and dialog body pinned to the top-left."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.name_label = QLabel("...", self)
+        self.dialog_label = QLabel("...", self)
+        self.name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.dialog_label.setTextFormat(Qt.TextFormat.RichText)
+        self.dialog_label.setWordWrap(True)
+        self.dialog_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        name_h = 24
+        gap = 8
+        self.name_label.setGeometry(0, 0, self.width(), name_h)
+        self.dialog_label.setGeometry(0, name_h + gap, self.width(), max(0, self.height() - name_h - gap))
+
+
 class ChatWindow(QWidget):
     """Desktop pet style chat window — frameless, transparent, draggable."""
 
-    BASE_WIDTH = 400
-    BASE_HEIGHT = 680
+    BASE_WIDTH = 420
+    BASE_HEIGHT = 600
     MIN_SCALE = 0.5
     MAX_SCALE = 2.0
+    CHARACTER_NAME_COLOR = "#9b3060"
+    USER_NAME_COLOR = "#5f6fb2"
 
     def __init__(self, config: LLMConfig, character_dir: Path | None = None):
         super().__init__()
@@ -76,7 +99,7 @@ class ChatWindow(QWidget):
         if character_dir:
             char = load_character(character_dir)
             self._char_name = char.name
-            self._name_label.setText(char.name)
+            self._set_speaker_name(char.name)
             self._sprite_mgr.load_character(char, character_dir)
             self._llm.set_character(build_system_prompt(char))
 
@@ -98,27 +121,23 @@ class ChatWindow(QWidget):
         # Glass panel at bottom
         self._panel = GlassPanel(self)
         panel_layout = QVBoxLayout(self._panel)
-        panel_layout.setContentsMargins(16, 12, 16, 14)
-        panel_layout.setSpacing(6)
+        panel_layout.setContentsMargins(20, 16, 20, 16)
+        panel_layout.setSpacing(9)
 
-        # Character name
-        self._name_label = QLabel("...")
+        self._conversation_pane = ConversationPane()
+        self._name_label = self._conversation_pane.name_label
+        self._dialog_box = self._conversation_pane.dialog_label
         self._name_label.setStyleSheet("""
-            color: #9b4d6a; font-size: 14px; font-weight: bold;
+            color: #9b3060; font-size: 17px; font-weight: bold;
             background: transparent;
         """)
-        panel_layout.addWidget(self._name_label)
 
-        # Dialog text
-        self._dialog_box = QLabel("...")
-        self._dialog_box.setWordWrap(True)
         self._dialog_box.setStyleSheet("""
-            color: #4a3040; font-size: 13px;
-            padding: 4px 0; background: transparent;
+            color: #4a3040; font-size: 15px;
+            padding: 2px 0 8px 0; background: transparent;
         """)
-        self._dialog_box.setMinimumHeight(40)
-        self._dialog_box.setMaximumHeight(80)
-        panel_layout.addWidget(self._dialog_box)
+        self._conversation_pane.setMinimumHeight(96)
+        panel_layout.addWidget(self._conversation_pane, 1)
 
         # Input row: [input] [mic] [send]
         input_row = QHBoxLayout()
@@ -161,6 +180,20 @@ class ChatWindow(QWidget):
             }}
             QPushButton:hover {{ background: {hover}; }}
         """
+
+    def _set_speaker_name(self, name: str, is_user: bool = False) -> None:
+        color = self.USER_NAME_COLOR if is_user else self.CHARACTER_NAME_COLOR
+        self._name_label.setText(name)
+        self._name_label.setStyleSheet(f"""
+            color: {color}; font-size: 17px; font-weight: bold;
+            background: transparent;
+        """)
+
+    def _set_dialog_text(self, text: str) -> None:
+        body = escape(text).replace("\n", "<br>")
+        self._dialog_box.setText(
+            f"<div style='line-height: 145%; color: #4a3040; font-size: 15px;'>{body}</div>"
+        )
 
     def _apply_scale(self):
         w = int(self.BASE_WIDTH * self._scale)
@@ -264,8 +297,8 @@ class ChatWindow(QWidget):
         if not text or self._worker is not None:
             return
         self._input.clear()
-        self._name_label.setText("我")
-        self._dialog_box.setText(text)
+        self._set_speaker_name("我", is_user=True)
+        self._set_dialog_text(text)
 
         self._worker = LLMWorker(self._llm, text)
         self._worker.chunk_received.connect(self._on_chunk, Qt.ConnectionType.QueuedConnection)
@@ -274,8 +307,8 @@ class ChatWindow(QWidget):
 
     def _on_chunk(self, result: ProcessedText):
         if self._name_label.text() == "我" and self._char_name:
-            self._name_label.setText(self._char_name)
-        self._dialog_box.setText(result.clean_text)
+            self._set_speaker_name(self._char_name)
+        self._set_dialog_text(result.clean_text)
         if result.emotion:
             self._sprite_mgr.set_emotion(result.emotion)
 

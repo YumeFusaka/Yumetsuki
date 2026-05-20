@@ -1,12 +1,13 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit,
-    QComboBox, QLabel, QGroupBox, QScrollArea, QSlider, QHBoxLayout, QSpinBox,
+    QComboBox, QLabel, QGroupBox, QScrollArea, QSlider, QHBoxLayout,
 )
 from PySide6.QtCore import Qt
 from config.schema import APIConfig
+from ui.widgets.rose_spin_box import RoseSpinBox
 
 FORM_STYLE = """
-QLineEdit, QComboBox, QSpinBox {
+QLineEdit, QComboBox {
     background: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 6px;
@@ -15,35 +16,9 @@ QLineEdit, QComboBox, QSpinBox {
     font-size: 13px;
     min-height: 18px;
 }
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+QLineEdit:focus, QComboBox:focus {
     border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
-}
-QSpinBox::up-button {
-    subcontrol-origin: border; subcontrol-position: top right;
-    background: rgba(255, 200, 210, 0.5);
-    border: none; border-radius: 3px;
-    width: 20px; height: 12px; margin: 2px 2px 0 0;
-}
-QSpinBox::up-button:hover { background: rgba(255, 154, 162, 0.6); }
-QSpinBox::up-arrow {
-    width: 0; height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-bottom: 5px solid #9b3060;
-}
-QSpinBox::down-button {
-    subcontrol-origin: border; subcontrol-position: bottom right;
-    background: rgba(255, 200, 210, 0.5);
-    border: none; border-radius: 3px;
-    width: 20px; height: 12px; margin: 0 2px 2px 0;
-}
-QSpinBox::down-button:hover { background: rgba(255, 154, 162, 0.6); }
-QSpinBox::down-arrow {
-    width: 0; height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #9b3060;
 }
 QComboBox::drop-down { border: none; padding-right: 8px; }
 QComboBox QAbstractItemView {
@@ -118,7 +93,7 @@ class APIPage(QWidget):
         self._temp_slider = QSlider(Qt.Orientation.Horizontal)
         self._temp_slider.setRange(0, 200)
         self._temp_slider.setValue(int(config.llm.temperature * 100))
-        self._temp_spin = QSpinBox()
+        self._temp_spin = RoseSpinBox()
         self._temp_spin.setRange(0, 200)
         self._temp_spin.setValue(int(config.llm.temperature * 100))
         self._temp_spin.setMinimumWidth(70)
@@ -135,7 +110,7 @@ class APIPage(QWidget):
         self._tok_slider = QSlider(Qt.Orientation.Horizontal)
         self._tok_slider.setRange(256, 32768)
         self._tok_slider.setValue(config.llm.max_tokens)
-        self._tok_spin = QSpinBox()
+        self._tok_spin = RoseSpinBox()
         self._tok_spin.setRange(256, 32768)
         self._tok_spin.setValue(config.llm.max_tokens)
         self._tok_spin.setMinimumWidth(80)

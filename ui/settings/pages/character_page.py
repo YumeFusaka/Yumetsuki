@@ -20,7 +20,7 @@ CARD_STYLE = """
         border-radius: 8px; padding: 8px; color: #4a3040;
         outline: none;
     }
-    QListWidget::item { padding: 10px 8px; border-radius: 6px; color: #5a3050; text-align: center; }
+    QListWidget::item { padding: 8px 10px; border-radius: 6px; color: #5a3050; }
     QListWidget::item:selected { background: rgba(255, 154, 162, 0.25); color: #9b3060; border: 1px solid #d4567a; }
     QListWidget::item:hover { background: rgba(255, 200, 210, 0.2); }
     QListWidget:focus { border-color: #d4567a; }
@@ -199,7 +199,7 @@ class CharacterPage(QWidget):
         left.setSpacing(8)
         self._list = QListWidget()
         self._list.setFixedWidth(180)
-        self._list.setIconSize(QSize(36, 36))
+        self._list.setIconSize(QSize(36, 42))
         self._list.setStyleSheet(CARD_STYLE)
         self._list.currentRowChanged.connect(self._on_select)
         left.addWidget(self._list, 1)
@@ -345,10 +345,47 @@ class CharacterPage(QWidget):
             return
         for d in sorted(self._dir.iterdir()):
             if d.is_dir() and (d / "prompt.md").exists():
-                item = QListWidgetItem(d.name)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item = QListWidgetItem(self._character_icon(d), d.name)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+                item.setSizeHint(QSize(150, 50))
                 self._list.addItem(item)
                 self._char_dirs.append(d)
+
+    def _character_icon(self, char_dir: Path) -> QIcon:
+        sprite_path = self._default_sprite_path(char_dir)
+        if not sprite_path:
+            return QIcon()
+        pixmap = QPixmap(str(sprite_path))
+        if pixmap.isNull():
+            return QIcon()
+        return QIcon(pixmap.scaled(
+            36,
+            42,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        ))
+
+    def _default_sprite_path(self, char_dir: Path) -> Path | None:
+        sprites_dir = char_dir / "sprites"
+        yaml_path = char_dir / "sprites.yaml"
+        if yaml_path.exists():
+            try:
+                data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
+            except yaml.YAMLError:
+                data = {}
+            emotions = data.get("emotions", [])
+            for emotion in emotions:
+                if emotion.get("default"):
+                    path = sprites_dir / emotion.get("sprite", "")
+                    if path.exists():
+                        return path
+            for emotion in emotions:
+                path = sprites_dir / emotion.get("sprite", "")
+                if path.exists():
+                    return path
+        if sprites_dir.is_dir():
+            return next(iter(sorted(sprites_dir.glob("*.png"))), None)
+        return None
 
     def _on_select(self, row: int):
         if row < 0 or row >= len(self._char_dirs):

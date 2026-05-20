@@ -53,7 +53,7 @@ data/characters/     → 角色包目录
 - 强调色：#d4567a（玫瑰红）, #9b3060（深粉）
 - 文字色：#4a3040（正文）, #6b4a5a（次要）
 - 所有子窗口/对话框必须继承主题色（app-level stylesheet 在 main.py）
-- SpinBox 箭头用 CSS border-trick 三角形，不用图片
+- SpinBox 数值加减用玫瑰红 `+` / `-` 按钮，右侧同列上下排列，不用图标或三角箭头
 - 选中状态：`border: 1px solid #d4567a`，不用黑色 outline
 
 ## 代码风格

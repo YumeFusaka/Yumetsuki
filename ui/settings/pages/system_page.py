@@ -1,46 +1,21 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit,
-    QComboBox, QSpinBox, QLabel, QGroupBox,
+    QComboBox, QLabel, QGroupBox,
 )
 from config.schema import SystemConfig
+from ui.widgets.rose_spin_box import RoseSpinBox
 
 FORM_STYLE = """
-QLineEdit, QComboBox, QSpinBox {
+QLineEdit, QComboBox {
     background: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 6px; padding: 8px 12px;
     color: #4a3040; font-size: 13px;
     min-height: 20px; min-width: 280px;
 }
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+QLineEdit:focus, QComboBox:focus {
     border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
-}
-QSpinBox::up-button {
-    subcontrol-origin: border; subcontrol-position: top right;
-    background: rgba(255, 200, 210, 0.5);
-    border: none; border-radius: 3px;
-    width: 20px; height: 12px; margin: 2px 2px 0 0;
-}
-QSpinBox::up-button:hover { background: rgba(255, 154, 162, 0.6); }
-QSpinBox::up-arrow {
-    width: 0; height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-bottom: 5px solid #9b3060;
-}
-QSpinBox::down-button {
-    subcontrol-origin: border; subcontrol-position: bottom right;
-    background: rgba(255, 200, 210, 0.5);
-    border: none; border-radius: 3px;
-    width: 20px; height: 12px; margin: 0 2px 2px 0;
-}
-QSpinBox::down-button:hover { background: rgba(255, 154, 162, 0.6); }
-QSpinBox::down-arrow {
-    width: 0; height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #9b3060;
 }
 QComboBox::drop-down { border: none; padding-right: 8px; }
 QComboBox QAbstractItemView {
@@ -90,9 +65,10 @@ class SystemPage(QWidget):
         self._font = QLineEdit(config.font_family)
         app_form.addRow("字体:", self._font)
 
-        self._font_size = QSpinBox()
+        self._font_size = RoseSpinBox()
         self._font_size.setRange(10, 24)
         self._font_size.setValue(config.font_size)
+        self._font_size.setMinimumWidth(280)
         app_form.addRow("字号:", self._font_size)
 
         layout.addWidget(appearance)
