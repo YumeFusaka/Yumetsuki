@@ -49,6 +49,7 @@ def test_tool_registry_combines_plugin_and_mcp_tools(tmp_path):
     specs = registry.tool_specs()
     assert [spec["function"]["name"] for spec in specs] == ["demo__echo", "notes__search"]
     assert [entry.qualified_name for entry in registry.entries()] == ["demo__echo", "notes__search"]
+    assert registry.entries()[1].parameter_summary() == "query*:string"
     assert registry.counts_by_source() == {"plugin": 1, "mcp": 1}
     assert registry.call_tool("demo__echo", {"text": "hi"}) == "hi"
     assert registry.call_tool("notes__search", {"query": "today"}) == "notes:search:today"

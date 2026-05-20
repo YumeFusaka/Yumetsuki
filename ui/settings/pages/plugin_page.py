@@ -1,7 +1,8 @@
 from pathlib import Path
+import shutil
 
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel,
+    QFileDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel,
     QLineEdit, QListWidget, QMessageBox, QPushButton, QVBoxLayout, QWidget,
 )
 
@@ -37,6 +38,17 @@ QComboBox QAbstractItemView {
     selection-background-color: rgba(255,154,162,0.3);
 }
 """
+
+
+def _copy_plugin_dir(src: Path, dest_root: Path) -> Path | None:
+    if not src.is_dir() or not (src / "plugin.py").exists():
+        return None
+    dest_root.mkdir(parents=True, exist_ok=True)
+    dest = dest_root / src.name
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(src, dest)
+    return dest
 
 
 class MCPServerDialog(QDialog):
@@ -140,6 +152,18 @@ class PluginPage(QWidget):
         layout.addWidget(self._list, 1)
 
         btn_row = QHBoxLayout()
+        add_plugin_btn = QPushButton("+ 导入插件")
+        add_plugin_btn.setToolTip("导入包含 plugin.py 的本地插件目录")
+        add_plugin_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(255,255,255,0.5); border: 1px solid rgba(220, 160, 180, 0.3);
+                border-radius: 6px; padding: 8px 16px; color: #6b4a5a; font-size: 13px;
+            }
+            QPushButton:hover { background: rgba(255, 200, 210, 0.4); }
+        """)
+        add_plugin_btn.clicked.connect(self._import_plugin_dir)
+        btn_row.addWidget(add_plugin_btn)
+
         add_btn = QPushButton("+ 添加 MCP 服务器")
         add_btn.setStyleSheet("""
             QPushButton {
@@ -186,7 +210,10 @@ class PluginPage(QWidget):
             extra = f" / {status.tools_count} 个工具" if status.connected else ""
             self._list.addItem(f"MCP：{status.server} [{status.transport}] {state}{extra} — {status.message}")
         for entry in self._tool_registry.entries():
-            self._list.addItem(f"  • {entry.qualified_name} — {entry.schema.get('description', '')}")
+            self._list.addItem(
+                f"  • {entry.qualified_name} [{entry.source}] — "
+                f"{entry.schema.get('description', '')}｜参数：{entry.parameter_summary()}"
+            )
 
     def _add_mcp_server(self) -> None:
         dlg = MCPServerDialog(self)
@@ -204,6 +231,17 @@ class PluginPage(QWidget):
             return
         self._config.mcp.servers.append(server)
         self._config.save_mcp()
+        self._refresh_plugins()
+
+    def _import_plugin_dir(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "选择插件目录")
+        if not folder:
+            return
+        plugins_root = Path(__file__).parent.parent.parent.parent / "plugins"
+        imported = _copy_plugin_dir(Path(folder), plugins_root)
+        if not imported:
+            self._show_error("所选目录中没有 plugin.py。")
+            return
         self._refresh_plugins()
 
     def _show_error(self, message: str) -> None:

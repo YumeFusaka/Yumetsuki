@@ -24,6 +24,18 @@ class ToolEntry:
             },
         }
 
+    def parameter_summary(self) -> str:
+        parameters = self.schema.get("parameters", {})
+        properties = parameters.get("properties", {})
+        required = set(parameters.get("required", []))
+        if not properties:
+            return "无参数"
+        parts = []
+        for name, info in properties.items():
+            marker = "*" if name in required else ""
+            parts.append(f"{name}{marker}:{info.get('type', 'any')}")
+        return ", ".join(parts)
+
 
 class ToolRegistry:
     def __init__(self, plugin_host: PluginHost | None = None, mcp_host: MCPHost | None = None):
