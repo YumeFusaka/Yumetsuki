@@ -105,6 +105,23 @@ class PluginPage(QWidget):
         desc.setStyleSheet("color: #8c6b7a; font-size: 13px;")
         layout.addWidget(desc)
 
+        top_row = QHBoxLayout()
+        self._summary = QLabel("工具目录：0")
+        self._summary.setStyleSheet("color: #6b4a5a; font-size: 12px; font-weight: bold;")
+        top_row.addWidget(self._summary)
+        top_row.addStretch()
+        refresh_btn = QPushButton("↻ 刷新工具目录")
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                background: rgba(255,255,255,0.5); border: 1px solid rgba(220, 160, 180, 0.3);
+                border-radius: 6px; padding: 8px 16px; color: #6b4a5a; font-size: 13px;
+            }
+            QPushButton:hover { background: rgba(255, 200, 210, 0.4); }
+        """)
+        refresh_btn.clicked.connect(self._refresh_plugins)
+        top_row.addWidget(refresh_btn)
+        layout.addLayout(top_row)
+
         self._list = QListWidget()
         self._list.setStyleSheet("""
             QListWidget {
@@ -142,16 +159,25 @@ class PluginPage(QWidget):
         self._mcp_host = MCPHost(self._config.mcp.servers)
         self._mcp_host.connect_all()
         self._tool_registry = ToolRegistry(plugin_host=self._host, mcp_host=self._mcp_host)
+        counts = self._tool_registry.counts_by_source()
+        self._summary.setText(
+            f"工具目录：{len(self._tool_registry.entries())}  "
+            f"插件 {counts.get('plugin', 0)}  ·  MCP {counts.get('mcp', 0)}"
+        )
 
         if not self._tool_registry.tool_specs() and not self._host.errors and not self._mcp_host.statuses:
             self._list.addItem("（暂无已配置的插件）")
             return
 
+        if any(entry.source == "plugin" for entry in self._tool_registry.entries()):
+            self._list.addItem("【本地插件工具】")
         for plugin in self._host.plugins:
             tools_count = len(plugin.tools())
             desc = f" — {plugin.description}" if plugin.description else ""
             self._list.addItem(f"已加载：{plugin.name}{desc}（{tools_count} 个工具）")
 
+        if any(entry.source == "mcp" for entry in self._tool_registry.entries()):
+            self._list.addItem("【MCP 工具】")
         for error in self._host.errors:
             self._list.addItem(f"加载失败：{error.plugin} — {error.message}")
 
@@ -159,9 +185,8 @@ class PluginPage(QWidget):
             state = "已连接" if status.connected else "未连接"
             extra = f" / {status.tools_count} 个工具" if status.connected else ""
             self._list.addItem(f"MCP：{status.server} [{status.transport}] {state}{extra} — {status.message}")
-
-        if self._tool_registry.tool_specs():
-            self._list.addItem(f"工具目录：{len(self._tool_registry.tool_specs())} 个统一工具")
+        for entry in self._tool_registry.entries():
+            self._list.addItem(f"  • {entry.qualified_name} — {entry.schema.get('description', '')}")
 
     def _add_mcp_server(self) -> None:
         dlg = MCPServerDialog(self)

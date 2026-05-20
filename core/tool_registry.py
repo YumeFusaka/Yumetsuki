@@ -62,6 +62,15 @@ class ToolRegistry:
     def tool_specs(self) -> list[dict[str, Any]]:
         return [entry.as_openai_tool() for entry in self._entries]
 
+    def entries(self) -> list[ToolEntry]:
+        return self._entries.copy()
+
+    def counts_by_source(self) -> dict[str, int]:
+        counts = {"plugin": 0, "mcp": 0}
+        for entry in self._entries:
+            counts[entry.source] = counts.get(entry.source, 0) + 1
+        return counts
+
     def call_tool(self, qualified_name: str, arguments: dict[str, Any]) -> Any:
         if self._plugin_host:
             try:
