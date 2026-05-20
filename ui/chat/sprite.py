@@ -1,7 +1,7 @@
 from pathlib import Path
 from PySide6.QtWidgets import QLabel
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
 from core.character import Character, Emotion
 
 
@@ -11,6 +11,7 @@ class SpriteManager:
         self._char_dir = char_dir
         self._emotions: list[Emotion] = []
         self._current: str | None = None
+        self._current_path: Path | None = None
 
     def load_character(self, character: Character, char_dir: Path) -> None:
         self._char_dir = char_dir
@@ -26,14 +27,26 @@ class SpriteManager:
             return
         sprite_path = self._char_dir / "sprites" / target.sprite
         if sprite_path.exists():
-            pixmap = QPixmap(str(sprite_path))
+            self._current_path = sprite_path
+            self._current = target.name
+            self._update_pixmap()
+
+    def reload(self, size: QSize | None = None) -> None:
+        """Reload current sprite, optionally at a specific size."""
+        self._update_pixmap(size)
+
+    def _update_pixmap(self, size: QSize | None = None) -> None:
+        if not self._current_path or not self._current_path.exists():
+            return
+        pixmap = QPixmap(str(self._current_path))
+        target_size = size or self._label.size()
+        if target_size.width() > 0 and target_size.height() > 0:
             scaled = pixmap.scaled(
-                self._label.size(),
+                target_size,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
             self._label.setPixmap(scaled)
-            self._current = target.name
 
     def _find_emotion(self, name: str) -> Emotion | None:
         for e in self._emotions:
