@@ -88,7 +88,7 @@ yumetsuki/
 | 插件系统 | ✅ 完成 | 插件 SDK + 宿主 + 设置页展示 |
 | Agent 层 | 🔲 未开始 | 任务规划 + 执行器 + 反思 |
 | 记忆系统 | 🔲 未开始 | mem0 长期记忆 |
-| MCP 接入 | 🟡 进行中 | 配置读写 + 宿主状态 + LLM工具入口 |
+| MCP 接入 | 🟡 进行中 | 配置读写 + stdio transport + 宿主状态 + LLM工具入口 |
 | ASR 语音识别 | 🔲 未开始 | Vosk/Whisper |
 
 ---
@@ -100,7 +100,7 @@ yumetsuki/
 1. ✅ **插件 SDK** — `sdk/base.py` 提供 `@tool` 装饰器，插件继承基类注册工具
 2. ✅ **插件宿主** — `core/plugin_host.py` 热加载 `plugins/` 目录下的插件
 3. ✅ **LLM 工具调用** — 复用 OpenAI function calling 协议，工具列表动态注入
-4. 🟡 **MCP 接入** — `data/config/mcp.yaml` 配置外部 MCP Server（SSE/stdio），宿主状态已接入，transport 适配待完成
+4. 🟡 **MCP 接入** — `data/config/mcp.yaml` 配置外部 MCP Server，stdio 已接入，SSE 待完成
 
 ### 第三阶段：Agent 自主执行
 

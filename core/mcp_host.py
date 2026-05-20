@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import json
+import os
+import shlex
+import subprocess
+import threading
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from config.schema import MCPServerConfig
 
 MCP_TOOL_SEPARATOR = "__"
+MCP_PROTOCOL_VERSION = "2024-11-05"
 
 
 @dataclass(frozen=True)
@@ -45,13 +51,123 @@ class MCPSession(Protocol):
         ...
 
 
-class UnimplementedMCPSession:
+class UnsupportedMCPSession:
     def __init__(self, server: MCPServerConfig):
         raise NotImplementedError(f"{server.transport} MCP transport is not implemented yet")
 
 
+class MCPStdioSession:
+    def __init__(self, server: MCPServerConfig):
+        if not server.command.strip():
+            raise ValueError("stdio MCP server command is empty")
+        self._server = server
+        self._next_id = 1
+        self._lock = threading.Lock()
+        self._process = subprocess.Popen(
+            _split_command(server.command),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+        )
+        self._request("initialize", {
+            "protocolVersion": MCP_PROTOCOL_VERSION,
+            "capabilities": {},
+            "clientInfo": {
+                "name": "Yumetsuki",
+                "version": "0.1",
+            },
+        })
+        self._notify("notifications/initialized", {})
+
+    def list_tools(self) -> list[MCPTool]:
+        result = self._request("tools/list", {})
+        tools = []
+        for item in result.get("tools", []):
+            tools.append(MCPTool(
+                name=item["name"],
+                description=item.get("description", ""),
+                input_schema=item.get("inputSchema") or item.get("input_schema") or {
+                    "type": "object",
+                    "properties": {},
+                },
+            ))
+        return tools
+
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        result = self._request("tools/call", {
+            "name": name,
+            "arguments": arguments,
+        })
+        content = result.get("content")
+        if isinstance(content, list):
+            text_parts = [
+                item.get("text", "")
+                for item in content
+                if isinstance(item, dict) and item.get("type") == "text"
+            ]
+            if text_parts:
+                return "\n".join(text_parts)
+        return result
+
+    def close(self) -> None:
+        if self._process.poll() is not None:
+            return
+        self._process.terminate()
+        try:
+            self._process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            self._process.kill()
+
+    def _request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            msg_id = self._next_id
+            self._next_id += 1
+            self._write({
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "method": method,
+                "params": params,
+            })
+            while True:
+                message = self._read()
+                if message.get("id") != msg_id:
+                    continue
+                if "error" in message:
+                    raise RuntimeError(message["error"])
+                return message.get("result", {})
+
+    def _notify(self, method: str, params: dict[str, Any]) -> None:
+        self._write({
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+        })
+
+    def _write(self, message: dict[str, Any]) -> None:
+        if not self._process.stdin:
+            raise RuntimeError("MCP stdio stdin is closed")
+        self._process.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
+        self._process.stdin.flush()
+
+    def _read(self) -> dict[str, Any]:
+        if not self._process.stdout:
+            raise RuntimeError("MCP stdio stdout is closed")
+        line = self._process.stdout.readline()
+        if not line:
+            stderr = self._process.stderr.read() if self._process.stderr else ""
+            raise RuntimeError(f"MCP stdio server closed stdout. {stderr}".strip())
+        return json.loads(line)
+
+
 class MCPHost:
-    def __init__(self, servers: list[MCPServerConfig], session_factory=UnimplementedMCPSession):
+    def __init__(
+        self,
+        servers: list[MCPServerConfig],
+        session_factory: Callable[[MCPServerConfig], MCPSession] | None = None,
+    ):
         self._servers = servers
         self._session_factory = session_factory
         self._sessions: dict[str, MCPSession] = {}
@@ -71,7 +187,7 @@ class MCPHost:
                 ))
                 continue
             try:
-                session = self._session_factory(server)
+                session = self._create_session(server)
                 tools = session.list_tools()
                 self._sessions[server.name] = session
                 self._tools[server.name] = tools
@@ -111,3 +227,17 @@ class MCPHost:
             session.close()
         self._sessions.clear()
         self._tools.clear()
+
+    def _create_session(self, server: MCPServerConfig) -> MCPSession:
+        if self._session_factory:
+            return self._session_factory(server)
+        if server.transport == "stdio":
+            return MCPStdioSession(server)
+        return UnsupportedMCPSession(server)
+
+
+def _split_command(command: str) -> list[str]:
+    parts = shlex.split(command, posix=os.name != "nt")
+    if os.name == "nt":
+        return [part.strip('"') for part in parts]
+    return parts
