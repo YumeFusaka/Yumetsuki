@@ -1,42 +1,49 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit,
-    QComboBox, QDoubleSpinBox, QSpinBox, QLabel, QGroupBox,
+    QComboBox, QLabel, QGroupBox, QScrollArea, QSlider, QHBoxLayout,
 )
+from PySide6.QtCore import Qt
 from config.schema import APIConfig
 
 FORM_STYLE = """
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+QLineEdit, QComboBox {
     background: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 6px;
-    padding: 8px 12px;
+    padding: 7px 12px;
     color: #4a3040;
     font-size: 13px;
-    min-height: 20px;
-    min-width: 280px;
+    min-height: 18px;
 }
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+QLineEdit:focus, QComboBox:focus {
     border-color: #e88aaa;
     background: rgba(255, 255, 255, 0.85);
 }
-QComboBox::drop-down {
-    border: none;
-    padding-right: 8px;
-}
+QComboBox::drop-down { border: none; padding-right: 8px; }
 QComboBox QAbstractItemView {
-    background: #fff5f7;
-    border: 1px solid rgba(220, 160, 180, 0.3);
-    color: #4a3040;
-    selection-background-color: rgba(255, 154, 162, 0.3);
+    background: #fff5f7; border: 1px solid rgba(220, 160, 180, 0.3);
+    color: #4a3040; selection-background-color: rgba(255, 154, 162, 0.3);
 }
 QLabel { color: #6b4a5a; font-size: 13px; }
 QGroupBox {
-    color: #7a4060; font-size: 15px; font-weight: bold;
+    color: #7a4060; font-size: 14px; font-weight: bold;
     border: 1px solid rgba(220, 160, 180, 0.2);
-    border-radius: 10px; margin-top: 12px; padding: 20px 16px 12px 16px;
+    border-radius: 10px; margin-top: 10px; padding: 18px 14px 10px 14px;
     background: rgba(255, 255, 255, 0.35);
 }
-QGroupBox::title { subcontrol-origin: margin; left: 16px; padding: 0 6px; }
+QGroupBox::title { subcontrol-origin: margin; left: 14px; padding: 0 6px; }
+QSlider::groove:horizontal {
+    height: 4px; background: rgba(220, 160, 180, 0.3); border-radius: 2px;
+}
+QSlider::handle:horizontal {
+    width: 16px; height: 16px; margin: -6px 0;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff9aaa, stop:1 #e8a0c8);
+    border-radius: 8px;
+}
+QSlider::sub-page:horizontal {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff9aaa, stop:1 #e8a0c8);
+    border-radius: 2px;
+}
 """
 
 
@@ -46,18 +53,24 @@ class APIPage(QWidget):
         self._config = config
         self.setStyleSheet(FORM_STYLE)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 24, 32, 24)
-        layout.setSpacing(16)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(32, 20, 32, 20)
+        layout.setSpacing(12)
 
         title = QLabel("API 设定")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7a3a5a;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #7a3a5a;")
         layout.addWidget(title)
 
         # LLM Group
         llm_group = QGroupBox("LLM 大语言模型")
         llm_form = QFormLayout(llm_group)
-        llm_form.setSpacing(10)
+        llm_form.setSpacing(8)
+        llm_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         self._provider = QComboBox()
         self._provider.addItems(["openai_compat"])
@@ -74,23 +87,37 @@ class APIPage(QWidget):
         self._base_url = QLineEdit(config.llm.base_url)
         llm_form.addRow("Base URL:", self._base_url)
 
-        self._temperature = QDoubleSpinBox()
-        self._temperature.setRange(0.0, 2.0)
-        self._temperature.setSingleStep(0.1)
-        self._temperature.setValue(config.llm.temperature)
-        llm_form.addRow("Temperature:", self._temperature)
+        # Temperature slider
+        temp_row = QHBoxLayout()
+        self._temp_slider = QSlider(Qt.Orientation.Horizontal)
+        self._temp_slider.setRange(0, 200)
+        self._temp_slider.setValue(int(config.llm.temperature * 100))
+        self._temp_label = QLabel(f"{config.llm.temperature:.1f}")
+        self._temp_label.setFixedWidth(30)
+        self._temp_slider.valueChanged.connect(lambda v: self._temp_label.setText(f"{v/100:.1f}"))
+        temp_row.addWidget(self._temp_slider)
+        temp_row.addWidget(self._temp_label)
+        llm_form.addRow("Temperature:", temp_row)
 
-        self._max_tokens = QSpinBox()
-        self._max_tokens.setRange(256, 32768)
-        self._max_tokens.setValue(config.llm.max_tokens)
-        llm_form.addRow("Max Tokens:", self._max_tokens)
+        # Max tokens slider
+        tok_row = QHBoxLayout()
+        self._tok_slider = QSlider(Qt.Orientation.Horizontal)
+        self._tok_slider.setRange(256, 32768)
+        self._tok_slider.setValue(config.llm.max_tokens)
+        self._tok_label = QLabel(str(config.llm.max_tokens))
+        self._tok_label.setFixedWidth(45)
+        self._tok_slider.valueChanged.connect(lambda v: self._tok_label.setText(str(v)))
+        tok_row.addWidget(self._tok_slider)
+        tok_row.addWidget(self._tok_label)
+        llm_form.addRow("Max Tokens:", tok_row)
 
         layout.addWidget(llm_group)
 
         # TTS Group
         tts_group = QGroupBox("TTS 语音合成")
         tts_form = QFormLayout(tts_group)
-        tts_form.setSpacing(10)
+        tts_form.setSpacing(8)
+        tts_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         self._tts_engine = QComboBox()
         self._tts_engine.addItems(["none", "gptsovits", "cosyvoice"])
@@ -105,7 +132,8 @@ class APIPage(QWidget):
         # ASR Group
         asr_group = QGroupBox("ASR 语音识别")
         asr_form = QFormLayout(asr_group)
-        asr_form.setSpacing(10)
+        asr_form.setSpacing(8)
+        asr_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         self._asr_engine = QComboBox()
         self._asr_engine.addItems(["none", "vosk", "whisper"])
@@ -119,13 +147,18 @@ class APIPage(QWidget):
         layout.addWidget(asr_group)
         layout.addStretch()
 
+        scroll.setWidget(container)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
+
     def apply(self) -> None:
         self._config.llm.provider = self._provider.currentText()
         self._config.llm.model = self._model.text()
         self._config.llm.api_key = self._api_key.text()
         self._config.llm.base_url = self._base_url.text()
-        self._config.llm.temperature = self._temperature.value()
-        self._config.llm.max_tokens = self._max_tokens.value()
+        self._config.llm.temperature = self._temp_slider.value() / 100.0
+        self._config.llm.max_tokens = self._tok_slider.value()
         self._config.tts.engine = self._tts_engine.currentText()
         self._config.tts.api_url = self._tts_url.text()
         self._config.asr.engine = self._asr_engine.currentText()
