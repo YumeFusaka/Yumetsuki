@@ -11,16 +11,40 @@ from ui.settings.pages.character_page import CharacterPage
 from ui.settings.pages.plugin_page import PluginPage
 from ui.settings.pages.system_page import SystemPage
 
-# Try Windows acrylic blur
 try:
-    from ctypes import windll, c_int, byref, sizeof
-    def _enable_acrylic(hwnd):
-        # DWMWA_SYSTEMBACKDROP_TYPE = 38, Mica/Acrylic
-        val = c_int(3)  # 3 = Acrylic
-        windll.dwmapi.DwmSetWindowAttribute(hwnd, 38, byref(val), sizeof(val))
+    from ctypes import windll, c_int, byref, sizeof, Structure, POINTER
+    class COLORREF(Structure):
+        _fields_ = [("color", c_int)]
+
+    def _set_title_bar_color(hwnd):
+        # DWMWA_CAPTION_COLOR = 35
+        color = c_int(0x00C8A0FF)  # BGR: pink #FFA0C8
+        windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, byref(color), sizeof(color))
+        # DWMWA_TEXT_COLOR = 36
+        text_color = c_int(0x00FFFFFF)  # white
+        windll.dwmapi.DwmSetWindowAttribute(hwnd, 36, byref(text_color), sizeof(text_color))
 except Exception:
-    def _enable_acrylic(hwnd):
+    def _set_title_bar_color(hwnd):
         pass
+
+
+def _create_sakura_icon() -> QIcon:
+    px = QPixmap(32, 32)
+    px.fill(QColor(0, 0, 0, 0))
+    p = QPainter(px)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    grad = QLinearGradient(0, 0, 32, 32)
+    grad.setColorAt(0, QColor(255, 154, 180))
+    grad.setColorAt(1, QColor(230, 130, 180))
+    p.setBrush(grad)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.drawEllipse(4, 4, 12, 14)
+    p.drawEllipse(16, 4, 12, 14)
+    p.drawEllipse(8, 12, 14, 12)
+    p.drawEllipse(10, 2, 12, 12)
+    p.end()
+    return QIcon(px)
+
 
 NAV_STYLE = """
 QPushButton {
@@ -44,39 +68,48 @@ QPushButton:checked {
 }
 """
 
-
-def _create_sakura_icon() -> QIcon:
-    """Create a simple sakura petal icon programmatically."""
-    px = QPixmap(32, 32)
-    px.fill(QColor(0, 0, 0, 0))
-    p = QPainter(px)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    grad = QLinearGradient(0, 0, 32, 32)
-    grad.setColorAt(0, QColor(255, 154, 180))
-    grad.setColorAt(1, QColor(230, 130, 180))
-    p.setBrush(grad)
-    p.setPen(Qt.PenStyle.NoPen)
-    p.drawEllipse(4, 4, 12, 14)
-    p.drawEllipse(16, 4, 12, 14)
-    p.drawEllipse(8, 12, 14, 12)
-    p.drawEllipse(10, 2, 12, 12)
-    p.end()
-    return QIcon(px)
+GLOBAL_SCROLLBAR = """
+QScrollBar:vertical {
+    background: rgba(255, 220, 230, 0.2);
+    width: 8px; border-radius: 4px; margin: 0;
+}
+QScrollBar::handle:vertical {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #ffb0c8, stop:1 #dda0d8);
+    border-radius: 4px; min-height: 30px;
+}
+QScrollBar::handle:vertical:hover { background: #ff9ab8; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }
+QScrollBar:horizontal {
+    background: rgba(255, 220, 230, 0.2);
+    height: 8px; border-radius: 4px; margin: 0;
+}
+QScrollBar::handle:horizontal {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #ffb0c8, stop:1 #dda0d8);
+    border-radius: 4px; min-width: 30px;
+}
+QScrollBar::handle:horizontal:hover { background: #ff9ab8; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }
+"""
 
 
 class SettingsWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Yumetsuki - 设置中心")
+        self.setWindowTitle("  🌸  Yumetsuki 设置中心")
         self.setMinimumSize(950, 640)
         self.resize(1100, 720)
         self.setWindowIcon(_create_sakura_icon())
-        self.setStyleSheet("""
-            QMainWindow {
+        self.setStyleSheet(f"""
+            QMainWindow {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                    stop:0 rgba(255,245,248,240), stop:0.3 rgba(255,235,242,235),
-                    stop:0.7 rgba(250,228,240,230), stop:1 rgba(245,225,248,240));
-            }
+                    stop:0 #fff5f7, stop:0.3 #ffebf2,
+                    stop:0.7 #fae4f0, stop:1 #f5e1f8);
+            }}
+            {GLOBAL_SCROLLBAR}
         """)
 
         self._config = ConfigManager()
@@ -84,36 +117,9 @@ class SettingsWindow(QMainWindow):
         central = QWidget()
         central.setStyleSheet("background: transparent;")
         self.setCentralWidget(central)
-        root = QVBoxLayout(central)
+        root = QHBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
-
-        # Title bar with gradient
-        title_bar = QWidget()
-        title_bar.setFixedHeight(44)
-        title_bar.setStyleSheet("""
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                stop:0 #ffb6c8, stop:0.4 #f0a0c0, stop:0.7 #dda0d8, stop:1 #c8a0e8);
-            border-bottom: 1px solid rgba(200, 140, 170, 0.3);
-        """)
-        title_layout = QHBoxLayout(title_bar)
-        title_layout.setContentsMargins(16, 0, 16, 0)
-
-        title_icon = QLabel("🌸")
-        title_icon.setStyleSheet("font-size: 18px; background: transparent;")
-        title_layout.addWidget(title_icon)
-
-        title_text = QLabel("Yumetsuki 设置中心")
-        title_text.setStyleSheet("color: white; font-size: 14px; font-weight: bold; background: transparent;")
-        title_layout.addWidget(title_text)
-        title_layout.addStretch()
-
-        root.addWidget(title_bar)
-
-        # Body
-        body = QHBoxLayout()
-        body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(0)
 
         # Left nav
         nav = QWidget()
@@ -137,7 +143,7 @@ class SettingsWindow(QMainWindow):
             self._nav_buttons.append(btn)
 
         nav_layout.addStretch()
-        body.addWidget(nav)
+        root.addWidget(nav)
 
         # Right content
         right = QWidget()
@@ -191,14 +197,13 @@ class SettingsWindow(QMainWindow):
         bottom_layout.addWidget(save_btn)
 
         right_layout.addWidget(bottom)
-        body.addWidget(right, 1)
+        root.addWidget(right, 1)
 
-        root.addLayout(body, 1)
         self._switch_page(0)
 
     def showEvent(self, event):
         super().showEvent(event)
-        _enable_acrylic(int(self.winId()))
+        _set_title_bar_color(int(self.winId()))
 
     def _switch_page(self, index: int):
         self._stack.setCurrentIndex(index)
