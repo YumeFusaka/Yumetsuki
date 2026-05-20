@@ -21,6 +21,18 @@ class ASRConfig(BaseModel):
     model_path: str = ""
 
 
+class MCPServerConfig(BaseModel):
+    name: str = ""
+    transport: str = "stdio"
+    command: str = ""
+    url: str = ""
+    enabled: bool = True
+
+
+class MCPConfig(BaseModel):
+    servers: list[MCPServerConfig] = []
+
+
 class APIConfig(BaseModel):
     llm: LLMConfig = LLMConfig()
     tts: TTSConfig = TTSConfig()

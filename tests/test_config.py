@@ -1,5 +1,6 @@
 from pathlib import Path
 from config.manager import ConfigManager
+from config.schema import MCPServerConfig
 
 
 def test_load_default_config(tmp_path):
@@ -54,3 +55,40 @@ tts:
 
     mgr2 = ConfigManager(config_dir=tmp_path)
     assert mgr2.api.llm.model == "new-model"
+
+
+def test_load_and_save_mcp_config(tmp_path):
+    mcp_yaml = tmp_path / "mcp.yaml"
+    mcp_yaml.write_text("""
+servers:
+  - name: local-tools
+    transport: stdio
+    command: python server.py
+    url: ""
+    enabled: true
+""")
+
+    mgr = ConfigManager(config_dir=tmp_path)
+    assert len(mgr.mcp.servers) == 1
+    assert mgr.mcp.servers[0].name == "local-tools"
+    assert mgr.mcp.servers[0].transport == "stdio"
+
+    mgr.mcp.servers.append(MCPServerConfig(
+        name="remote-tools",
+        transport="sse",
+        url="http://127.0.0.1:8000/sse",
+    ))
+    mgr.save()
+
+    mgr2 = ConfigManager(config_dir=tmp_path)
+    assert [server.name for server in mgr2.mcp.servers] == ["local-tools", "remote-tools"]
+    assert mgr2.mcp.servers[1].url == "http://127.0.0.1:8000/sse"
+
+
+def test_save_mcp_does_not_create_api_config(tmp_path):
+    mgr = ConfigManager(config_dir=tmp_path)
+    mgr.mcp.servers.append(MCPServerConfig(name="tools", command="python server.py"))
+    mgr.save_mcp()
+
+    assert (tmp_path / "mcp.yaml").exists()
+    assert not (tmp_path / "api.yaml").exists()
