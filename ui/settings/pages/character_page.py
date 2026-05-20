@@ -2,7 +2,8 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QLabel, QGridLayout, QPushButton, QTextEdit, QTabWidget, QScrollArea,
-    QFileDialog, QMessageBox, QInputDialog,
+    QFileDialog, QMessageBox, QInputDialog, QTreeWidget, QTreeWidgetItem,
+    QDialog, QDialogButtonBox, QComboBox, QLineEdit, QFormLayout,
 )
 from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtCore import Qt, QSize, QThread, Signal
@@ -23,6 +24,21 @@ CARD_STYLE = """
     QListWidget::item:selected { background: rgba(255, 154, 162, 0.25); color: #9b3060; border: 1px solid #d4567a; }
     QListWidget::item:hover { background: rgba(255, 200, 210, 0.2); }
     QListWidget:focus { border-color: #d4567a; }
+"""
+
+TREE_STYLE = """
+    QTreeWidget {
+        background: rgba(255,255,255,0.5);
+        border: 1px solid rgba(220, 160, 180, 0.25);
+        border-radius: 8px; padding: 6px; color: #4a3040;
+        outline: none; font-size: 13px;
+    }
+    QTreeWidget::item { padding: 4px 6px; border-radius: 4px; color: #5a3050; }
+    QTreeWidget::item:selected { background: rgba(255, 154, 162, 0.25); color: #9b3060; }
+    QTreeWidget::item:hover { background: rgba(255, 200, 210, 0.15); }
+    QTreeWidget:focus { border-color: #d4567a; }
+    QTreeWidget::branch { background: transparent; }
+    QHeaderView::section { background: rgba(255,220,230,0.3); color: #6b4a5a; border: none; padding: 4px 8px; }
 """
 
 BTN_STYLE = """
@@ -50,6 +66,43 @@ TEXTEDIT_STYLE = """
     }
     QTextEdit:focus { border-color: #d4567a; }
 """
+
+DIALOG_STYLE = """
+    QDialog {
+        background: #fff5f7; color: #4a3040;
+    }
+    QLabel { color: #4a3040; font-size: 13px; }
+    QLineEdit, QComboBox {
+        background: rgba(255,255,255,0.8);
+        border: 1px solid rgba(220,160,180,0.3);
+        border-radius: 6px; padding: 6px 10px;
+        color: #4a3040; font-size: 13px;
+    }
+    QLineEdit:focus, QComboBox:focus { border-color: #d4567a; }
+    QPushButton {
+        background: rgba(255,200,210,0.4);
+        border: 1px solid rgba(220,160,180,0.3);
+        border-radius: 6px; padding: 6px 16px;
+        color: #6b4a5a; font-size: 13px;
+    }
+    QPushButton:hover { background: rgba(255,154,162,0.4); }
+    QComboBox::drop-down { border: none; }
+    QComboBox QAbstractItemView {
+        background: #fff5f7; color: #4a3040;
+        selection-background-color: rgba(255,154,162,0.3);
+    }
+"""
+
+# Standard character directory structure
+# 角色名/
+# ├── prompt.md        (核心提示词)
+# ├── soul.md          (灵魂设定)
+# ├── SKILL.md         (技能说明)
+# ├── sprites.yaml     (立绘配置)
+# ├── resource/        (补充资料目录)
+# │   └── *.md
+# └── sprites/         (立绘图片目录)
+#     └── *.png
 
 
 class YamlSyncWorker(QThread):
@@ -88,6 +141,40 @@ class YamlSyncWorker(QThread):
             self.finished.emit(result.strip())
         except Exception as e:
             self.finished.emit(f"# Error: {e}")
+
+
+class NewFileDialog(QDialog):
+    """Themed dialog for creating new files in the character directory."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("新建文件")
+        self.setStyleSheet(DIALOG_STYLE)
+        self.setMinimumWidth(350)
+
+        layout = QFormLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        self._location = QComboBox()
+        self._location.addItems(["根目录 (prompt/soul/SKILL)", "resource/ (补充资料)"])
+        layout.addRow("位置:", self._location)
+
+        self._name = QLineEdit()
+        self._name.setPlaceholderText("文件名，如 notes.md")
+        layout.addRow("文件名:", self._name)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def get_result(self):
+        name = self._name.text().strip()
+        if not name.endswith((".md", ".yaml")):
+            name += ".md"
+        if self._location.currentIndex() == 1:
+            return f"resource/{name}"
+        return name
 
 
 class CharacterPage(QWidget):
@@ -140,46 +227,47 @@ class CharacterPage(QWidget):
             QTabBar::tab:hover { color: #9b4d6a; }
         """)
 
-        # Tab 1: Skill files management
+        # Tab 1: Skill files with tree structure
         skill_tab = QWidget()
         skill_layout = QVBoxLayout(skill_tab)
         skill_layout.setContentsMargins(0, 12, 0, 0)
         skill_layout.setSpacing(8)
 
-        self._char_name = QLabel()
-        self._char_name.setStyleSheet("font-size: 16px; font-weight: bold; color: #7a3a5a;")
-        skill_layout.addWidget(self._char_name)
+        self._char_name_lbl = QLabel()
+        self._char_name_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #7a3a5a;")
+        skill_layout.addWidget(self._char_name_lbl)
 
-        self._char_info = QLabel()
-        self._char_info.setStyleSheet("color: #6b4a5a; font-size: 12px;")
-        skill_layout.addWidget(self._char_info)
+        # Directory structure info
+        self._struct_info = QLabel(
+            "📁 标准结构: prompt.md · soul.md · SKILL.md · sprites.yaml · resource/*.md · sprites/*.png"
+        )
+        self._struct_info.setStyleSheet("color: #8c6b7a; font-size: 11px; padding: 2px 0;")
+        self._struct_info.setWordWrap(True)
+        skill_layout.addWidget(self._struct_info)
 
-        # File list + editor side by side
+        # File tree + editor
         file_area = QHBoxLayout()
         file_area.setSpacing(10)
 
-        # File list
+        # File tree
         file_left = QVBoxLayout()
         file_left.setSpacing(6)
-        self._file_list = QListWidget()
-        self._file_list.setFixedWidth(160)
-        self._file_list.setStyleSheet(CARD_STYLE)
-        self._file_list.currentRowChanged.connect(self._on_file_select)
-        file_left.addWidget(self._file_list, 1)
+        self._file_tree = QTreeWidget()
+        self._file_tree.setFixedWidth(200)
+        self._file_tree.setHeaderLabels(["文件结构"])
+        self._file_tree.setStyleSheet(TREE_STYLE)
+        self._file_tree.currentItemChanged.connect(self._on_tree_select)
+        file_left.addWidget(self._file_tree, 1)
 
         file_btn_row = QHBoxLayout()
         file_btn_row.setSpacing(4)
-        add_file_btn = QPushButton("+")
-        add_file_btn.setFixedWidth(40)
+        add_file_btn = QPushButton("+ 新建")
         add_file_btn.setStyleSheet(BTN_STYLE)
-        add_file_btn.setToolTip("新建文件")
         add_file_btn.clicked.connect(self._add_file)
         file_btn_row.addWidget(add_file_btn)
 
-        del_file_btn = QPushButton("−")
-        del_file_btn.setFixedWidth(40)
+        del_file_btn = QPushButton("− 删除")
         del_file_btn.setStyleSheet(BTN_DANGER)
-        del_file_btn.setToolTip("删除文件")
         del_file_btn.clicked.connect(self._del_file)
         file_btn_row.addWidget(del_file_btn)
         file_btn_row.addStretch()
@@ -190,6 +278,10 @@ class CharacterPage(QWidget):
         # Editor
         editor_col = QVBoxLayout()
         editor_col.setSpacing(6)
+        self._current_file_label = QLabel("未选择文件")
+        self._current_file_label.setStyleSheet("color: #8c6b7a; font-size: 12px;")
+        editor_col.addWidget(self._current_file_label)
+
         self._file_edit = QTextEdit()
         self._file_edit.setStyleSheet(TEXTEDIT_STYLE)
         editor_col.addWidget(self._file_edit, 1)
@@ -233,7 +325,7 @@ class CharacterPage(QWidget):
         scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         self._sprite_container = QWidget()
         self._sprite_grid = QGridLayout(self._sprite_container)
-        self._sprite_grid.setSpacing(10)
+        self._sprite_grid.setSpacing(8)
         scroll.setWidget(self._sprite_container)
         sprite_layout.addWidget(scroll, 1)
 
@@ -243,7 +335,7 @@ class CharacterPage(QWidget):
         layout.addLayout(content, 1)
 
         self._char_dirs: list[Path] = []
-        self._file_paths: list[Path] = []
+        self._current_file_path: Path | None = None
         self._refresh()
 
     def _refresh(self):
@@ -252,92 +344,117 @@ class CharacterPage(QWidget):
         if not self._dir.is_dir():
             return
         for d in sorted(self._dir.iterdir()):
-            if d.is_dir() and ((d / "prompt.md").exists() or (d / "SKILL.md").exists()):
-                self._char_dirs.append(d)
+            if d.is_dir() and (d / "prompt.md").exists():
                 item = QListWidgetItem(d.name)
-                sprites_dir = d / "sprites"
-                if sprites_dir.is_dir():
-                    for img in sprites_dir.glob("*.png"):
-                        icon = QIcon(QPixmap(str(img)).scaled(36, 36, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-                        item.setIcon(icon)
-                        break
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._list.addItem(item)
+                self._char_dirs.append(d)
 
     def _on_select(self, row: int):
         if row < 0 or row >= len(self._char_dirs):
             return
         char_dir = self._char_dirs[row]
-        char = load_character(char_dir)
-        self._char_name.setText(char.name)
-        self._char_info.setText(f"情绪: {len(char.emotions)} 个  |  资源: {len(char.resources)} 个")
-        self._load_files(char_dir)
+        self._char_name_lbl.setText(char_dir.name)
+        self._load_file_tree(char_dir)
         self._load_sprites(char_dir)
 
-    def _load_files(self, char_dir: Path):
-        self._file_list.clear()
-        self._file_paths.clear()
-        # Collect all .md and .yaml files
-        for f in sorted(char_dir.glob("*.md")):
-            self._file_paths.append(f)
-            self._file_list.addItem(f.name)
-        for f in sorted(char_dir.glob("*.yaml")):
-            self._file_paths.append(f)
-            self._file_list.addItem(f.name)
-        res_dir = char_dir / "resource"
-        if res_dir.is_dir():
-            for f in sorted(res_dir.glob("*.md")):
-                self._file_paths.append(f)
-                self._file_list.addItem(f"resource/{f.name}")
+    def _load_file_tree(self, char_dir: Path):
+        self._file_tree.clear()
+        self._current_file_path = None
+        self._file_edit.clear()
+        self._current_file_label.setText("未选择文件")
 
-    def _on_file_select(self, row: int):
-        if row < 0 or row >= len(self._file_paths):
-            self._file_edit.clear()
+        # Root files
+        root_files = ["prompt.md", "soul.md", "SKILL.md", "sprites.yaml"]
+        for fname in root_files:
+            fpath = char_dir / fname
+            item = QTreeWidgetItem([fname])
+            item.setData(0, Qt.ItemDataRole.UserRole, str(fpath))
+            if fpath.exists():
+                item.setIcon(0, QIcon())
+            else:
+                item.setText(0, f"{fname} (不存在)")
+            self._file_tree.addTopLevelItem(item)
+
+        # resource/ folder
+        resource_dir = char_dir / "resource"
+        resource_node = QTreeWidgetItem(["📁 resource/"])
+        resource_node.setData(0, Qt.ItemDataRole.UserRole, None)
+        if resource_dir.is_dir():
+            for f in sorted(resource_dir.glob("*.md")):
+                child = QTreeWidgetItem([f.name])
+                child.setData(0, Qt.ItemDataRole.UserRole, str(f))
+                resource_node.addChild(child)
+        self._file_tree.addTopLevelItem(resource_node)
+        resource_node.setExpanded(True)
+
+        # sprites/ folder (read-only info)
+        sprites_dir = char_dir / "sprites"
+        sprites_node = QTreeWidgetItem([f"📁 sprites/ ({len(list(sprites_dir.glob('*.png'))) if sprites_dir.is_dir() else 0} 张)"])
+        sprites_node.setData(0, Qt.ItemDataRole.UserRole, None)
+        self._file_tree.addTopLevelItem(sprites_node)
+
+    def _on_tree_select(self, current, previous):
+        if not current:
             return
-        path = self._file_paths[row]
+        path_str = current.data(0, Qt.ItemDataRole.UserRole)
+        if not path_str:
+            self._current_file_path = None
+            self._file_edit.clear()
+            self._current_file_label.setText("(目录节点)")
+            return
+        path = Path(path_str)
+        self._current_file_path = path
+        self._current_file_label.setText(str(path.name))
         if path.exists():
             self._file_edit.setPlainText(path.read_text(encoding="utf-8"))
         else:
-            self._file_edit.clear()
+            self._file_edit.setPlainText("")
 
     def _save_file(self):
-        row = self._file_list.currentRow()
-        if row < 0 or row >= len(self._file_paths):
+        if not self._current_file_path:
             return
-        path = self._file_paths[row]
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(self._file_edit.toPlainText(), encoding="utf-8")
+        self._current_file_path.parent.mkdir(parents=True, exist_ok=True)
+        self._current_file_path.write_text(self._file_edit.toPlainText(), encoding="utf-8")
+        # Refresh tree to update "(不存在)" labels
+        row = self._list.currentRow()
+        if row >= 0:
+            self._load_file_tree(self._char_dirs[row])
 
     def _add_file(self):
         char_row = self._list.currentRow()
         if char_row < 0:
             return
-        name, ok = QInputDialog.getText(self, "新建文件", "文件名（如 notes.md）:")
-        if not ok or not name.strip():
+        dlg = NewFileDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
-        name = name.strip()
-        if not name.endswith((".md", ".yaml")):
-            name += ".md"
+        rel_path = dlg.get_result()
         char_dir = self._char_dirs[char_row]
-        new_path = char_dir / name
+        new_path = char_dir / rel_path
         new_path.parent.mkdir(parents=True, exist_ok=True)
         new_path.write_text("", encoding="utf-8")
-        self._load_files(char_dir)
+        self._load_file_tree(char_dir)
 
     def _del_file(self):
-        row = self._file_list.currentRow()
-        if row < 0 or row >= len(self._file_paths):
+        if not self._current_file_path or not self._current_file_path.exists():
             return
-        path = self._file_paths[row]
-        ret = QMessageBox.question(self, "确认删除", f"确定删除 {path.name}？")
-        if ret != QMessageBox.StandardButton.Yes:
+        # Don't allow deleting core files
+        name = self._current_file_path.name
+        dlg = QMessageBox(self)
+        dlg.setStyleSheet(DIALOG_STYLE)
+        dlg.setWindowTitle("确认删除")
+        dlg.setText(f"确定删除 {name}？")
+        dlg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if dlg.exec() != QMessageBox.StandardButton.Yes:
             return
-        path.unlink(missing_ok=True)
+        self._current_file_path.unlink(missing_ok=True)
+        self._current_file_path = None
+        self._file_edit.clear()
         char_row = self._list.currentRow()
         if char_row >= 0:
-            self._load_files(self._char_dirs[char_row])
+            self._load_file_tree(self._char_dirs[char_row])
 
     def _load_sprites(self, char_dir: Path):
-        # Clear grid
         while self._sprite_grid.count():
             w = self._sprite_grid.takeAt(0).widget()
             if w:
@@ -380,11 +497,14 @@ class CharacterPage(QWidget):
         self._sprite_count.setText(f"共 {count} 张立绘")
 
     def _del_sprite(self, img_path: Path, char_dir: Path):
-        ret = QMessageBox.question(self, "删除立绘", f"确定删除 {img_path.name}？")
-        if ret != QMessageBox.StandardButton.Yes:
+        dlg = QMessageBox(self)
+        dlg.setStyleSheet(DIALOG_STYLE)
+        dlg.setWindowTitle("删除立绘")
+        dlg.setText(f"确定删除 {img_path.name}？")
+        dlg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if dlg.exec() != QMessageBox.StandardButton.Yes:
             return
         img_path.unlink(missing_ok=True)
-        # Remove from sprites.yaml
         yaml_path = char_dir / "sprites.yaml"
         if yaml_path.exists():
             data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
@@ -423,14 +543,17 @@ class CharacterPage(QWidget):
 
     def _on_yaml_synced(self, result: str, char_dir: Path):
         if not result or result.startswith("# Error"):
-            QMessageBox.warning(self, "同步失败", result or "无立绘文件")
+            dlg = QMessageBox(self)
+            dlg.setStyleSheet(DIALOG_STYLE)
+            dlg.setWindowTitle("同步失败")
+            dlg.setText(result or "无立绘文件")
+            dlg.exec()
             return
         yaml_path = char_dir / "sprites.yaml"
         yaml_path.write_text(result, encoding="utf-8")
         self._sprite_count.setText("✅ sprites.yaml 已同步")
         self._load_sprites(char_dir)
-        # Refresh file list too
-        self._load_files(char_dir)
+        self._load_file_tree(char_dir)
 
     def _import_skill(self):
         folder = QFileDialog.getExistingDirectory(self, "选择角色文件夹")
@@ -440,8 +563,12 @@ class CharacterPage(QWidget):
         name = src.name
         dest = self._dir / name
         if dest.exists():
-            ret = QMessageBox.question(self, "确认", f"角色 '{name}' 已存在，是否覆盖？")
-            if ret != QMessageBox.StandardButton.Yes:
+            dlg = QMessageBox(self)
+            dlg.setStyleSheet(DIALOG_STYLE)
+            dlg.setWindowTitle("确认")
+            dlg.setText(f"角色 '{name}' 已存在，是否覆盖？")
+            dlg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if dlg.exec() != QMessageBox.StandardButton.Yes:
                 return
             shutil.rmtree(dest)
         shutil.copytree(src, dest)

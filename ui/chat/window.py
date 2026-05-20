@@ -103,7 +103,7 @@ class ChatWindow(QMainWindow):
         dialog_layout.setSpacing(8)
 
         # Character name
-        self._name_label = QLabel()
+        self._name_label = QLabel("...")
         self._name_label.setStyleSheet("""
             color: #9b4d6a; font-size: 15px; font-weight: bold;
             background: transparent;
@@ -185,8 +185,8 @@ class ChatWindow(QMainWindow):
         self._dialog_box.setText(text)
 
         self._worker = LLMWorker(self._llm, text)
-        self._worker.chunk_received.connect(self._on_chunk)
-        self._worker.finished_signal.connect(self._on_llm_done)
+        self._worker.chunk_received.connect(self._on_chunk, Qt.ConnectionType.QueuedConnection)
+        self._worker.finished_signal.connect(self._on_llm_done, Qt.ConnectionType.QueuedConnection)
         self._worker.start()
 
     def _on_chunk(self, result: ProcessedText):

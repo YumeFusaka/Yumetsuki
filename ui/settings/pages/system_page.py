@@ -16,15 +16,32 @@ QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
     border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
 }
-QSpinBox::up-button, QSpinBox::down-button {
-    background: rgba(255, 200, 210, 0.4);
-    border: none; border-radius: 3px; width: 18px;
+QSpinBox::up-button {
+    subcontrol-origin: border; subcontrol-position: top right;
+    background: rgba(255, 200, 210, 0.5);
+    border: none; border-radius: 3px;
+    width: 20px; height: 12px; margin: 2px 2px 0 0;
 }
-QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-    background: rgba(255, 154, 162, 0.5);
+QSpinBox::up-button:hover { background: rgba(255, 154, 162, 0.6); }
+QSpinBox::up-arrow {
+    width: 0; height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #9b3060;
 }
-QSpinBox::up-arrow { image: none; border: none; }
-QSpinBox::down-arrow { image: none; border: none; }
+QSpinBox::down-button {
+    subcontrol-origin: border; subcontrol-position: bottom right;
+    background: rgba(255, 200, 210, 0.5);
+    border: none; border-radius: 3px;
+    width: 20px; height: 12px; margin: 0 2px 2px 0;
+}
+QSpinBox::down-button:hover { background: rgba(255, 154, 162, 0.6); }
+QSpinBox::down-arrow {
+    width: 0; height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #9b3060;
+}
 QComboBox::drop-down { border: none; padding-right: 8px; }
 QComboBox QAbstractItemView {
     background: #fff5f7; border: 1px solid rgba(220, 160, 180, 0.3);

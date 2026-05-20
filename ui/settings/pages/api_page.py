@@ -19,15 +19,32 @@ QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
     border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
 }
-QSpinBox::up-button, QSpinBox::down-button {
-    background: rgba(255, 200, 210, 0.4);
-    border: none; border-radius: 3px; width: 18px;
+QSpinBox::up-button {
+    subcontrol-origin: border; subcontrol-position: top right;
+    background: rgba(255, 200, 210, 0.5);
+    border: none; border-radius: 3px;
+    width: 20px; height: 12px; margin: 2px 2px 0 0;
 }
-QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-    background: rgba(255, 154, 162, 0.5);
+QSpinBox::up-button:hover { background: rgba(255, 154, 162, 0.6); }
+QSpinBox::up-arrow {
+    width: 0; height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #9b3060;
 }
-QSpinBox::up-arrow { image: none; border: none; }
-QSpinBox::down-arrow { image: none; border: none; }
+QSpinBox::down-button {
+    subcontrol-origin: border; subcontrol-position: bottom right;
+    background: rgba(255, 200, 210, 0.5);
+    border: none; border-radius: 3px;
+    width: 20px; height: 12px; margin: 0 2px 2px 0;
+}
+QSpinBox::down-button:hover { background: rgba(255, 154, 162, 0.6); }
+QSpinBox::down-arrow {
+    width: 0; height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #9b3060;
+}
 QComboBox::drop-down { border: none; padding-right: 8px; }
 QComboBox QAbstractItemView {
     background: #fff5f7; border: 1px solid rgba(220, 160, 180, 0.3);
@@ -104,7 +121,8 @@ class APIPage(QWidget):
         self._temp_spin = QSpinBox()
         self._temp_spin.setRange(0, 200)
         self._temp_spin.setValue(int(config.llm.temperature * 100))
-        self._temp_spin.setFixedWidth(60)
+        self._temp_spin.setMinimumWidth(70)
+        self._temp_spin.setMaximumWidth(90)
         self._temp_spin.setSuffix("%")
         self._temp_slider.valueChanged.connect(self._temp_spin.setValue)
         self._temp_spin.valueChanged.connect(self._temp_slider.setValue)
@@ -120,7 +138,8 @@ class APIPage(QWidget):
         self._tok_spin = QSpinBox()
         self._tok_spin.setRange(256, 32768)
         self._tok_spin.setValue(config.llm.max_tokens)
-        self._tok_spin.setFixedWidth(80)
+        self._tok_spin.setMinimumWidth(80)
+        self._tok_spin.setMaximumWidth(100)
         self._tok_slider.valueChanged.connect(self._tok_spin.setValue)
         self._tok_spin.valueChanged.connect(self._tok_slider.setValue)
         tok_row.addWidget(self._tok_slider)
