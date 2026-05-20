@@ -16,9 +16,15 @@ class TTSConfig(BaseModel):
     api_url: str = "http://127.0.0.1:9880"
 
 
+class ASRConfig(BaseModel):
+    engine: str = "none"
+    model_path: str = ""
+
+
 class APIConfig(BaseModel):
     llm: LLMConfig = LLMConfig()
     tts: TTSConfig = TTSConfig()
+    asr: ASRConfig = ASRConfig()
 
 
 class SystemConfig(BaseModel):
@@ -26,3 +32,4 @@ class SystemConfig(BaseModel):
     theme: str = "dark"
     font_family: str = "Microsoft YaHei"
     font_size: int = 14
+    proxy: str = ""
