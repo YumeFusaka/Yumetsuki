@@ -1,73 +1,178 @@
 emotions:
-  - name: 平静
-    sprite: 平静.png
-    aliases: [normal, default, neutral, calm, 普通]
-  - name: 温柔
-    sprite: 温柔.png
-    aliases: [gentle, warm, soft, happy, smile, 微笑, 开心]
-  - name: 超开心
-    sprite: 超开心.png
-    aliases: [very_happy, excited, joy, laugh, 大笑, 兴奋, 高兴]
-  - name: 得意
-    sprite: 得意.png
-    aliases: [proud, smug, 自豪, 骄傲]
-  - name: 惬意
-    sprite: 惬意.png
-    aliases: [relaxed, comfortable, content, 舒适, 满足]
-  - name: 惊讶
-    sprite: 惊讶.png
-    aliases: [surprised, shock_mild, 吃惊]
-  - name: 震惊
-    sprite: 震惊.png
-    aliases: [shocked, astonished, 大吃一惊]
-  - name: 突然脸红
-    sprite: 突然脸红.png
-    aliases: [blush, shy, embarrassed, 害羞, 脸红]
-  - name: 慌张
-    sprite: 慌张.png
-    aliases: [flustered, panic, nervous, 紧张, 慌]
-  - name: 手足无措
-    sprite: 手足无措.png
-    aliases: [helpless, confused_panic, 不知所措]
-  - name: 哭
-    sprite: 哭.png
-    aliases: [cry, sad, tears, 伤心, 流泪]
-  - name: 大哭
-    sprite: 大哭.png
-    aliases: [crying, sobbing, wail, 大哭泣, 嚎啕]
-  - name: 委屈
-    sprite: 委屈.png
-    aliases: [wronged, aggrieved, 受委屈]
-  - name: 失落
-    sprite: 失落.png
-    aliases: [disappointed, lost, down, 失望]
-  - name: 低落
-    sprite: 低落.png
-    aliases: [depressed, low, gloomy, 沮丧, 消沉]
-  - name: 低眉
-    sprite: 低眉.png
-    aliases: [downcast, meek, 低头]
-  - name: 打击
-    sprite: 打击.png
-    aliases: [devastated, hit, 受打击, 崩溃]
-  - name: 无语
-    sprite: 无语.png
-    aliases: [speechless, deadpan, 无言]
-  - name: 呆住
-    sprite: 呆住.png
-    aliases: [stunned, frozen, dazed, 发呆]
-  - name: 茫然
-    sprite: 茫然.png
-    aliases: [blank, lost_thought, 空白]
-  - name: 迷茫
-    sprite: 迷茫.png
-    aliases: [confused, puzzled, uncertain, 困惑]
-  - name: 嫌弃
-    sprite: 嫌弃.png
-    aliases: [disgusted, dislike, 嫌弃, 讨厌]
-  - name: 鄙夷
-    sprite: 鄙夷.png
-    aliases: [contempt, scorn, disdain, 蔑视]
-  - name: 强硬
-    sprite: 强硬.png
-    aliases: [firm, tough, determined, angry, 坚定, 生气, 愤怒]
+- aliases:
+  - normal
+  - default
+  - neutral
+  - calm
+  - 普通
+  name: 平静
+  sprite: 平静.png
+- aliases:
+  - gentle
+  - warm
+  - soft
+  - happy
+  - smile
+  - 微笑
+  - 开心
+  name: 温柔
+  sprite: 温柔.png
+- aliases:
+  - very_happy
+  - excited
+  - joy
+  - laugh
+  - 大笑
+  - 兴奋
+  - 高兴
+  name: 超开心
+  sprite: 超开心.png
+- aliases:
+  - proud
+  - smug
+  - 自豪
+  - 骄傲
+  name: 得意
+  sprite: 得意.png
+- aliases:
+  - relaxed
+  - comfortable
+  - content
+  - 舒适
+  - 满足
+  name: 惬意
+  sprite: 惬意.png
+- aliases:
+  - surprised
+  - shock_mild
+  - 吃惊
+  name: 惊讶
+  sprite: 惊讶.png
+- aliases:
+  - shocked
+  - astonished
+  - 大吃一惊
+  name: 震惊
+  sprite: 震惊.png
+- aliases:
+  - blush
+  - shy
+  - embarrassed
+  - 害羞
+  - 脸红
+  name: 突然脸红
+  sprite: 突然脸红.png
+- aliases:
+  - flustered
+  - panic
+  - nervous
+  - 紧张
+  - 慌
+  name: 慌张
+  sprite: 慌张.png
+- aliases:
+  - helpless
+  - confused_panic
+  - 不知所措
+  name: 手足无措
+  sprite: 手足无措.png
+- aliases:
+  - cry
+  - sad
+  - tears
+  - 伤心
+  - 流泪
+  name: 哭
+  sprite: 哭.png
+- aliases:
+  - crying
+  - sobbing
+  - wail
+  - 大哭泣
+  - 嚎啕
+  name: 大哭
+  sprite: 大哭.png
+- aliases:
+  - wronged
+  - aggrieved
+  - 受委屈
+  name: 委屈
+  sprite: 委屈.png
+- aliases:
+  - disappointed
+  - lost
+  - down
+  - 失望
+  name: 失落
+  sprite: 失落.png
+- aliases:
+  - depressed
+  - low
+  - gloomy
+  - 沮丧
+  - 消沉
+  name: 低落
+  sprite: 低落.png
+- aliases:
+  - downcast
+  - meek
+  - 低头
+  name: 低眉
+  sprite: 低眉.png
+- aliases:
+  - devastated
+  - hit
+  - 受打击
+  - 崩溃
+  name: 打击
+  sprite: 打击.png
+- aliases:
+  - speechless
+  - deadpan
+  - 无言
+  name: 无语
+  sprite: 无语.png
+- aliases:
+  - stunned
+  - frozen
+  - dazed
+  - 发呆
+  name: 呆住
+  sprite: 呆住.png
+- aliases:
+  - blank
+  - lost_thought
+  - 空白
+  name: 茫然
+  sprite: 茫然.png
+- aliases:
+  - confused
+  - puzzled
+  - uncertain
+  - 困惑
+  name: 迷茫
+  sprite: 迷茫.png
+- aliases:
+  - disgusted
+  - dislike
+  - 嫌弃
+  - 讨厌
+  name: 嫌弃
+  sprite: 嫌弃.png
+- aliases:
+  - contempt
+  - scorn
+  - disdain
+  - 蔑视
+  name: 鄙夷
+  sprite: 鄙夷.png
+- aliases:
+  - firm
+  - tough
+  - determined
+  - angry
+  - 坚定
+  - 生气
+  - 愤怒
+  name: 强硬
+  sprite: 强硬.png
