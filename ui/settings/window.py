@@ -11,6 +11,8 @@ from ui.settings.pages.character_page import CharacterPage
 from ui.settings.pages.plugin_page import PluginPage
 from ui.settings.pages.system_page import SystemPage
 from ui.chat.window import ChatWindow
+from core.mcp_host import MCPHost
+from core.plugin_host import PluginHost
 
 try:
     from ctypes import windll, c_int, byref, sizeof, Structure, POINTER
@@ -265,5 +267,15 @@ class SettingsWindow(QMainWindow):
                 if d.is_dir() and (d / "prompt.md").exists():
                     char_dir = d
                     break
-        self._chat_window = ChatWindow(self._config.api.llm, character_dir=char_dir)
+        plugins_dir = Path(__file__).parent.parent.parent / "plugins"
+        plugin_host = PluginHost(plugins_dir)
+        plugin_host.load()
+        mcp_host = MCPHost(self._config.mcp.servers)
+        mcp_host.connect_all()
+        self._chat_window = ChatWindow(
+            self._config.api.llm,
+            character_dir=char_dir,
+            plugin_host=plugin_host,
+            mcp_host=mcp_host,
+        )
         self._chat_window.show()

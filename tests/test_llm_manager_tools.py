@@ -1,6 +1,7 @@
 from typing import Generator
 
 from core.plugin_host import PluginHost
+from core.mcp_host import MCPHost, MCPTool
 from llm.adapter import LLMAdapter, LLMStreamChunk, ToolCall
 from llm.manager import LLMManager
 from sdk.base import BasePlugin, tool
@@ -55,3 +56,50 @@ def test_llm_manager_executes_plugin_tool_calls():
         "content": "5",
     }
     assert manager.get_history()[-1]["content"] == "[emotion:开心]结果是 5"
+
+
+class FakeMCPHost:
+    def tool_specs(self) -> list[dict]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "notes__search",
+                    "description": "Search notes",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"query": {"type": "string"}},
+                        "required": ["query"],
+                    },
+                },
+            }
+        ]
+
+    def call_tool(self, name: str, arguments: dict) -> str:
+        return f"{name}:{arguments['query']}"
+
+
+class FakeMCPAdapter(LLMAdapter):
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def stream_chat(self, messages: list[dict], tools: list[dict] | None = None):
+        self.calls.append({"messages": messages, "tools": tools})
+        if len(self.calls) == 1:
+            yield LLMStreamChunk(tool_calls=[
+                ToolCall(id="call_mcp", name="notes__search", arguments='{"query": "memo"}')
+            ])
+        else:
+            yield "查到了 memo"
+
+
+def test_llm_manager_executes_mcp_tool_calls():
+    adapter = FakeMCPAdapter()
+    manager = LLMManager(LLMConfig(api_key="test"), mcp_host=FakeMCPHost())
+    manager._adapter = adapter
+
+    results = list(manager.chat_stream("查 memo"))
+
+    assert results[-1].clean_text == "查到了 memo"
+    assert adapter.calls[0]["tools"][0]["function"]["name"] == "notes__search"
+    assert adapter.calls[1]["messages"][-1]["content"] == "notes__search:memo"

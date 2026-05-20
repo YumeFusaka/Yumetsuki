@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 
 from config.manager import ConfigManager
 from config.schema import MCPServerConfig
+from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
 
 
@@ -89,6 +90,7 @@ class PluginPage(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._config = ConfigManager()
+        self._mcp_host = MCPHost(self._config.mcp.servers)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(16)
@@ -135,8 +137,10 @@ class PluginPage(QWidget):
     def _refresh_plugins(self) -> None:
         self._list.clear()
         self._host.load()
+        self._mcp_host = MCPHost(self._config.mcp.servers)
+        self._mcp_host.connect_all()
 
-        if not self._host.plugins and not self._host.errors and not self._config.mcp.servers:
+        if not self._host.plugins and not self._host.errors and not self._mcp_host.statuses:
             self._list.addItem("（暂无已配置的插件）")
             return
 
@@ -148,10 +152,10 @@ class PluginPage(QWidget):
         for error in self._host.errors:
             self._list.addItem(f"加载失败：{error.plugin} — {error.message}")
 
-        for server in self._config.mcp.servers:
-            status = "启用" if server.enabled else "停用"
-            target = server.url if server.transport == "sse" else server.command
-            self._list.addItem(f"MCP：{server.name} [{server.transport}] {target}（{status}）")
+        for status in self._mcp_host.statuses:
+            state = "已连接" if status.connected else "未连接"
+            extra = f" / {status.tools_count} 个工具" if status.connected else ""
+            self._list.addItem(f"MCP：{status.server} [{status.transport}] {state}{extra} — {status.message}")
 
     def _add_mcp_server(self) -> None:
         dlg = MCPServerDialog(self)

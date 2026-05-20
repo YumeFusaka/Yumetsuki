@@ -7,6 +7,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize
 from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush
 from ui.chat.sprite import SpriteManager
+from core.mcp_host import MCPHost
+from core.plugin_host import PluginHost
 from llm.manager import LLMManager
 from llm.text_processor import ProcessedText
 from config.schema import LLMConfig
@@ -72,7 +74,13 @@ class ChatWindow(QWidget):
     CHARACTER_NAME_COLOR = "#9b3060"
     USER_NAME_COLOR = "#5f6fb2"
 
-    def __init__(self, config: LLMConfig, character_dir: Path | None = None):
+    def __init__(
+        self,
+        config: LLMConfig,
+        character_dir: Path | None = None,
+        plugin_host: PluginHost | None = None,
+        mcp_host: MCPHost | None = None,
+    ):
         super().__init__()
         self._scale = 1.0
         self._drag_pos: QPoint | None = None
@@ -91,7 +99,7 @@ class ChatWindow(QWidget):
         self._setup_ui()
 
         # LLM
-        self._llm = LLMManager(config)
+        self._llm = LLMManager(config, plugin_host=plugin_host, mcp_host=mcp_host)
         self._worker = None
         self._char_name = ""
         self._sprite_mgr = SpriteManager(self._sprite_label, character_dir)

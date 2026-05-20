@@ -1,6 +1,7 @@
 from typing import Generator
 import json
 
+from core.mcp_host import MCPHost
 from config.schema import LLMConfig
 from core.plugin_host import PluginHost
 from llm.adapter import LLMAdapter, LLMStreamChunk, ToolCall
@@ -9,13 +10,20 @@ from llm.text_processor import TextProcessor, ProcessedText
 
 
 class LLMManager:
-    def __init__(self, config: LLMConfig, character_prompt: str = "", plugin_host: PluginHost | None = None):
+    def __init__(
+        self,
+        config: LLMConfig,
+        character_prompt: str = "",
+        plugin_host: PluginHost | None = None,
+        mcp_host: MCPHost | None = None,
+    ):
         self._config = config
         self._adapter: LLMAdapter = self._create_adapter(config)
         self._processor = TextProcessor()
         self._character_prompt = character_prompt
         self._history: list[dict] = []
         self._plugin_host = plugin_host
+        self._mcp_host = mcp_host
 
     def _create_adapter(self, config: LLMConfig) -> LLMAdapter:
         if config.provider == "openai_compat":
@@ -39,7 +47,12 @@ class LLMManager:
         self._history.append({"role": "user", "content": user_input})
 
         full_response = ""
-        tools = self._plugin_host.tool_specs() if self._plugin_host else None
+        tools = []
+        if self._plugin_host:
+            tools.extend(self._plugin_host.tool_specs())
+        if self._mcp_host:
+            tools.extend(self._mcp_host.tool_specs())
+        tools = tools or None
         for _ in range(3):
             tool_calls: list[ToolCall] = []
             for chunk in self._adapter.stream_chat(messages, tools=tools):
@@ -89,7 +102,7 @@ class LLMManager:
     def _execute_tool_call(self, call: ToolCall) -> dict:
         try:
             arguments = json.loads(call.arguments or "{}")
-            result = self._plugin_host.call_tool(call.name, arguments) if self._plugin_host else ""
+            result = self._dispatch_tool(call.name, arguments)
             content = str(result)
         except Exception as exc:
             content = f"Tool error: {exc}"
@@ -99,3 +112,13 @@ class LLMManager:
             "name": call.name,
             "content": content,
         }
+
+    def _dispatch_tool(self, name: str, arguments: dict) -> object:
+        if self._plugin_host:
+            try:
+                return self._plugin_host.call_tool(name, arguments)
+            except ValueError:
+                pass
+        if self._mcp_host:
+            return self._mcp_host.call_tool(name, arguments)
+        return ""
