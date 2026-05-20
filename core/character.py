@@ -64,4 +64,16 @@ def build_system_prompt(char: Character) -> str:
         parts.append(char.soul)
     for key, content in char.resources.items():
         parts.append(content)
+    if char.emotions:
+        emotion_names = [e.name for e in char.emotions]
+        parts.append(
+            "## 情绪标签规则\n\n"
+            "每次回复时，必须在回复开头插入一个情绪标签来表达当前情绪状态。\n"
+            "格式：`[emotion:情绪名]`，紧跟回复内容，不要换行。\n\n"
+            f"可用情绪：{', '.join(emotion_names)}\n\n"
+            "示例：`[emotion:温柔]你好呀，今天过得怎么样？`\n"
+            "示例：`[emotion:超开心]呀呀呀！太棒了！`\n"
+            "示例：`[emotion:突然脸红]那、那个...人家才没有...`\n\n"
+            "根据回复内容的情感自然选择最匹配的情绪，每条回复只用一个标签。"
+        )
     return "\n\n---\n\n".join(parts)
