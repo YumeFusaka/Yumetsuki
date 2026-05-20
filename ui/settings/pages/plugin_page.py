@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QListWidget, QHBoxLayout, QPushButton
+
+from core.plugin_host import PluginHost
 
 
 class PluginPage(QWidget):
@@ -29,7 +33,8 @@ class PluginPage(QWidget):
             QListWidget::item:hover { background: rgba(255, 200, 210, 0.2); }
             QListWidget:focus { border-color: #d4567a; }
         """)
-        self._list.addItem("（暂无已配置的插件）")
+        self._host = PluginHost(Path(__file__).parent.parent.parent.parent / "plugins")
+        self._refresh_plugins()
         layout.addWidget(self._list, 1)
 
         btn_row = QHBoxLayout()
@@ -44,3 +49,19 @@ class PluginPage(QWidget):
         btn_row.addWidget(add_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
+
+    def _refresh_plugins(self) -> None:
+        self._list.clear()
+        self._host.load()
+
+        if not self._host.plugins and not self._host.errors:
+            self._list.addItem("（暂无已配置的插件）")
+            return
+
+        for plugin in self._host.plugins:
+            tools_count = len(plugin.tools())
+            desc = f" — {plugin.description}" if plugin.description else ""
+            self._list.addItem(f"已加载：{plugin.name}{desc}（{tools_count} 个工具）")
+
+        for error in self._host.errors:
+            self._list.addItem(f"加载失败：{error.plugin} — {error.message}")

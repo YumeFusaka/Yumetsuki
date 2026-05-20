@@ -67,13 +67,12 @@ data/characters/     → 角色包目录
 
 - 聊天窗 LLM 输出正常但需确认用户端网络连通性
 - TTS 适配器就绪但需 GPT-SoVITS 服务端运行
-- 插件系统未实现（下一阶段）
+- 插件系统：已实现基础 SDK / 宿主 / 设置页展示，下一步接 LLM 工具调用
 - Agent 层未实现（第三阶段）
 
 ## 下一步工作
 
-1. 插件系统：`sdk/base.py` @tool 装饰器 + `core/plugin_host.py` 热加载
-2. LLM 工具调用：function calling 协议
-3. MCP 接入：`data/config/mcp.yaml`
+1. LLM 工具调用：function calling 协议
+2. MCP 接入：`data/config/mcp.yaml`
 
 详细架构和进度见 `docs/README.md`。
