@@ -10,6 +10,7 @@ from ui.settings.pages.api_page import APIPage
 from ui.settings.pages.character_page import CharacterPage
 from ui.settings.pages.plugin_page import PluginPage
 from ui.settings.pages.system_page import SystemPage
+from ui.chat.window import ChatWindow
 
 try:
     from ctypes import windll, c_int, byref, sizeof, Structure, POINTER
@@ -177,6 +178,23 @@ class SettingsWindow(QMainWindow):
         """)
         bottom_layout = QHBoxLayout(bottom)
         bottom_layout.setContentsMargins(20, 0, 20, 0)
+
+        launch_btn = QPushButton("🚀 启动对话")
+        launch_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #66bb6a, stop:1 #43a047);
+                border: none; border-radius: 8px;
+                padding: 10px 28px; color: white;
+                font-size: 14px; font-weight: bold;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #81c784, stop:1 #66bb6a);
+            }
+        """)
+        launch_btn.clicked.connect(self._launch_chat)
+        bottom_layout.addWidget(launch_btn)
         bottom_layout.addStretch()
 
         save_btn = QPushButton("保存配置")
@@ -214,3 +232,16 @@ class SettingsWindow(QMainWindow):
         self._api_page.apply()
         self._system_page.apply()
         self._config.save()
+
+    def _launch_chat(self):
+        self._save()
+        # Find first character
+        characters_dir = Path(__file__).parent.parent.parent / "data" / "characters"
+        char_dir = None
+        if characters_dir.is_dir():
+            for d in characters_dir.iterdir():
+                if d.is_dir() and (d / "prompt.md").exists():
+                    char_dir = d
+                    break
+        self._chat_window = ChatWindow(self._config.api.llm, character_dir=char_dir)
+        self._chat_window.show()
