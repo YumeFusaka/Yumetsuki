@@ -2,37 +2,38 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QLabel, QGridLayout, QPushButton, QTextEdit, QTabWidget, QScrollArea,
-    QFileDialog, QMessageBox,
+    QFileDialog,
 )
 from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtCore import Qt, QSize
 from core.character import load_character
+import shutil
 
 CARD_STYLE = """
     QListWidget {
-        background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 8px; padding: 8px; color: #e8e8ed;
+        background: rgba(255,255,255,0.5);
+        border: 1px solid rgba(220, 160, 180, 0.25);
+        border-radius: 8px; padding: 8px; color: #4a3040;
     }
     QListWidget::item { padding: 10px 8px; border-radius: 6px; }
-    QListWidget::item:selected { background: rgba(102, 126, 234, 0.2); }
-    QListWidget::item:hover { background: rgba(255,255,255,0.04); }
+    QListWidget::item:selected { background: rgba(255, 154, 162, 0.25); }
+    QListWidget::item:hover { background: rgba(255, 200, 210, 0.2); }
 """
 
 BTN_STYLE = """
     QPushButton {
-        background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 6px; padding: 8px 16px; color: #e8e8ed; font-size: 13px;
+        background: rgba(255,255,255,0.5); border: 1px solid rgba(220, 160, 180, 0.3);
+        border-radius: 6px; padding: 8px 16px; color: #6b4a5a; font-size: 13px;
     }
-    QPushButton:hover { background: rgba(255,255,255,0.1); }
+    QPushButton:hover { background: rgba(255, 200, 210, 0.4); }
 """
 
 TEXTEDIT_STYLE = """
     QTextEdit {
-        background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.08);
+        background: rgba(255,255,255,0.6);
+        border: 1px solid rgba(220, 160, 180, 0.25);
         border-radius: 6px; padding: 12px;
-        color: #e8e8ed; font-size: 13px; font-family: 'Consolas', 'Microsoft YaHei';
+        color: #4a3040; font-size: 13px; font-family: 'Consolas', 'Microsoft YaHei';
     }
 """
 
@@ -47,7 +48,7 @@ class CharacterPage(QWidget):
         layout.setSpacing(16)
 
         title = QLabel("角色管理")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #e8e8ed;")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7a3a5a;")
         layout.addWidget(title)
 
         content = QHBoxLayout()
@@ -74,11 +75,11 @@ class CharacterPage(QWidget):
         self._tabs.setStyleSheet("""
             QTabWidget::pane { border: none; background: transparent; }
             QTabBar::tab {
-                background: rgba(255,255,255,0.04); color: #a0a0b0;
+                background: rgba(255,255,255,0.3); color: #8c6b7a;
                 padding: 8px 18px; border: none; border-bottom: 2px solid transparent;
             }
-            QTabBar::tab:selected { color: #e8e8ed; border-bottom-color: #667eea; }
-            QTabBar::tab:hover { color: #e8e8ed; }
+            QTabBar::tab:selected { color: #d4567a; border-bottom-color: #e88aaa; }
+            QTabBar::tab:hover { color: #9b4d6a; }
         """)
 
         # Tab 1: Skill/Prompt
@@ -88,15 +89,15 @@ class CharacterPage(QWidget):
         skill_layout.setSpacing(8)
 
         self._char_name = QLabel()
-        self._char_name.setStyleSheet("font-size: 16px; font-weight: bold; color: #e8e8ed;")
+        self._char_name.setStyleSheet("font-size: 16px; font-weight: bold; color: #7a3a5a;")
         skill_layout.addWidget(self._char_name)
 
         self._char_info = QLabel()
-        self._char_info.setStyleSheet("color: #a0a0b0; font-size: 12px;")
+        self._char_info.setStyleSheet("color: #8c6b7a; font-size: 12px;")
         skill_layout.addWidget(self._char_info)
 
         prompt_label = QLabel("Prompt")
-        prompt_label.setStyleSheet("color: #a0a0b0; font-size: 12px; margin-top: 8px;")
+        prompt_label.setStyleSheet("color: #8c6b7a; font-size: 12px; margin-top: 8px;")
         skill_layout.addWidget(prompt_label)
 
         self._prompt_edit = QTextEdit()
@@ -105,7 +106,7 @@ class CharacterPage(QWidget):
         skill_layout.addWidget(self._prompt_edit)
 
         soul_label = QLabel("Soul")
-        soul_label.setStyleSheet("color: #a0a0b0; font-size: 12px;")
+        soul_label.setStyleSheet("color: #8c6b7a; font-size: 12px;")
         skill_layout.addWidget(soul_label)
 
         self._soul_edit = QTextEdit()
@@ -127,7 +128,7 @@ class CharacterPage(QWidget):
 
         sprite_header = QHBoxLayout()
         self._sprite_count = QLabel()
-        self._sprite_count.setStyleSheet("color: #a0a0b0; font-size: 12px;")
+        self._sprite_count.setStyleSheet("color: #8c6b7a; font-size: 12px;")
         sprite_header.addWidget(self._sprite_count)
         sprite_header.addStretch()
 
@@ -176,17 +177,10 @@ class CharacterPage(QWidget):
             return
         char_dir = self._char_dirs[row]
         char = load_character(char_dir)
-
         self._char_name.setText(char.name)
         self._char_info.setText(f"情绪: {len(char.emotions)} 个  |  资源: {len(char.resources)} 个")
-
-        # Load prompt/soul text
-        prompt_path = char_dir / "prompt.md"
-        self._prompt_edit.setPlainText(prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else "")
-        soul_path = char_dir / "soul.md"
-        self._soul_edit.setPlainText(soul_path.read_text(encoding="utf-8") if soul_path.exists() else "")
-
-        # Load sprites
+        self._prompt_edit.setPlainText(char.prompt)
+        self._soul_edit.setPlainText(char.soul)
         self._load_sprites(char_dir)
 
     def _load_sprites(self, char_dir: Path):
@@ -196,37 +190,41 @@ class CharacterPage(QWidget):
                 w.deleteLater()
 
         sprites_dir = char_dir / "sprites"
-        sprites = sorted(sprites_dir.glob("*.png")) if sprites_dir.is_dir() else []
-        self._sprite_count.setText(f"共 {len(sprites)} 张立绘")
+        count = 0
+        if sprites_dir.is_dir():
+            imgs = sorted(sprites_dir.glob("*.png"))
+            count = len(imgs)
+            for i, img in enumerate(imgs[:24]):
+                cell = QVBoxLayout()
+                lbl = QLabel()
+                px = QPixmap(str(img)).scaled(60, 75, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                lbl.setPixmap(px)
+                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                lbl.setStyleSheet("background: rgba(255,255,255,0.4); border-radius: 4px; padding: 4px;")
 
-        for i, img in enumerate(sprites):
-            cell = QVBoxLayout()
-            lbl = QLabel()
-            px = QPixmap(str(img)).scaled(72, 96, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            lbl.setPixmap(px)
-            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl.setStyleSheet("background: rgba(255,255,255,0.03); border-radius: 6px; padding: 6px;")
+                name_lbl = QLabel(img.stem)
+                name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                name_lbl.setStyleSheet("color: #6b4a5a; font-size: 10px;")
 
-            name_lbl = QLabel(img.stem)
-            name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            name_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px;")
+                container = QWidget()
+                cl = QVBoxLayout(container)
+                cl.setContentsMargins(2, 2, 2, 2)
+                cl.setSpacing(2)
+                cl.addWidget(lbl)
+                cl.addWidget(name_lbl)
+                self._sprite_grid.addWidget(container, i // 6, i % 6)
 
-            container = QWidget()
-            cl = QVBoxLayout(container)
-            cl.setContentsMargins(0, 0, 0, 0)
-            cl.setSpacing(4)
-            cl.addWidget(lbl)
-            cl.addWidget(name_lbl)
-
-            self._sprite_grid.addWidget(container, i // 5, i % 5)
+        self._sprite_count.setText(f"共 {count} 张立绘")
 
     def _save_skill(self):
         row = self._list.currentRow()
         if row < 0:
             return
         char_dir = self._char_dirs[row]
-        (char_dir / "prompt.md").write_text(self._prompt_edit.toPlainText(), encoding="utf-8")
-        (char_dir / "soul.md").write_text(self._soul_edit.toPlainText(), encoding="utf-8")
+        prompt_path = char_dir / "prompt.md"
+        prompt_path.write_text(self._prompt_edit.toPlainText(), encoding="utf-8")
+        soul_path = char_dir / "soul.md"
+        soul_path.write_text(self._soul_edit.toPlainText(), encoding="utf-8")
 
     def _add_sprites(self):
         row = self._list.currentRow()
@@ -235,12 +233,11 @@ class CharacterPage(QWidget):
         char_dir = self._char_dirs[row]
         sprites_dir = char_dir / "sprites"
         sprites_dir.mkdir(exist_ok=True)
-
         files, _ = QFileDialog.getOpenFileNames(self, "选择立绘图片", "", "Images (*.png *.jpg *.webp)")
+        for f in files:
+            src = Path(f)
+            shutil.copy2(src, sprites_dir / src.name)
         if files:
-            import shutil
-            for f in files:
-                shutil.copy2(f, sprites_dir / Path(f).name)
             self._load_sprites(char_dir)
 
     def _open_folder(self):

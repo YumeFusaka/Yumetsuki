@@ -6,17 +6,27 @@ from config.schema import SystemConfig
 
 FORM_STYLE = """
 QLineEdit, QComboBox, QSpinBox {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 6px; padding: 8px 12px;
-    color: #e8e8ed; font-size: 13px;
+    color: #4a3040; font-size: 13px;
+    min-height: 20px; min-width: 280px;
 }
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border-color: #667eea; }
-QLabel { color: #a0a0b0; font-size: 13px; }
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+    border-color: #e88aaa;
+    background: rgba(255, 255, 255, 0.85);
+}
+QComboBox::drop-down { border: none; padding-right: 8px; }
+QComboBox QAbstractItemView {
+    background: #fff5f7; border: 1px solid rgba(220, 160, 180, 0.3);
+    color: #4a3040; selection-background-color: rgba(255, 154, 162, 0.3);
+}
+QLabel { color: #6b4a5a; font-size: 13px; }
 QGroupBox {
-    color: #e8e8ed; font-size: 15px; font-weight: bold;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 8px; margin-top: 12px; padding: 20px 16px 12px 16px;
+    color: #7a4060; font-size: 15px; font-weight: bold;
+    border: 1px solid rgba(220, 160, 180, 0.2);
+    border-radius: 10px; margin-top: 12px; padding: 20px 16px 12px 16px;
+    background: rgba(255, 255, 255, 0.35);
 }
 QGroupBox::title { subcontrol-origin: margin; left: 16px; padding: 0 6px; }
 """
@@ -33,7 +43,7 @@ class SystemPage(QWidget):
         layout.setSpacing(16)
 
         title = QLabel("系统设置")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #e8e8ed;")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7a3a5a;")
         layout.addWidget(title)
 
         # Appearance
@@ -47,7 +57,7 @@ class SystemPage(QWidget):
         app_form.addRow("语言:", self._language)
 
         self._theme = QComboBox()
-        self._theme.addItems(["dark", "light"])
+        self._theme.addItems(["sakura", "dark"])
         self._theme.setCurrentText(config.theme)
         app_form.addRow("主题:", self._theme)
 
