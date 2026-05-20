@@ -13,9 +13,18 @@ QLineEdit, QComboBox, QSpinBox {
     min-height: 20px; min-width: 280px;
 }
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
-    border-color: #e88aaa;
+    border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
 }
+QSpinBox::up-button, QSpinBox::down-button {
+    background: rgba(255, 200, 210, 0.4);
+    border: none; border-radius: 3px; width: 18px;
+}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+    background: rgba(255, 154, 162, 0.5);
+}
+QSpinBox::up-arrow { image: none; border: none; }
+QSpinBox::down-arrow { image: none; border: none; }
 QComboBox::drop-down { border: none; padding-right: 8px; }
 QComboBox QAbstractItemView {
     background: #fff5f7; border: 1px solid rgba(220, 160, 180, 0.3);
@@ -57,8 +66,8 @@ class SystemPage(QWidget):
         app_form.addRow("语言:", self._language)
 
         self._theme = QComboBox()
-        self._theme.addItems(["sakura", "dark"])
-        self._theme.setCurrentText(config.theme)
+        self._theme.addItems(["sakura"])
+        self._theme.setCurrentText("sakura")
         app_form.addRow("主题:", self._theme)
 
         self._font = QLineEdit(config.font_family)

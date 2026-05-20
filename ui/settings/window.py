@@ -110,6 +110,28 @@ class SettingsWindow(QMainWindow):
                     stop:0 #fff5f7, stop:0.3 #ffebf2,
                     stop:0.7 #fae4f0, stop:1 #f5e1f8);
             }}
+            QDialog, QInputDialog, QMessageBox {{
+                background: #fff5f7; color: #4a3040;
+            }}
+            QDialog QLabel, QMessageBox QLabel {{
+                color: #4a3040; font-size: 13px;
+            }}
+            QDialog QLineEdit {{
+                background: rgba(255,255,255,0.8);
+                border: 1px solid rgba(220,160,180,0.3);
+                border-radius: 6px; padding: 6px 10px;
+                color: #4a3040;
+            }}
+            QDialog QLineEdit:focus {{ border-color: #d4567a; }}
+            QDialog QPushButton {{
+                background: rgba(255,200,210,0.4);
+                border: 1px solid rgba(220,160,180,0.3);
+                border-radius: 6px; padding: 6px 16px;
+                color: #6b4a5a; font-size: 13px;
+            }}
+            QDialog QPushButton:hover {{ background: rgba(255,154,162,0.4); }}
+            * {{ outline: none; }}
+            *:focus {{ border-color: #d4567a; }}
             {GLOBAL_SCROLLBAR}
         """)
 

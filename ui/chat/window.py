@@ -180,7 +180,9 @@ class ChatWindow(QMainWindow):
         if not text or self._worker is not None:
             return
         self._input.clear()
-        self._dialog_box.setText("...")
+        # Show user message first
+        self._name_label.setText("我")
+        self._dialog_box.setText(text)
 
         self._worker = LLMWorker(self._llm, text)
         self._worker.chunk_received.connect(self._on_chunk)
@@ -188,6 +190,9 @@ class ChatWindow(QMainWindow):
         self._worker.start()
 
     def _on_chunk(self, result: ProcessedText):
+        # Switch to character name on first chunk
+        if self._name_label.text() == "我" and self._char_name:
+            self._name_label.setText(self._char_name)
         self._dialog_box.setText(result.clean_text)
         if result.emotion:
             self._sprite_mgr.set_emotion(result.emotion)

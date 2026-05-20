@@ -1,12 +1,12 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit,
-    QComboBox, QLabel, QGroupBox, QScrollArea, QSlider, QHBoxLayout,
+    QComboBox, QLabel, QGroupBox, QScrollArea, QSlider, QHBoxLayout, QSpinBox,
 )
 from PySide6.QtCore import Qt
 from config.schema import APIConfig
 
 FORM_STYLE = """
-QLineEdit, QComboBox {
+QLineEdit, QComboBox, QSpinBox {
     background: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 6px;
@@ -15,10 +15,19 @@ QLineEdit, QComboBox {
     font-size: 13px;
     min-height: 18px;
 }
-QLineEdit:focus, QComboBox:focus {
-    border-color: #e88aaa;
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+    border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
 }
+QSpinBox::up-button, QSpinBox::down-button {
+    background: rgba(255, 200, 210, 0.4);
+    border: none; border-radius: 3px; width: 18px;
+}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+    background: rgba(255, 154, 162, 0.5);
+}
+QSpinBox::up-arrow { image: none; border: none; }
+QSpinBox::down-arrow { image: none; border: none; }
 QComboBox::drop-down { border: none; padding-right: 8px; }
 QComboBox QAbstractItemView {
     background: #fff5f7; border: 1px solid rgba(220, 160, 180, 0.3);
@@ -87,28 +96,35 @@ class APIPage(QWidget):
         self._base_url = QLineEdit(config.llm.base_url)
         llm_form.addRow("Base URL:", self._base_url)
 
-        # Temperature slider
+        # Temperature: slider + spinbox
         temp_row = QHBoxLayout()
         self._temp_slider = QSlider(Qt.Orientation.Horizontal)
         self._temp_slider.setRange(0, 200)
         self._temp_slider.setValue(int(config.llm.temperature * 100))
-        self._temp_label = QLabel(f"{config.llm.temperature:.1f}")
-        self._temp_label.setFixedWidth(30)
-        self._temp_slider.valueChanged.connect(lambda v: self._temp_label.setText(f"{v/100:.1f}"))
+        self._temp_spin = QSpinBox()
+        self._temp_spin.setRange(0, 200)
+        self._temp_spin.setValue(int(config.llm.temperature * 100))
+        self._temp_spin.setFixedWidth(60)
+        self._temp_spin.setSuffix("%")
+        self._temp_slider.valueChanged.connect(self._temp_spin.setValue)
+        self._temp_spin.valueChanged.connect(self._temp_slider.setValue)
         temp_row.addWidget(self._temp_slider)
-        temp_row.addWidget(self._temp_label)
+        temp_row.addWidget(self._temp_spin)
         llm_form.addRow("Temperature:", temp_row)
 
-        # Max tokens slider
+        # Max tokens: slider + spinbox
         tok_row = QHBoxLayout()
         self._tok_slider = QSlider(Qt.Orientation.Horizontal)
         self._tok_slider.setRange(256, 32768)
         self._tok_slider.setValue(config.llm.max_tokens)
-        self._tok_label = QLabel(str(config.llm.max_tokens))
-        self._tok_label.setFixedWidth(45)
-        self._tok_slider.valueChanged.connect(lambda v: self._tok_label.setText(str(v)))
+        self._tok_spin = QSpinBox()
+        self._tok_spin.setRange(256, 32768)
+        self._tok_spin.setValue(config.llm.max_tokens)
+        self._tok_spin.setFixedWidth(80)
+        self._tok_slider.valueChanged.connect(self._tok_spin.setValue)
+        self._tok_spin.valueChanged.connect(self._tok_slider.setValue)
         tok_row.addWidget(self._tok_slider)
-        tok_row.addWidget(self._tok_label)
+        tok_row.addWidget(self._tok_spin)
         llm_form.addRow("Max Tokens:", tok_row)
 
         layout.addWidget(llm_group)

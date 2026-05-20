@@ -22,10 +22,12 @@ class PluginPage(QWidget):
                 background: rgba(255,255,255,0.5);
                 border: 1px solid rgba(220, 160, 180, 0.25);
                 border-radius: 8px; padding: 8px; color: #4a3040;
+                outline: none;
             }
             QListWidget::item { padding: 10px 12px; border-radius: 6px; color: #5a3050; }
-            QListWidget::item:selected { background: rgba(255, 154, 162, 0.25); color: #9b3060; }
+            QListWidget::item:selected { background: rgba(255, 154, 162, 0.25); color: #9b3060; border: 1px solid #d4567a; }
             QListWidget::item:hover { background: rgba(255, 200, 210, 0.2); }
+            QListWidget:focus { border-color: #d4567a; }
         """)
         self._list.addItem("（暂无已配置的插件）")
         layout.addWidget(self._list, 1)
