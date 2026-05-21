@@ -62,6 +62,7 @@ yumetsuki/
   - `api.yaml`
   - `system_config.yaml`
   - `mcp.yaml`
+  - `memory.yaml`
 
 ### `llm/`
 
@@ -146,18 +147,50 @@ yumetsuki/
 
 ## 当前边界
 
-第二阶段完成后，项目已经具备：
+第三阶段进行中，项目已经具备：
 
 - 插件 SDK
 - 插件宿主
 - OpenAI-compatible tool calling
 - MCP stdio / HTTP(SSE) transport
 - 统一工具目录
+- 本地记忆系统（Mem0 OSS + Chroma + huggingface 本地向量模型）
+- 异步记忆加载（后台线程，不阻塞 UI）
 
-第三阶段将新增：
+Agent 层待完成：
 
 - `agent/planner.py`
 - `agent/executor.py`
 - `agent/reflector.py`
 
 Agent 层仍计划维持自定义实现，不引入大型外部框架。
+
+## 记忆系统
+
+### `memory/`
+
+负责对话记忆存储与检索。
+
+- `memory/mem0_store.py`
+  Mem0MemoryStore 封装 + build_local_mem0_store 本地构造器
+  依赖 Mem0 OSS + Chroma 向量数据库
+  向量模型使用 huggingface 本地 SentenceTransformer
+
+### 记忆配置
+
+- `data/config/memory.yaml`
+  配置字段：
+  - `enabled`：是否启用本地记忆
+  - `storage_dir`：本地持久化根目录（chroma + history.db）
+  - `embedding_model_path`：本地向量模型路径（可以是 data/models/ 下的模型，也可以是外部路径）
+  - `top_k`：每次检索返回的最大记忆条数
+
+### 记忆流程
+
+```text
+启动聊天 → 聊天窗口立即显示（无等待）
+       → 后台线程加载向量模型
+       → 模型就绪后注入 AgentManager
+用户输入 → AgentManager 检索相关记忆 → 注入 extra_context → LLM 生成回复
+回复完成 → 记忆写入 Mem0/Chroma
+```

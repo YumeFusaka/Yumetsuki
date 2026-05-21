@@ -22,11 +22,16 @@
   MCP 实际配置
 - `data/config/mcp.example.yaml`
   MCP 示例模板
+- `data/config/memory.yaml`
+  记忆配置
+  含本地模型路径，不应提交
 
 ## Git 约定
 
 - 不提交真实 API key
 - 不提交个人本地配置变更，除非明确需要
+- 不提交 `data/models/`（向量模型目录）
+- 不提交 `data/memory/`（运行时向量数据库）
 - 提交信息沿用：
   - `feat: ...`
   - `fix: ...`
@@ -60,11 +65,14 @@
 - 操作即时生效
 - 成功 / 失败要有反馈
 
-## 第三阶段入口
+## 第三阶段进度
 
-第二阶段已完成，接下来从第三阶段开始：
+已完成：
+1. 本地记忆系统（Mem0 OSS + Chroma + 本地向量模型）
+2. 记忆设置页 UI
+3. 记忆异步加载
 
+待完成：
 1. `agent/planner.py`
 2. `agent/executor.py`
 3. `agent/reflector.py`
-4. 记忆系统接入
