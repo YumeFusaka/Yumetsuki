@@ -1,79 +1,41 @@
-# CLAUDE.md — AI 开发者上下文
+# CLAUDE.md — 协作上下文
 
-## 项目概述
+## 作用
 
-Yumetsuki 是一个 Python 桌宠 AI 伴侣。以无边框透明窗口显示角色立绘，毛玻璃面板承载对话，LLM 驱动角色对白，情绪标签联动立绘切换。
+本文件只保留给 AI / 协作者的最小工作上下文。
+详细内容不要继续堆在这里，统一查看 `docs/` 下的专题文档。
 
-## 环境
+## 项目一句话
 
-- Python: `E:/Tool/Miniconda/envs/ai/python.exe`
-- 依赖: `pip install -r requirements.txt`（PySide6, openai, pydantic, pyyaml, requests）
-- 运行: `python main.py` → 设置中心 → 点「🚀 启动对话」打开桌宠
-- 测试: `python -m pytest tests/ -q`
-- Git 推送需代理: `export https_proxy=http://127.0.0.1:7890`
+Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，当前第二阶段已完成，下一步进入第三阶段 Agent 层。
 
-## 架构要点
+## 运行环境
 
-```
-main.py              → 设置中心入口（app-level 全局样式在此设置）
-ui/chat/window.py    → 桌宠聊天窗（QWidget, 无边框透明, 毛玻璃面板）
-ui/chat/sprite.py    → 立绘管理（加载/缩放/情绪切换）
-ui/settings/         → 设置中心（樱花粉白主题）
-llm/                 → LLM 对话（OpenAI 兼容协议, 流式输出）
-llm/text_processor.py → 提取 [emotion:xxx] 标签
-core/character.py    → 角色加载器
-config/              → Pydantic schema + YAML 读写
-data/config/         → api.yaml（含 API key，勿提交）, mcp.yaml, system_config.yaml
-plugins/             → 本地插件目录（plugin.py 入口）
-data/characters/     → 角色包目录
-```
+- Python:
+  `E:/Tool/Miniconda/envs/ai/python.exe`
+- 运行：
+  `python main.py`
+- 测试：
+  `python -m pytest tests/ -q`
 
-## 角色目录规范
+## 关键约束
 
-```
-角色名/
-├── prompt.md        # 核心提示词
-├── soul.md          # 灵魂设定
-├── SKILL.md         # 技能说明
-├── sprites.yaml     # 立绘情绪配置
-├── resource/        # 补充资料 (*.md)
-└── sprites/         # 立绘图片 (*.png)
-```
+- 不提交真实 API key
+- `data/config/api.yaml` 默认视为本地敏感配置
+- 优先沿用现有 UI 风格和提交信息格式
+- 当前不引入 LangChain / LangGraph，继续走自定义架构
 
-## 聊天窗（桌宠模式）
+## 当前阶段
 
-- 无边框 + 全透明背景 (`FramelessWindowHint` + `WA_TranslucentBackground`)
-- 默认置顶，右键菜单可切换
-- 左键拖拽移动，滚轮缩放 (0.5x~2.0x)
-- 底部 38% 区域为 GlassPanel（自绘半透明圆角矩形）
-- 面板内：角色名 + 对话文本 + 输入框 + 🎤 + ➤
+- 第二阶段：已完成
+- 第三阶段：待开始
+  首个落点：
+  `agent/planner.py`
 
-## UI 风格约定
+## 文档入口
 
-- 主题色：粉白樱花渐变（#fff5f7 → #ffebf2 → #fae4f0）
-- 强调色：#d4567a（玫瑰红）, #9b3060（深粉）
-- 文字色：#4a3040（正文）, #6b4a5a（次要）
-- 所有子窗口/对话框必须继承主题色（app-level stylesheet 在 main.py）
-- SpinBox 数值加减用玫瑰红 `+` / `-` 按钮，右侧同列上下排列，不用图标或三角箭头
-- 选中状态：`border: 1px solid #d4567a`，不用黑色 outline
-
-## 代码风格
-
-- 类型注解（Python 3.10+ 语法：`X | None`）
-- 信号跨线程用 `Qt.ConnectionType.QueuedConnection`
-- 配置用 Pydantic BaseModel，存储用 YAML
-- 测试用 pytest，mock 外部依赖
-
-## 已知问题 / TODO
-
-- 聊天窗 LLM 输出正常但需确认用户端网络连通性
-- TTS 适配器就绪但需 GPT-SoVITS 服务端运行
-- 插件系统：已实现 SDK / 宿主 / 工具目录 / 设置页导入与管理
-- Agent 层未实现（第三阶段）
-
-## 下一步工作
-
-1. Agent 层：任务规划 + 执行器 + 反思
-2. MCP 工具实测与兼容性完善
-
-详细架构和进度见 `docs/README.md`。
+- [文档入口](./docs/README.md)
+- [代码架构](./docs/architecture.md)
+- [UI 规范](./docs/ui-guidelines.md)
+- [插件与 MCP](./docs/plugin-mcp.md)
+- [开发流程](./docs/development.md)

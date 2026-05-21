@@ -1,175 +1,57 @@
-# Yumetsuki 项目总览
+# Yumetsuki 文档入口
 
-> 最后更新：2026-05-20
+> 最后更新：2026-05-21
 
-## 项目简介
+## 项目定位
 
-Yumetsuki（梦月）是一个 Python 桌面 AI 伴侣项目，以 **桌宠** 形态运行——无边框透明窗口、角色立绘直接显示在桌面上，通过 LLM 驱动角色对话，情绪标签联动立绘切换，支持语音合成/识别，最终目标是具备自主任务执行能力的智能 Agent。
+Yumetsuki（梦月）是一个 Python 桌宠 AI 伴侣项目，当前已经完成第二阶段：插件系统、LLM 工具调用、MCP 接入与统一工具目录。
 
-**技术栈：** Python 3.10 · PySide6 · OpenAI 兼容协议 · PyYAML · Pydantic
+## 文档结构
 
-**本地环境：** `E:\Tool\Miniconda\envs\ai`
+### 入口文档
 
----
+- `docs/README.md`
+  作为文档导航入口
 
-## 总体架构
+### 协作文档
 
-```
-yumetsuki/
-├── main.py                     # 入口 → 设置中心
-├── core/
-│   ├── event_bus.py            # 发布/订阅事件总线
-│   ├── character.py            # 角色加载器
-│   ├── plugin_host.py          # 本地插件宿主
-│   ├── mcp_host.py             # MCP 宿主与 transport
-│   └── tool_registry.py        # 统一工具目录
-├── config/
-│   ├── schema.py               # Pydantic 配置模型
-│   └── manager.py              # YAML 读写
-├── llm/
-│   ├── adapter.py              # LLM 适配器基类
-│   ├── adapters/openai_compat.py
-│   ├── manager.py              # 对话管理（流式+历史）
-│   └── text_processor.py       # 情绪标签提取
-├── tts/
-│   ├── adapter.py              # TTS 适配器基类
-│   └── adapters/gptsovits.py
-├── ui/
-│   ├── chat/
-│   │   ├── window.py           # 桌宠聊天窗（无边框透明）
-│   │   ├── sprite.py           # 立绘管理与缩放
-│   │   └── web_view.py         # WebEngine 聊天视图（备用）
-│   └── settings/
-│       ├── window.py           # 设置中心主窗口
-│       └── pages/              # API / 角色 / 插件 / 系统
-├── data/
-│   ├── config/                 # api.yaml, mcp.yaml, mcp.example.yaml, system_config.yaml
-│   └── characters/             # 角色包（prompt/soul/resource/sprites）
-├── plugins/                    # 本地插件目录（示例插件见 example_echo）
-└── tests/                      # 32 个单元测试
-```
+- `CLAUDE.md`
+  面向 AI / 协作者的最小工作上下文
 
-### 核心流程
+### 专题文档
 
-```
-用户输入 → LLM 流式生成 → TextProcessor 提取 [emotion:xxx]
-                                    ↓
-                        立绘切换 ← 情绪匹配
-                        TTS 播放 ← 台词文本（可选）
-                        对话框   ← 显示文本
-```
-
-### 角色目录规范
-
-```
-角色名/
-├── prompt.md           # 核心提示词
-├── soul.md             # 灵魂设定
-├── SKILL.md            # 技能说明
-├── sprites.yaml        # 立绘情绪配置
-├── resource/           # 补充资料
-│   └── *.md
-└── sprites/            # 立绘图片
-    └── *.png
-```
-
----
+- [代码架构](./architecture.md)
+  模块结构、主流程、工具系统边界
+- [UI 规范](./ui-guidelines.md)
+  主题、控件、反馈、交互约定
+- [插件与 MCP](./plugin-mcp.md)
+  插件 SDK、宿主、MCP 配置与 transport
+- [开发流程](./development.md)
+  环境、配置、测试、保存语义、Git 约定
 
 ## 当前进度
 
-| 模块 | 状态 | 说明 |
-|------|------|------|
-| 项目骨架 + 配置系统 | ✅ 完成 | Pydantic schema + YAML 读写 |
-| 事件总线 | ✅ 完成 | 轻量 pub/sub |
-| LLM 对话（OpenAI 兼容） | ✅ 完成 | 流式输出 + 历史管理 |
-| 情绪标签解析 | ✅ 完成 | `[emotion:xxx]` 正则提取 |
-| 角色加载器 | ✅ 完成 | 读取完整目录结构 |
-| 立绘管理 + 情绪切换 | ✅ 完成 | 支持缩放 |
-| 桌宠聊天窗 | ✅ 完成 | 无边框透明 + 毛玻璃面板 + 拖拽 + 滚轮缩放 + 右键菜单 |
-| 设置中心 | ✅ 完成 | 樱花主题，4页（API/角色/插件/系统） |
-| 角色管理 | ✅ 完成 | 目录树结构 + 增删改查 + AI同步YAML |
-| TTS 适配器 | ✅ 就绪 | GPT-SoVITS 适配器，需服务端 |
-| 插件系统 | ✅ 完成 | 插件 SDK + 宿主 + 导入/删除 + 设置页展示 |
-| Agent 层 | 🔲 未开始 | 任务规划 + 执行器 + 反思 |
-| 记忆系统 | 🔲 未开始 | mem0 长期记忆 |
-| MCP 接入 | ✅ 完成 | 配置读写 + stdio / HTTP(SSE) transport + 启停/删除 + LLM工具入口 |
-| ASR 语音识别 | 🔲 未开始 | Vosk/Whisper |
+- 第二阶段：已完成
+- 第三阶段：未开始
+  目标：
+  `agent/planner.py`
+  `agent/executor.py`
+  `agent/reflector.py`
+  记忆系统
 
----
+## 快速开始
 
-## 下一阶段计划
+- 安装依赖：
+  `pip install -r requirements.txt`
+- 启动：
+  `python main.py`
+- 测试：
+  `python -m pytest tests/ -q`
 
-### 第二阶段：插件系统 + 工具调用
+## 推荐阅读顺序
 
-1. ✅ **插件 SDK** — `sdk/base.py` 提供 `@tool` 装饰器，插件继承基类注册工具
-2. ✅ **插件宿主** — `core/plugin_host.py` 热加载 `plugins/` 目录下的插件
-3. ✅ **LLM 工具调用** — 复用 OpenAI function calling 协议，工具列表动态注入
-4. ✅ **MCP 接入** — `data/config/mcp.yaml` 配置外部 MCP Server，stdio 与 HTTP(SSE) transport 已接入
-
-### 第二阶段收尾
-
-- 本地插件：设置页支持导入、刷新、删除
-- MCP 服务器：设置页支持添加、启停、删除
-- 工具目录：`ToolRegistry` 统一聚合插件与 MCP 工具
-- 示例文件：
-  `plugins/example_echo/plugin.py`
-  `data/config/mcp.example.yaml`
-
-### 插件示例
-
-本地插件目录结构：
-
-```text
-plugins/
-└── example_echo/
-    ├── plugin.py
-    └── README.md
-```
-
-`plugin.py` 中定义 `Plugin` 类并继承 `BasePlugin`，用 `@tool` 标记可暴露给 LLM 的工具。
-
-### MCP 配置示例
-
-`data/config/mcp.example.yaml` 提供了 `stdio` 和 `sse` 两种配置模板：
-
-```yaml
-servers:
-  - name: notes-local
-    transport: stdio
-    command: python path/to/mcp_server.py
-    url: ""
-    enabled: true
-  - name: web-tools
-    transport: sse
-    command: ""
-    url: http://127.0.0.1:8000/mcp
-    enabled: false
-```
-
-### 第三阶段：Agent 自主执行
-
-1. **任务规划器** — `agent/planner.py` 分解复杂任务
-2. **执行器** — Shell / GUI / 浏览器自动化
-3. **反思与重试** — `agent/reflector.py` 失败后自动调整策略
-4. **记忆** — mem0 语义记忆 + 任务经验存储
-
----
-
-## 最终目标
-
-一个以角色演出为核心交互形式的桌面智能 Agent：
-
-- **角色伴侣** — 立绘 + 情绪 + 语音，沉浸式对话体验
-- **工具使用** — 通过 LLM 工具调用 + MCP 接入各种外部服务
-- **自主执行** — 接受复杂任务后自主规划、执行、反思、重试
-- **可扩展** — 插件热插拔，社区可贡献角色包和工具插件
-- **本地优先** — 数据全部在本地，隐私安全
-
----
-
-## 开发约定
-
-- 入口：`python main.py` 启动设置中心，点击「🚀 启动对话」打开桌宠
-- 测试：`python -m pytest tests/ -q`
-- 配置文件：`data/config/` 下的 YAML
-- 角色包：`data/characters/` 下按规范目录组织
+1. `docs/README.md`
+2. `docs/architecture.md`
+3. `docs/ui-guidelines.md`
+4. `docs/plugin-mcp.md`
+5. `docs/development.md`
