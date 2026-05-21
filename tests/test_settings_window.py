@@ -27,3 +27,21 @@ def test_save_button_only_visible_on_api_page():
 
     window._switch_page(3)
     assert save_btn.isHidden()
+
+
+def test_api_page_discards_unsaved_changes_when_switching_away():
+    _app()
+    window = SettingsWindow()
+
+    original_model = window._config.api.llm.model
+    original_temp = int(window._config.api.llm.temperature * 100)
+
+    window._switch_page(0)
+    window._api_page._model.setText("temp-model")
+    window._api_page._temp_spin.setValue(123)
+
+    window._switch_page(1)
+    window._switch_page(0)
+
+    assert window._api_page._model.text() == original_model
+    assert window._api_page._temp_spin.value() == original_temp

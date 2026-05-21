@@ -251,6 +251,9 @@ class SettingsWindow(QMainWindow):
         _set_title_bar_color(int(self.winId()))
 
     def _switch_page(self, index: int):
+        current_index = self._stack.currentIndex()
+        if current_index == 0 and index != 0:
+            self._api_page.reset()
         self._stack.setCurrentIndex(index)
         for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(i == index)
