@@ -71,8 +71,4 @@
 1. 本地记忆系统（Mem0 OSS + Chroma + 本地向量模型）
 2. 记忆设置页 UI
 3. 记忆异步加载
-
-待完成：
-1. `agent/planner.py`
-2. `agent/executor.py`
-3. `agent/reflector.py`
+4. Agent 模块（planner + executor + reflector + manager）

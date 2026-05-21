@@ -157,13 +157,28 @@ yumetsuki/
 - 本地记忆系统（Mem0 OSS + Chroma + huggingface 本地向量模型）
 - 异步记忆加载（后台线程，不阻塞 UI）
 
-Agent 层待完成：
+Agent 层已完成：
 
-- `agent/planner.py`
-- `agent/executor.py`
-- `agent/reflector.py`
+- `agent/planner.py` - 意图分析与路由
+- `agent/executor.py` - 工具调用执行
+- `agent/reflector.py` - 对话反思与总结
+- `agent/manager.py` - Agent 编排器
 
-Agent 层仍计划维持自定义实现，不引入大型外部框架。
+Agent 层维持自定义实现，不引入大型外部框架。
+
+### Agent 事件日志
+
+Agent 模块通过 `EventBus` 发布内部行为事件：
+
+- `agent.planner_decided` - Planner 路由决策
+- `agent.memory_retrieved` - 记忆检索结果
+- `agent.tool_executed` - 工具执行
+- `agent.tool_skipped` - 跳过工具调用
+- `agent.llm_started` - LLM 开始生成
+- `agent.llm_complete` - LLM 生成完成
+- `agent.reflection_complete` - 反思完成
+
+设置中心的「Agent」页面订阅这些事件，显示实时的 Agent 内部日志。
 
 ## 记忆系统
 

@@ -12,6 +12,7 @@ from ui.settings.pages.character_page import CharacterPage
 from ui.settings.pages.plugin_page import PluginPage
 from ui.settings.pages.system_page import SystemPage
 from ui.settings.pages.memory_page import MemoryPage
+from ui.settings.pages.agent_page import AgentPage
 from ui.chat.window import ChatWindow
 from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
@@ -164,7 +165,14 @@ class SettingsWindow(QMainWindow):
         nav_layout.setSpacing(4)
 
         self._nav_buttons: list[QPushButton] = []
-        pages_info = [("🤖  API 设定", 0), ("👤  角色管理", 1), ("🧠  记忆", 2), ("🧩  插件", 3), ("⚙  系统", 4)]
+        pages_info = [
+            ("🤖  API 设定", 0),
+            ("👤  角色管理", 1),
+            ("🧠  记忆", 2),
+            ("🤖  Agent", 3),
+            ("🧩  插件", 4),
+            ("⚙  系统", 5),
+        ]
         for label, idx in pages_info:
             btn = QPushButton(label)
             btn.setCheckable(True)
@@ -193,6 +201,9 @@ class SettingsWindow(QMainWindow):
 
         self._memory_page = MemoryPage(self._config.memory)
         self._stack.addWidget(self._memory_page)
+
+        self._agent_page = AgentPage()
+        self._stack.addWidget(self._agent_page)
 
         self._plugin_page = PluginPage()
         self._stack.addWidget(self._plugin_page)
