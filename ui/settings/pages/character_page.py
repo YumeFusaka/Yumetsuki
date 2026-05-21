@@ -2,7 +2,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QLabel, QGridLayout, QPushButton, QTextEdit, QTabWidget, QScrollArea,
-    QFileDialog, QMessageBox, QInputDialog, QTreeWidget, QTreeWidgetItem,
+    QFileDialog, QInputDialog, QTreeWidget, QTreeWidgetItem,
     QDialog, QDialogButtonBox, QComboBox, QLineEdit, QFormLayout,
 )
 from PySide6.QtGui import QPixmap, QIcon
@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt, QSize, QThread, Signal
 from core.character import load_character
 from config.manager import ConfigManager
 from llm.adapters.openai_compat import OpenAICompatAdapter
-from ui.settings.feedback import show_feedback
+from ui.settings.feedback import confirm_action, show_feedback
 import shutil
 import yaml
 
@@ -483,12 +483,7 @@ class CharacterPage(QWidget):
             return
         # Don't allow deleting core files
         name = self._current_file_path.name
-        dlg = QMessageBox(self)
-        dlg.setStyleSheet(DIALOG_STYLE)
-        dlg.setWindowTitle("确认删除")
-        dlg.setText(f"确定删除 {name}？")
-        dlg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if dlg.exec() != QMessageBox.StandardButton.Yes:
+        if not confirm_action(self, "确认删除", f"确定删除文件 '{name}' 吗？"):
             return
         self._current_file_path.unlink(missing_ok=True)
         self._current_file_path = None
@@ -541,12 +536,7 @@ class CharacterPage(QWidget):
         self._sprite_count.setText(f"共 {count} 张立绘")
 
     def _del_sprite(self, img_path: Path, char_dir: Path):
-        dlg = QMessageBox(self)
-        dlg.setStyleSheet(DIALOG_STYLE)
-        dlg.setWindowTitle("删除立绘")
-        dlg.setText(f"确定删除 {img_path.name}？")
-        dlg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if dlg.exec() != QMessageBox.StandardButton.Yes:
+        if not confirm_action(self, "确认删除", f"确定删除立绘 '{img_path.name}' 吗？"):
             return
         img_path.unlink(missing_ok=True)
         yaml_path = char_dir / "sprites.yaml"
@@ -592,11 +582,7 @@ class CharacterPage(QWidget):
 
     def _on_yaml_synced(self, result: str, char_dir: Path):
         if not result or result.startswith("# Error"):
-            dlg = QMessageBox(self)
-            dlg.setStyleSheet(DIALOG_STYLE)
-            dlg.setWindowTitle("同步失败")
-            dlg.setText(result or "无立绘文件")
-            dlg.exec()
+            show_feedback(self, "同步失败", result or "无立绘文件", success=False)
             return
         yaml_path = char_dir / "sprites.yaml"
         yaml_path.write_text(result, encoding="utf-8")
@@ -613,12 +599,7 @@ class CharacterPage(QWidget):
         name = src.name
         dest = self._dir / name
         if dest.exists():
-            dlg = QMessageBox(self)
-            dlg.setStyleSheet(DIALOG_STYLE)
-            dlg.setWindowTitle("确认")
-            dlg.setText(f"角色 '{name}' 已存在，是否覆盖？")
-            dlg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            if dlg.exec() != QMessageBox.StandardButton.Yes:
+            if not confirm_action(self, "确认覆盖", f"角色 '{name}' 已存在，是否覆盖？"):
                 return
             shutil.rmtree(dest)
         shutil.copytree(src, dest)
@@ -630,3 +611,6 @@ class CharacterPage(QWidget):
         if row >= 0 and row < len(self._char_dirs):
             import subprocess
             subprocess.Popen(["explorer", str(self._char_dirs[row])])
+            show_feedback(self, "打开成功", f"已打开角色目录 '{self._char_dirs[row].name}'。")
+            return
+        show_feedback(self, "打开失败", "请先选择一个角色。", success=False)

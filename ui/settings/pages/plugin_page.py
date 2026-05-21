@@ -3,7 +3,7 @@ import shutil
 
 from PySide6.QtWidgets import (
     QFileDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel,
-    QLineEdit, QListWidget, QMessageBox, QPushButton, QVBoxLayout, QWidget,
+    QLineEdit, QListWidget, QPushButton, QVBoxLayout, QWidget,
 )
 from PySide6.QtCore import Qt
 
@@ -12,7 +12,7 @@ from config.schema import MCPServerConfig
 from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
 from core.tool_registry import ToolRegistry
-from ui.settings.feedback import show_feedback
+from ui.settings.feedback import confirm_action, show_feedback
 
 
 DIALOG_STYLE = """
@@ -157,7 +157,7 @@ class PluginPage(QWidget):
             }
             QPushButton:hover { background: rgba(255, 200, 210, 0.4); }
         """)
-        refresh_btn.clicked.connect(self._refresh_plugins)
+        refresh_btn.clicked.connect(lambda: self._refresh_plugins(notify=True))
         top_row.addWidget(refresh_btn)
         layout.addLayout(top_row)
 
@@ -213,7 +213,7 @@ class PluginPage(QWidget):
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
-    def _refresh_plugins(self) -> None:
+    def _refresh_plugins(self, notify: bool = False) -> None:
         self._list.clear()
         self._host.load()
         self._mcp_host = MCPHost(self._config.mcp.servers)
@@ -257,6 +257,8 @@ class PluginPage(QWidget):
                 f"  • {entry.qualified_name} [{entry.source}] — "
                 f"{entry.schema.get('description', '')}｜参数：{entry.parameter_summary()}"
             )
+        if notify:
+            show_feedback(self, "刷新成功", "统一工具目录已刷新。")
 
     def _add_mcp_server(self) -> None:
         dlg = MCPServerDialog(self)
@@ -309,12 +311,16 @@ class PluginPage(QWidget):
         if data.get("kind") == "plugin":
             plugins_root = Path(__file__).parent.parent.parent.parent / "plugins"
             plugin_name = Path(data["path"]).name
+            if not confirm_action(self, "确认删除", f"确定删除插件 '{plugin_name}' 吗？"):
+                return
             if _remove_plugin_dir(Path(data["path"]), plugins_root):
                 self._refresh_plugins()
                 show_feedback(self, "删除成功", f"插件 '{plugin_name}' 已删除。")
                 return
         if data.get("kind") == "mcp":
             server_name = self._config.mcp.servers[data["index"]].name
+            if not confirm_action(self, "确认删除", f"确定删除 MCP 服务器 '{server_name}' 吗？"):
+                return
             if _remove_mcp_server(self._config.mcp.servers, data["index"]):
                 self._config.save_mcp()
                 self._refresh_plugins()
@@ -334,8 +340,4 @@ class PluginPage(QWidget):
         return self._list.item(self._list.count() - 1)
 
     def _show_error(self, message: str) -> None:
-        dlg = QMessageBox(self)
-        dlg.setStyleSheet(DIALOG_STYLE)
-        dlg.setWindowTitle("操作失败")
-        dlg.setText(message)
-        dlg.exec()
+        show_feedback(self, "操作失败", message, success=False)
