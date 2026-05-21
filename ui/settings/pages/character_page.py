@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt, QSize, QThread, Signal
 from core.character import load_character
 from config.manager import ConfigManager
 from llm.adapters.openai_compat import OpenAICompatAdapter
+from ui.settings.feedback import show_feedback
 import shutil
 import yaml
 
@@ -450,6 +451,7 @@ class CharacterPage(QWidget):
 
     def _save_file(self):
         if not self._current_file_path:
+            show_feedback(self, "保存失败", "请先选择一个文件。", success=False)
             return
         self._current_file_path.parent.mkdir(parents=True, exist_ok=True)
         self._current_file_path.write_text(self._file_edit.toPlainText(), encoding="utf-8")
@@ -457,10 +459,12 @@ class CharacterPage(QWidget):
         row = self._list.currentRow()
         if row >= 0:
             self._load_file_tree(self._char_dirs[row])
+        show_feedback(self, "保存成功", f"文件 '{self._current_file_path.name}' 已保存。")
 
     def _add_file(self):
         char_row = self._list.currentRow()
         if char_row < 0:
+            show_feedback(self, "新建失败", "请先选择一个角色。", success=False)
             return
         dlg = NewFileDialog(self)
         if dlg.exec() != QDialog.DialogCode.Accepted:
@@ -471,9 +475,11 @@ class CharacterPage(QWidget):
         new_path.parent.mkdir(parents=True, exist_ok=True)
         new_path.write_text("", encoding="utf-8")
         self._load_file_tree(char_dir)
+        show_feedback(self, "新建成功", f"文件 '{new_path.name}' 已创建。")
 
     def _del_file(self):
         if not self._current_file_path or not self._current_file_path.exists():
+            show_feedback(self, "删除失败", "当前没有可删除的文件。", success=False)
             return
         # Don't allow deleting core files
         name = self._current_file_path.name
@@ -490,6 +496,7 @@ class CharacterPage(QWidget):
         char_row = self._list.currentRow()
         if char_row >= 0:
             self._load_file_tree(self._char_dirs[char_row])
+        show_feedback(self, "删除成功", f"文件 '{name}' 已删除。")
 
     def _load_sprites(self, char_dir: Path):
         while self._sprite_grid.count():
@@ -549,10 +556,12 @@ class CharacterPage(QWidget):
             data["emotions"] = [e for e in emotions if e.get("sprite") != img_path.name]
             yaml_path.write_text(yaml.dump(data, allow_unicode=True, default_flow_style=False), encoding="utf-8")
         self._load_sprites(char_dir)
+        show_feedback(self, "删除成功", f"立绘 '{img_path.name}' 已删除。")
 
     def _add_sprites(self):
         row = self._list.currentRow()
         if row < 0:
+            show_feedback(self, "添加失败", "请先选择一个角色。", success=False)
             return
         files, _ = QFileDialog.getOpenFileNames(self, "选择立绘图片", "", "Images (*.png *.jpg *.webp)")
         if not files:
@@ -563,14 +572,17 @@ class CharacterPage(QWidget):
         for f in files:
             shutil.copy2(f, sprites_dir / Path(f).name)
         self._load_sprites(char_dir)
+        show_feedback(self, "添加成功", f"已添加 {len(files)} 张立绘。")
 
     def _sync_yaml(self):
         row = self._list.currentRow()
         if row < 0:
+            show_feedback(self, "同步失败", "请先选择一个角色。", success=False)
             return
         char_dir = self._char_dirs[row]
         sprites_dir = char_dir / "sprites"
         if not sprites_dir.is_dir():
+            show_feedback(self, "同步失败", "当前角色没有 sprites 目录。", success=False)
             return
         config = ConfigManager().api.llm
         self._sync_worker = YamlSyncWorker(sprites_dir, config)
@@ -591,6 +603,7 @@ class CharacterPage(QWidget):
         self._sprite_count.setText("✅ sprites.yaml 已同步")
         self._load_sprites(char_dir)
         self._load_file_tree(char_dir)
+        show_feedback(self, "同步成功", "sprites.yaml 已同步完成。")
 
     def _import_skill(self):
         folder = QFileDialog.getExistingDirectory(self, "选择角色文件夹")
@@ -610,6 +623,7 @@ class CharacterPage(QWidget):
             shutil.rmtree(dest)
         shutil.copytree(src, dest)
         self._refresh()
+        show_feedback(self, "导入成功", f"角色 '{name}' 已导入。")
 
     def _open_folder(self):
         row = self._list.currentRow()

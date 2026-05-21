@@ -14,6 +14,7 @@ from ui.chat.window import ChatWindow
 from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
 from core.tool_registry import ToolRegistry
+from ui.settings.feedback import confirm_action, show_feedback
 
 try:
     from ctypes import windll, c_int, byref, sizeof, Structure, POINTER
@@ -222,8 +223,9 @@ class SettingsWindow(QMainWindow):
         bottom_layout.addWidget(launch_btn)
         bottom_layout.addStretch()
 
-        save_btn = QPushButton("保存配置")
-        save_btn.setStyleSheet("""
+        self._save_btn = QPushButton("保存配置")
+        self._save_btn.setObjectName("save-config-button")
+        self._save_btn.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                     stop:0 #ff9aaa, stop:0.5 #e8a0c8, stop:1 #c8a0e8);
@@ -236,8 +238,8 @@ class SettingsWindow(QMainWindow):
                     stop:0 #ffb0be, stop:0.5 #f0b0d8, stop:1 #d8b0f0);
             }
         """)
-        save_btn.clicked.connect(self._save)
-        bottom_layout.addWidget(save_btn)
+        self._save_btn.clicked.connect(self._confirm_save)
+        bottom_layout.addWidget(self._save_btn)
 
         right_layout.addWidget(bottom)
         root.addWidget(right, 1)
@@ -252,14 +254,28 @@ class SettingsWindow(QMainWindow):
         self._stack.setCurrentIndex(index)
         for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(i == index)
+        self._save_btn.setVisible(index == 0)
 
-    def _save(self):
+    def _apply_and_save_api(self):
         self._api_page.apply()
-        self._system_page.apply()
-        self._config.save()
+        self._config.save_api()
+
+    def _confirm_save(self):
+        if not confirm_action(self, "确认保存", "确定保存当前 API 设定吗？"):
+            return
+        try:
+            self._apply_and_save_api()
+        except Exception as exc:
+            show_feedback(self, "保存失败", f"配置保存失败：{exc}", success=False)
+            return
+        show_feedback(self, "保存成功", "API 设定已成功保存。")
 
     def _launch_chat(self):
-        self._save()
+        try:
+            self._api_page.apply()
+        except Exception as exc:
+            show_feedback(self, "启动失败", f"读取 API 配置失败，未启动对话：{exc}", success=False)
+            return
         # Find first character
         characters_dir = Path(__file__).parent.parent.parent / "data" / "characters"
         char_dir = None
@@ -280,3 +296,4 @@ class SettingsWindow(QMainWindow):
             tool_registry=tool_registry,
         )
         self._chat_window.show()
+        show_feedback(self, "启动成功", "桌宠对话窗口已启动。")

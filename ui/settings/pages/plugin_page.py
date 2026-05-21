@@ -12,6 +12,7 @@ from config.schema import MCPServerConfig
 from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
 from core.tool_registry import ToolRegistry
+from ui.settings.feedback import show_feedback
 
 
 DIALOG_STYLE = """
@@ -274,6 +275,7 @@ class PluginPage(QWidget):
         self._config.mcp.servers.append(server)
         self._config.save_mcp()
         self._refresh_plugins()
+        show_feedback(self, "添加成功", f"MCP 服务器 '{server.name}' 已添加。")
 
     def _import_plugin_dir(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "选择插件目录")
@@ -285,6 +287,7 @@ class PluginPage(QWidget):
             self._show_error("所选目录中没有 plugin.py。")
             return
         self._refresh_plugins()
+        show_feedback(self, "导入成功", f"插件 '{imported.name}' 已导入。")
 
     def _toggle_selected_mcp(self) -> None:
         data = self._selected_data()
@@ -292,8 +295,11 @@ class PluginPage(QWidget):
             self._show_error("请选择一个 MCP 服务器条目。")
             return
         if _toggle_mcp_server_enabled(self._config.mcp.servers, data["index"]):
+            server = self._config.mcp.servers[data["index"]]
             self._config.save_mcp()
             self._refresh_plugins()
+            state = "启用" if server.enabled else "停用"
+            show_feedback(self, "状态已更新", f"MCP 服务器 '{server.name}' 已{state}。")
 
     def _remove_selected_item(self) -> None:
         data = self._selected_data()
@@ -302,13 +308,17 @@ class PluginPage(QWidget):
             return
         if data.get("kind") == "plugin":
             plugins_root = Path(__file__).parent.parent.parent.parent / "plugins"
+            plugin_name = Path(data["path"]).name
             if _remove_plugin_dir(Path(data["path"]), plugins_root):
                 self._refresh_plugins()
+                show_feedback(self, "删除成功", f"插件 '{plugin_name}' 已删除。")
                 return
         if data.get("kind") == "mcp":
+            server_name = self._config.mcp.servers[data["index"]].name
             if _remove_mcp_server(self._config.mcp.servers, data["index"]):
                 self._config.save_mcp()
                 self._refresh_plugins()
+                show_feedback(self, "删除成功", f"MCP 服务器 '{server_name}' 已删除。")
                 return
         self._show_error("当前选择的条目不支持删除。")
 
@@ -326,6 +336,6 @@ class PluginPage(QWidget):
     def _show_error(self, message: str) -> None:
         dlg = QMessageBox(self)
         dlg.setStyleSheet(DIALOG_STYLE)
-        dlg.setWindowTitle("添加失败")
+        dlg.setWindowTitle("操作失败")
         dlg.setText(message)
         dlg.exec()

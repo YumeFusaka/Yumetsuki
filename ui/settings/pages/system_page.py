@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit,
     QComboBox, QLabel, QGroupBox,
 )
+from config.manager import ConfigManager
 from config.schema import SystemConfig
 from ui.widgets.rose_spin_box import RoseSpinBox
 
@@ -37,6 +38,7 @@ class SystemPage(QWidget):
     def __init__(self, config: SystemConfig, parent=None):
         super().__init__(parent)
         self._config = config
+        self._mgr = ConfigManager()
         self.setStyleSheet(FORM_STYLE)
 
         layout = QVBoxLayout(self)
@@ -55,20 +57,24 @@ class SystemPage(QWidget):
         self._language = QComboBox()
         self._language.addItems(["zh-CN", "en-US", "ja-JP"])
         self._language.setCurrentText(config.language)
+        self._language.currentTextChanged.connect(self._save_live)
         app_form.addRow("语言:", self._language)
 
         self._theme = QComboBox()
         self._theme.addItems(["sakura"])
         self._theme.setCurrentText("sakura")
+        self._theme.currentTextChanged.connect(self._save_live)
         app_form.addRow("主题:", self._theme)
 
         self._font = QLineEdit(config.font_family)
+        self._font.editingFinished.connect(self._save_live)
         app_form.addRow("字体:", self._font)
 
         self._font_size = RoseSpinBox()
         self._font_size.setRange(10, 24)
         self._font_size.setValue(config.font_size)
         self._font_size.setMinimumWidth(280)
+        self._font_size.valueChanged.connect(self._save_live)
         app_form.addRow("字号:", self._font_size)
 
         layout.addWidget(appearance)
@@ -80,6 +86,7 @@ class SystemPage(QWidget):
 
         self._proxy = QLineEdit(config.proxy)
         self._proxy.setPlaceholderText("http://127.0.0.1:7890（留空不使用代理）")
+        self._proxy.editingFinished.connect(self._save_live)
         net_form.addRow("HTTP 代理:", self._proxy)
 
         layout.addWidget(network)
@@ -91,3 +98,8 @@ class SystemPage(QWidget):
         self._config.font_family = self._font.text()
         self._config.font_size = self._font_size.value()
         self._config.proxy = self._proxy.text()
+
+    def _save_live(self) -> None:
+        self.apply()
+        self._mgr.system = self._config
+        self._mgr.save_system()

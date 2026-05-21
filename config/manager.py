@@ -35,11 +35,19 @@ class ConfigManager:
 
     def save(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
+        self.save_api()
+        self.save_system()
+        self.save_mcp()
+
+    def save_api(self) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
         api_path = self._dir / "api.yaml"
         api_path.write_text(yaml.dump(self.api.model_dump(), allow_unicode=True, default_flow_style=False), encoding="utf-8")
+
+    def save_system(self) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
         sys_path = self._dir / "system_config.yaml"
         sys_path.write_text(yaml.dump(self.system.model_dump(), allow_unicode=True, default_flow_style=False), encoding="utf-8")
-        self.save_mcp()
 
     def save_mcp(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)

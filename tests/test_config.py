@@ -92,3 +92,21 @@ def test_save_mcp_does_not_create_api_config(tmp_path):
 
     assert (tmp_path / "mcp.yaml").exists()
     assert not (tmp_path / "api.yaml").exists()
+
+
+def test_save_api_does_not_create_system_config(tmp_path):
+    mgr = ConfigManager(config_dir=tmp_path)
+    mgr.api.llm.model = "api-only"
+    mgr.save_api()
+
+    assert (tmp_path / "api.yaml").exists()
+    assert not (tmp_path / "system_config.yaml").exists()
+
+
+def test_save_system_does_not_create_api_config(tmp_path):
+    mgr = ConfigManager(config_dir=tmp_path)
+    mgr.system.font_size = 18
+    mgr.save_system()
+
+    assert (tmp_path / "system_config.yaml").exists()
+    assert not (tmp_path / "api.yaml").exists()
