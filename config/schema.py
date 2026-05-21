@@ -53,3 +53,51 @@ class SystemConfig(BaseModel):
     font_family: str = "Microsoft YaHei"
     font_size: int = 14
     proxy: str = ""
+
+
+# --- Agent Config ---
+
+
+class PlannerConfig(BaseModel):
+    llm_judge_enabled: bool = True
+    complexity_threshold: int = 80
+    judge_max_tokens: int = 200
+    extra_trigger_keywords: list[str] = []
+
+
+class ReflectorConfig(BaseModel):
+    enabled: bool = True
+    deep_threshold: int = 30
+    reflect_max_tokens: int = 300
+    extract_types: list[str] = ["preference", "fact", "emotion", "topic"]
+
+
+class MultiStepConfig(BaseModel):
+    enabled: bool = True
+    max_steps: int = 3
+    step_timeout: float = 30.0
+    total_timeout: float = 60.0
+
+
+class ProactiveEventConfig(BaseModel):
+    name: str = ""
+    type: str = "timer"
+    condition: str = ""
+    prompt_template: str = ""
+    cooldown_minutes: int = 60
+
+
+class ProactiveConfig(BaseModel):
+    enabled: bool = False
+    idle_interval_minutes: int = 30
+    min_interval_minutes: int = 10
+    active_hours_start: int = 8
+    active_hours_end: int = 23
+    events: list[ProactiveEventConfig] = []
+
+
+class AgentConfig(BaseModel):
+    planner: PlannerConfig = PlannerConfig()
+    reflector: ReflectorConfig = ReflectorConfig()
+    multi_step: MultiStepConfig = MultiStepConfig()
+    proactive: ProactiveConfig = ProactiveConfig()

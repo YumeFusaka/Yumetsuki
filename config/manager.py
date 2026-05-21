@@ -1,6 +1,6 @@
 from pathlib import Path
 import yaml
-from config.schema import APIConfig, MCPConfig, MemoryConfig, SystemConfig
+from config.schema import AgentConfig, APIConfig, MCPConfig, MemoryConfig, SystemConfig
 
 
 class ConfigManager:
@@ -12,6 +12,7 @@ class ConfigManager:
         self.system = self._load_system()
         self.mcp = self._load_mcp()
         self.memory = self._load_memory()
+        self.agent = self._load_agent()
 
     def _load_api(self) -> APIConfig:
         path = self._dir / "api.yaml"
@@ -41,6 +42,13 @@ class ConfigManager:
             return MemoryConfig(**data)
         return MemoryConfig()
 
+    def _load_agent(self) -> AgentConfig:
+        path = self._dir / "agent.yaml"
+        if path.exists():
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            return AgentConfig(**data)
+        return AgentConfig()
+
     def save(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
         self.save_api()
@@ -67,5 +75,13 @@ class ConfigManager:
         memory_path = self._dir / "memory.yaml"
         memory_path.write_text(
             yaml.dump(self.memory.model_dump(), allow_unicode=True, default_flow_style=False),
+            encoding="utf-8",
+        )
+
+    def save_agent(self) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
+        agent_path = self._dir / "agent.yaml"
+        agent_path.write_text(
+            yaml.dump(self.agent.model_dump(), allow_unicode=True, default_flow_style=False),
             encoding="utf-8",
         )

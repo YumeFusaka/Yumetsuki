@@ -83,6 +83,7 @@ class ChatWindow(QWidget):
         memory_store = None,
         user_id: str | None = None,
         settings_window_factory=None,
+        agent_config = None,
     ):
         super().__init__()
         self._scale = 1.0
@@ -110,10 +111,26 @@ class ChatWindow(QWidget):
             memory_store=memory_store,
             tool_registry=tool_registry,
             user_id=user_id or getpass.getuser(),
+            agent_config=agent_config,
         )
         self._worker = None
         self._char_name = ""
         self._sprite_mgr = SpriteManager(self._sprite_label, character_dir)
+
+        # 主动行为调度器
+        self._proactive_scheduler = None
+        if agent_config is not None and agent_config.proactive.enabled:
+            from agent.proactive import ProactiveScheduler
+            self._proactive_scheduler = ProactiveScheduler(
+                config=agent_config.proactive,
+                llm_helper=self._chat_engine._llm_helper,
+                parent=self,
+            )
+            self._proactive_scheduler.proactive_message.connect(
+                self._on_proactive_message,
+                Qt.ConnectionType.QueuedConnection,
+            )
+            self._proactive_scheduler.start()
 
         if character_dir:
             char = load_character(character_dir)
@@ -332,6 +349,10 @@ class ChatWindow(QWidget):
         self._set_speaker_name("我", is_user=True)
         self._set_dialog_text(text)
 
+        # 通知主动调度器：用户刚交互
+        if self._proactive_scheduler is not None:
+            self._proactive_scheduler.notify_interaction()
+
         self._worker = LLMWorker(self._chat_engine, text)
         self._worker.chunk_received.connect(self._on_chunk, Qt.ConnectionType.QueuedConnection)
         self._worker.finished_signal.connect(self._on_llm_done, Qt.ConnectionType.QueuedConnection)
@@ -347,5 +368,16 @@ class ChatWindow(QWidget):
     def _on_llm_done(self):
         self._worker = None
 
+    def _on_proactive_message(self, message: str, source: str):
+        """收到主动消息：以角色身份显示。"""
+        if self._char_name:
+            self._set_speaker_name(self._char_name)
+        self._set_dialog_text(message)
+
     def set_memory_store(self, memory_store) -> None:
         self._chat_engine.set_memory_store(memory_store)
+
+    def closeEvent(self, event):
+        if self._proactive_scheduler is not None:
+            self._proactive_scheduler.stop()
+        super().closeEvent(event)

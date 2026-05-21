@@ -202,7 +202,7 @@ class SettingsWindow(QMainWindow):
         self._memory_page = MemoryPage(self._config.memory)
         self._stack.addWidget(self._memory_page)
 
-        self._agent_page = AgentPage()
+        self._agent_page = AgentPage(self._config.agent)
         self._stack.addWidget(self._agent_page)
 
         self._plugin_page = PluginPage()
@@ -319,6 +319,7 @@ class SettingsWindow(QMainWindow):
             memory_store=None,
             user_id=self._config.memory.user_id,
             settings_window_factory=lambda: self,
+            agent_config=self._config.agent,
         )
         self._chat_window.show()
         show_feedback(self, "启动成功", "桌宠对话窗口已启动，正在加载记忆...")

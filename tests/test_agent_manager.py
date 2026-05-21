@@ -10,6 +10,8 @@ class FakePlan:
     goal: str
     tool_name: str | None = None
     arguments: dict | None = None
+    needs_multi_step: bool = False
+    steps: list = None
 
 
 class FakePlanner:
