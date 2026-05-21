@@ -1,16 +1,23 @@
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from config.manager import ConfigManager
 from config.schema import MemoryConfig
+from ui.settings.feedback import confirm_action, show_feedback
 from ui.widgets.rose_spin_box import RoseSpinBox
 
 
@@ -50,7 +57,54 @@ QGroupBox {
     background: rgba(255, 255, 255, 0.35);
 }
 QGroupBox::title { subcontrol-origin: margin; left: 16px; padding: 0 6px; }
+QComboBox {
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(220, 160, 180, 0.3);
+    border-radius: 6px; padding: 6px 12px;
+    color: #4a3040; font-size: 13px;
+    min-height: 20px; min-width: 200px;
+    selection-background-color: rgba(212, 86, 122, 0.2);
+}
+QComboBox:focus { border-color: #d4567a; }
+QComboBox::drop-down {
+    border: none; width: 24px;
+}
+QComboBox QAbstractItemView {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(220, 160, 180, 0.3);
+    border-radius: 6px;
+    color: #4a3040;
+    selection-background-color: rgba(212, 86, 122, 0.2);
+}
+QPushButton#browseBtn, QPushButton#deleteBtn {
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(220, 160, 180, 0.34);
+    border-radius: 6px; padding: 6px 14px;
+    color: #6b4a5a; font-size: 13px;
+}
+QPushButton#browseBtn:hover, QPushButton#deleteBtn:hover {
+    background: rgba(255, 225, 232, 0.92);
+    border-color: rgba(212, 86, 122, 0.44);
+}
 """
+
+MODELS_DIR = Path("data/models")
+MODEL_MARKERS = ("config.json", "modules.json")
+
+
+def _is_valid_model_dir(path: Path) -> bool:
+    if not path.is_dir():
+        return False
+    return any((path / m).exists() for m in MODEL_MARKERS)
+
+
+def _scan_local_models() -> list[str]:
+    if not MODELS_DIR.exists():
+        return []
+    return [
+        str(p) for p in sorted(MODELS_DIR.iterdir())
+        if _is_valid_model_dir(p)
+    ]
 
 
 class MemoryPage(QWidget):
@@ -76,18 +130,44 @@ class MemoryPage(QWidget):
         form = QFormLayout(group)
         form.setSpacing(10)
 
-        self._enabled = QCheckBox("启用本地记忆")
+        # 向量模型选择
+        model_row = QHBoxLayout()
+        self._model_combo = QComboBox()
+        self._model_combo.setPlaceholderText("请选择向量模型...")
+        self._refresh_model_list()
+        if config.embedding_model_path:
+            idx = self._model_combo.findText(config.embedding_model_path)
+            if idx >= 0:
+                self._model_combo.setCurrentIndex(idx)
+            else:
+                self._model_combo.addItem(config.embedding_model_path)
+                self._model_combo.setCurrentText(config.embedding_model_path)
+        self._model_combo.currentTextChanged.connect(self._save_live)
+        model_row.addWidget(self._model_combo, 1)
+
+        browse_btn = QPushButton("浏览...")
+        browse_btn.setObjectName("browseBtn")
+        browse_btn.clicked.connect(self._browse_model)
+        model_row.addWidget(browse_btn)
+
+        self._delete_btn = QPushButton("删除")
+        self._delete_btn.setObjectName("deleteBtn")
+        self._delete_btn.clicked.connect(self._delete_model)
+        self._delete_btn.setEnabled(False)
+        model_row.addWidget(self._delete_btn)
+
+        self._model_combo.currentIndexChanged.connect(self._on_model_changed)
+        form.addRow("向量模型:", model_row)
+
+        # 启用开关
+        self._enabled = QCheckBox("启用对话记忆（记住聊天内容，下次对话时自动回忆）")
         self._enabled.setChecked(config.enabled)
-        self._enabled.stateChanged.connect(self._save_live)
+        self._enabled.stateChanged.connect(self._on_enabled_changed)
         form.addRow("", self._enabled)
 
         self._storage_dir = QLineEdit(config.storage_dir)
         self._storage_dir.editingFinished.connect(self._save_live)
         form.addRow("存储目录:", self._storage_dir)
-
-        self._user_id = QLineEdit(config.user_id)
-        self._user_id.editingFinished.connect(self._save_live)
-        form.addRow("用户 ID:", self._user_id)
 
         self._top_k = RoseSpinBox()
         self._top_k.setRange(1, 20)
@@ -99,10 +179,65 @@ class MemoryPage(QWidget):
         layout.addWidget(group)
         layout.addStretch()
 
+    def _refresh_model_list(self) -> None:
+        current = self._model_combo.currentText()
+        self._model_combo.blockSignals(True)
+        self._model_combo.clear()
+        models = _scan_local_models()
+        self._model_combo.addItems(models)
+        # 记录哪些是 data/models 扫描的（不可删除）
+        self._local_model_count = self._model_combo.count()
+        if current and current not in models:
+            self._model_combo.addItem(current)
+        if current:
+            self._model_combo.setCurrentText(current)
+        self._model_combo.blockSignals(False)
+
+    def _on_model_changed(self) -> None:
+        idx = self._model_combo.currentIndex()
+        # 只允许删除非 data/models 扫描的条目
+        deletable = idx >= self._local_model_count
+        self._delete_btn.setEnabled(deletable)
+
+    def _browse_model(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, "选择向量模型目录")
+        if not path:
+            return
+        if not _is_valid_model_dir(Path(path)):
+            show_feedback(self, "无效模型", "所选目录不是有效的向量模型（缺少 config.json 或 modules.json）", success=False)
+            return
+        if self._model_combo.findText(path) < 0:
+            self._model_combo.addItem(path)
+        self._model_combo.setCurrentText(path)
+
+    def _delete_model(self) -> None:
+        idx = self._model_combo.currentIndex()
+        if idx < self._local_model_count:
+            return
+        self._model_combo.removeItem(idx)
+        self._save_live()
+
+    def _on_enabled_changed(self, state) -> None:
+        enabling = state == Qt.CheckState.Checked.value
+        if enabling:
+            if not self._model_combo.currentText():
+                show_feedback(self, "无法启用", "请先选择向量模型", success=False)
+                self._enabled.blockSignals(True)
+                self._enabled.setChecked(False)
+                self._enabled.blockSignals(False)
+                return
+            ok = confirm_action(self, "启用对话记忆", "启用后将在本地保存对话记忆数据，是否继续？")
+            if not ok:
+                self._enabled.blockSignals(True)
+                self._enabled.setChecked(False)
+                self._enabled.blockSignals(False)
+                return
+        self._save_live()
+
     def apply(self) -> None:
         self._config.enabled = self._enabled.isChecked()
         self._config.storage_dir = self._storage_dir.text().strip() or "data/memory"
-        self._config.user_id = self._user_id.text().strip() or "default-user"
+        self._config.embedding_model_path = self._model_combo.currentText()
         self._config.top_k = self._top_k.value()
 
     def _save_live(self) -> None:

@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QStackedWidget, QPushButton, QLabel,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QLinearGradient
 from config.manager import ConfigManager
 from ui.settings.pages.api_page import APIPage
@@ -300,26 +300,52 @@ class SettingsWindow(QMainWindow):
         mcp_host = MCPHost(self._config.mcp.servers)
         mcp_host.connect_all()
         tool_registry = ToolRegistry(plugin_host=plugin_host, mcp_host=mcp_host)
-        memory_store = self._create_memory_store()
+        # Create chat window immediately (memory loaded in background)
         self._chat_window = ChatWindow(
             self._config.api.llm,
             character_dir=char_dir,
             tool_registry=tool_registry,
-            memory_store=memory_store,
+            memory_store=None,
             user_id=self._config.memory.user_id,
             settings_window_factory=lambda: self,
         )
         self._chat_window.show()
-        show_feedback(self, "启动成功", "桌宠对话窗口已启动。")
+        show_feedback(self, "启动成功", "桌宠对话窗口已启动，正在加载记忆...")
+        # Load memory in background
+        self._memory_loader = MemoryLoaderThread(
+            self._config.memory,
+            self._config.api.llm,
+        )
+        self._memory_loader.memory_ready.connect(self._on_memory_ready)
+        self._memory_loader.memory_failed.connect(self._on_memory_failed)
+        self._memory_loader.start()
 
-    def _create_memory_store(self):
-        if not self._config.memory.enabled:
-            return None
+    def _on_memory_ready(self, memory_store):
+        self._chat_window.set_memory_store(memory_store)
+        show_feedback(self, "记忆就绪", "对话记忆已加载完成。")
+
+    def _on_memory_failed(self, error_msg):
+        show_feedback(self, "记忆加载失败", f"本地记忆未能启动：{error_msg}", success=False)
+
+
+class MemoryLoaderThread(QThread):
+    memory_ready = Signal(object)
+    memory_failed = Signal(str)
+
+    def __init__(self, memory_config, llm_config):
+        super().__init__()
+        self._memory_config = memory_config
+        self._llm_config = llm_config
+
+    def run(self):
+        if not self._memory_config.enabled:
+            self.memory_ready.emit(None)
+            return
         try:
-            return build_local_mem0_store(self._config.memory)
+            store = build_local_mem0_store(self._memory_config, self._llm_config)
+            self.memory_ready.emit(store)
         except Exception as exc:
-            show_feedback(self, "记忆初始化失败", f"本地记忆未能启动：{exc}", success=False)
-            raise
+            self.memory_failed.emit(str(exc))
 
     def closeEvent(self, event):
         if self._chat_window is not None and hasattr(self._chat_window, "_clear_settings_window_ref"):

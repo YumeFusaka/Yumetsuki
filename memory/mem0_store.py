@@ -20,7 +20,9 @@ class Mem0MemoryStore:
         self._memory_client.add(messages, user_id=user_id)
 
 
-def build_local_mem0_store(config):
+def build_local_mem0_store(config, llm_config=None):
+    import warnings
+    warnings.filterwarnings("ignore", message="The `get_sentence_embedding_dimension` method has been renamed", category=FutureWarning)
     from mem0 import Memory
 
     storage_dir = Path(config.storage_dir).expanduser()
@@ -28,6 +30,13 @@ def build_local_mem0_store(config):
     chroma_dir = storage_dir / "chroma"
     chroma_dir.mkdir(parents=True, exist_ok=True)
     history_db_path = storage_dir / "history.db"
+
+    llm_cfg = {"provider": "deepseek", "config": {}}
+    if llm_config:
+        llm_cfg["config"]["api_key"] = llm_config.api_key
+        llm_cfg["config"]["model"] = llm_config.model
+        if llm_config.base_url:
+            llm_cfg["config"]["deepseek_base_url"] = llm_config.base_url
 
     memory = Memory.from_config({
         "vector_store": {
@@ -37,13 +46,10 @@ def build_local_mem0_store(config):
                 "path": str(chroma_dir),
             },
         },
-        "llm": {
-            "provider": "openai",
-            "config": {},
-        },
+        "llm": llm_cfg,
         "embedder": {
-            "provider": "openai",
-            "config": {},
+            "provider": "huggingface",
+            "config": {"model": config.embedding_model_path},
         },
         "history_db_path": str(history_db_path),
     })

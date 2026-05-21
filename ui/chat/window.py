@@ -346,3 +346,6 @@ class ChatWindow(QWidget):
 
     def _on_llm_done(self):
         self._worker = None
+
+    def set_memory_store(self, memory_store) -> None:
+        self._chat_engine.set_memory_store(memory_store)

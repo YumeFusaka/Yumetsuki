@@ -112,7 +112,7 @@ class ConfirmDialog(QDialog):
 
 
 class ToastMessage(QFrame):
-    MAX_WIDTH = 320
+    MAX_WIDTH = 700
     MARGIN = 14
     GAP = 8
 

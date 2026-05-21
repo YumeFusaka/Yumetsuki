@@ -37,6 +37,7 @@ class MemoryConfig(BaseModel):
     enabled: bool = False
     storage_dir: str = "data/memory"
     user_id: str = "default-user"
+    embedding_model_path: str = ""
     top_k: int = 5
 
 

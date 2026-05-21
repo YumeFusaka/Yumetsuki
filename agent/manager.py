@@ -52,6 +52,9 @@ class AgentManager:
             return []
         return self._memory_store.search_relevant(user_input, user_id=self._user_id)
 
+    def set_memory_store(self, memory_store) -> None:
+        self._memory_store = memory_store
+
     def _build_extra_context(self, memories: list[str], tool_result: str) -> str:
         sections: list[str] = []
         if memories:
