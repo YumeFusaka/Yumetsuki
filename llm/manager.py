@@ -31,16 +31,21 @@ class LLMManager:
         self._character_prompt = prompt
         self._history.clear()
 
-    def _build_messages(self, user_input: str) -> list[dict]:
+    def _build_messages(self, user_input: str, extra_context: str = "") -> list[dict]:
         messages = []
         if self._character_prompt:
             messages.append({"role": "system", "content": self._character_prompt})
+        if extra_context:
+            messages.append({
+                "role": "system",
+                "content": f"补充上下文：\n{extra_context}",
+            })
         messages.extend(self._history)
         messages.append({"role": "user", "content": user_input})
         return messages
 
-    def chat_stream(self, user_input: str) -> Generator[ProcessedText, None, None]:
-        messages = self._build_messages(user_input)
+    def chat_stream(self, user_input: str, extra_context: str = "") -> Generator[ProcessedText, None, None]:
+        messages = self._build_messages(user_input, extra_context=extra_context)
         self._history.append({"role": "user", "content": user_input})
 
         full_response = ""

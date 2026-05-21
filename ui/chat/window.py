@@ -1,4 +1,5 @@
 from pathlib import Path
+import getpass
 from html import escape
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QPushButton, QMenu,
@@ -8,6 +9,7 @@ from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize
 from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush
 from ui.chat.sprite import SpriteManager
 from core.tool_registry import ToolRegistry
+from agent.manager import AgentManager
 from llm.manager import LLMManager
 from llm.text_processor import ProcessedText
 from config.schema import LLMConfig
@@ -18,13 +20,13 @@ class LLMWorker(QThread):
     chunk_received = Signal(object)
     finished_signal = Signal()
 
-    def __init__(self, llm: LLMManager, user_input: str):
+    def __init__(self, chat_engine, user_input: str):
         super().__init__()
-        self._llm = llm
+        self._chat_engine = chat_engine
         self._input = user_input
 
     def run(self):
-        for result in self._llm.chat_stream(self._input):
+        for result in self._chat_engine.chat_stream(self._input):
             self.chunk_received.emit(result)
         self.finished_signal.emit()
 
@@ -78,11 +80,16 @@ class ChatWindow(QWidget):
         config: LLMConfig,
         character_dir: Path | None = None,
         tool_registry: ToolRegistry | None = None,
+        memory_store = None,
+        user_id: str | None = None,
+        settings_window_factory=None,
     ):
         super().__init__()
         self._scale = 1.0
         self._drag_pos: QPoint | None = None
         self._char_dir = character_dir
+        self._settings_window_factory = settings_window_factory
+        self._settings_window = None
 
         # Window flags: frameless, transparent, always on top
         self.setWindowFlags(
@@ -98,6 +105,12 @@ class ChatWindow(QWidget):
 
         # LLM
         self._llm = LLMManager(config, tool_registry=tool_registry)
+        self._chat_engine = AgentManager(
+            llm_manager=self._llm,
+            memory_store=memory_store,
+            tool_registry=tool_registry,
+            user_id=user_id or getpass.getuser(),
+        )
         self._worker = None
         self._char_name = ""
         self._sprite_mgr = SpriteManager(self._sprite_label, character_dir)
@@ -293,9 +306,22 @@ class ChatWindow(QWidget):
         self.show()
 
     def _open_settings(self):
-        from ui.settings.window import SettingsWindow
-        self._settings = SettingsWindow()
-        self._settings.show()
+        if self._settings_window is None:
+            if self._settings_window_factory is not None:
+                self._settings_window = self._settings_window_factory()
+            else:
+                from ui.settings.window import SettingsWindow
+                self._settings_window = SettingsWindow()
+            if hasattr(self._settings_window, "set_close_callback"):
+                self._settings_window.set_close_callback(self._clear_settings_window_ref)
+        self._settings_window.show()
+        if hasattr(self._settings_window, "raise_"):
+            self._settings_window.raise_()
+        if hasattr(self._settings_window, "activateWindow"):
+            self._settings_window.activateWindow()
+
+    def _clear_settings_window_ref(self):
+        self._settings_window = None
 
     # --- Chat logic ---
     def _on_send(self):
@@ -306,7 +332,7 @@ class ChatWindow(QWidget):
         self._set_speaker_name("我", is_user=True)
         self._set_dialog_text(text)
 
-        self._worker = LLMWorker(self._llm, text)
+        self._worker = LLMWorker(self._chat_engine, text)
         self._worker.chunk_received.connect(self._on_chunk, Qt.ConnectionType.QueuedConnection)
         self._worker.finished_signal.connect(self._on_llm_done, Qt.ConnectionType.QueuedConnection)
         self._worker.start()

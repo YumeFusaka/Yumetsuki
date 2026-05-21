@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QStackedWidget, QPushButton, QLabel,
@@ -10,10 +11,12 @@ from ui.settings.pages.api_page import APIPage
 from ui.settings.pages.character_page import CharacterPage
 from ui.settings.pages.plugin_page import PluginPage
 from ui.settings.pages.system_page import SystemPage
+from ui.settings.pages.memory_page import MemoryPage
 from ui.chat.window import ChatWindow
 from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
 from core.tool_registry import ToolRegistry
+from memory.mem0_store import build_local_mem0_store
 from ui.settings.feedback import confirm_action, show_feedback
 
 try:
@@ -140,6 +143,7 @@ class SettingsWindow(QMainWindow):
         """)
 
         self._config = ConfigManager()
+        self._chat_window = None
 
         central = QWidget()
         central.setStyleSheet("background: transparent;")
@@ -160,7 +164,7 @@ class SettingsWindow(QMainWindow):
         nav_layout.setSpacing(4)
 
         self._nav_buttons: list[QPushButton] = []
-        pages_info = [("🤖  API 设定", 0), ("👤  角色管理", 1), ("🧩  插件", 2), ("⚙  系统", 3)]
+        pages_info = [("🤖  API 设定", 0), ("👤  角色管理", 1), ("🧠  记忆", 2), ("🧩  插件", 3), ("⚙  系统", 4)]
         for label, idx in pages_info:
             btn = QPushButton(label)
             btn.setCheckable(True)
@@ -186,6 +190,9 @@ class SettingsWindow(QMainWindow):
         characters_dir = Path(__file__).parent.parent.parent / "data" / "characters"
         self._char_page = CharacterPage(characters_dir)
         self._stack.addWidget(self._char_page)
+
+        self._memory_page = MemoryPage(self._config.memory)
+        self._stack.addWidget(self._memory_page)
 
         self._plugin_page = PluginPage()
         self._stack.addWidget(self._plugin_page)
@@ -293,10 +300,28 @@ class SettingsWindow(QMainWindow):
         mcp_host = MCPHost(self._config.mcp.servers)
         mcp_host.connect_all()
         tool_registry = ToolRegistry(plugin_host=plugin_host, mcp_host=mcp_host)
+        memory_store = self._create_memory_store()
         self._chat_window = ChatWindow(
             self._config.api.llm,
             character_dir=char_dir,
             tool_registry=tool_registry,
+            memory_store=memory_store,
+            user_id=self._config.memory.user_id,
+            settings_window_factory=lambda: self,
         )
         self._chat_window.show()
         show_feedback(self, "启动成功", "桌宠对话窗口已启动。")
+
+    def _create_memory_store(self):
+        if not self._config.memory.enabled:
+            return None
+        try:
+            return build_local_mem0_store(self._config.memory)
+        except Exception as exc:
+            show_feedback(self, "记忆初始化失败", f"本地记忆未能启动：{exc}", success=False)
+            raise
+
+    def closeEvent(self, event):
+        if self._chat_window is not None and hasattr(self._chat_window, "_clear_settings_window_ref"):
+            self._chat_window._clear_settings_window_ref()
+        super().closeEvent(event)

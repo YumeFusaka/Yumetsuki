@@ -33,6 +33,13 @@ class MCPConfig(BaseModel):
     servers: list[MCPServerConfig] = []
 
 
+class MemoryConfig(BaseModel):
+    enabled: bool = False
+    storage_dir: str = "data/memory"
+    user_id: str = "default-user"
+    top_k: int = 5
+
+
 class APIConfig(BaseModel):
     llm: LLMConfig = LLMConfig()
     tts: TTSConfig = TTSConfig()

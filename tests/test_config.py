@@ -110,3 +110,27 @@ def test_save_system_does_not_create_api_config(tmp_path):
 
     assert (tmp_path / "system_config.yaml").exists()
     assert not (tmp_path / "api.yaml").exists()
+
+
+def test_load_default_memory_config(tmp_path):
+    mgr = ConfigManager(config_dir=tmp_path)
+
+    assert mgr.memory.enabled is False
+    assert mgr.memory.storage_dir == "data/memory"
+    assert mgr.memory.user_id == "default-user"
+    assert mgr.memory.top_k == 5
+
+
+def test_save_and_reload_memory_config(tmp_path):
+    mgr = ConfigManager(config_dir=tmp_path)
+    mgr.memory.enabled = True
+    mgr.memory.storage_dir = "runtime/memory"
+    mgr.memory.user_id = "alice"
+    mgr.memory.top_k = 8
+    mgr.save_memory()
+
+    mgr2 = ConfigManager(config_dir=tmp_path)
+    assert mgr2.memory.enabled is True
+    assert mgr2.memory.storage_dir == "runtime/memory"
+    assert mgr2.memory.user_id == "alice"
+    assert mgr2.memory.top_k == 8

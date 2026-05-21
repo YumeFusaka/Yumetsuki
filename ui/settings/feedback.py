@@ -112,8 +112,7 @@ class ConfirmDialog(QDialog):
 
 
 class ToastMessage(QFrame):
-    WIDTH = 300
-    HEIGHT = 52
+    MAX_WIDTH = 320
     MARGIN = 14
     GAP = 8
 
@@ -123,7 +122,8 @@ class ToastMessage(QFrame):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.ToolTip)
-        self.setFixedSize(self.WIDTH, self.HEIGHT)
+        self.setMinimumWidth(220)
+        self.setMaximumWidth(self.MAX_WIDTH)
 
         accent = "#67b36b" if success else "#e06a7d"
         self.setStyleSheet(f"""
@@ -165,7 +165,9 @@ class ToastMessage(QFrame):
         body_label = QLabel(message)
         body_label.setObjectName("bodyLabel")
         body_label.setWordWrap(True)
+        body_label.setMaximumWidth(self.MAX_WIDTH - 54)
         layout.addWidget(body_label, 1)
+        self.setFixedSize(self.sizeHint())
 
     def show_toast(self) -> None:
         toasts = _toast_list(self._host)
@@ -219,8 +221,13 @@ def _toast_list(host: QWidget) -> list[ToastMessage]:
 
 def _reposition_toasts(host: QWidget) -> None:
     toasts = _toast_list(host)
-    left = max(ToastMessage.MARGIN, (host.width() - ToastMessage.WIDTH) // 2)
+    widest = max((toast.width() for toast in toasts), default=ToastMessage.MAX_WIDTH)
+    left = max(ToastMessage.MARGIN, (host.width() - widest) // 2)
     top = ToastMessage.MARGIN
     for index, toast in enumerate(toasts):
-        y = top + index * (ToastMessage.HEIGHT + ToastMessage.GAP)
-        toast.setGeometry(QRect(left, y, ToastMessage.WIDTH, ToastMessage.HEIGHT))
+        toast_height = toast.height()
+        y = top + sum(
+            prev.height() + ToastMessage.GAP
+            for prev in toasts[:index]
+        )
+        toast.setGeometry(QRect(left, y, toast.width(), toast_height))

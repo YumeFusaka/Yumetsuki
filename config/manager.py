@@ -1,6 +1,6 @@
 from pathlib import Path
 import yaml
-from config.schema import APIConfig, MCPConfig, SystemConfig
+from config.schema import APIConfig, MCPConfig, MemoryConfig, SystemConfig
 
 
 class ConfigManager:
@@ -11,6 +11,7 @@ class ConfigManager:
         self.api = self._load_api()
         self.system = self._load_system()
         self.mcp = self._load_mcp()
+        self.memory = self._load_memory()
 
     def _load_api(self) -> APIConfig:
         path = self._dir / "api.yaml"
@@ -33,6 +34,13 @@ class ConfigManager:
             return MCPConfig(**data)
         return MCPConfig()
 
+    def _load_memory(self) -> MemoryConfig:
+        path = self._dir / "memory.yaml"
+        if path.exists():
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            return MemoryConfig(**data)
+        return MemoryConfig()
+
     def save(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
         self.save_api()
@@ -53,3 +61,11 @@ class ConfigManager:
         self._dir.mkdir(parents=True, exist_ok=True)
         mcp_path = self._dir / "mcp.yaml"
         mcp_path.write_text(yaml.dump(self.mcp.model_dump(), allow_unicode=True, default_flow_style=False), encoding="utf-8")
+
+    def save_memory(self) -> None:
+        self._dir.mkdir(parents=True, exist_ok=True)
+        memory_path = self._dir / "memory.yaml"
+        memory_path.write_text(
+            yaml.dump(self.memory.model_dump(), allow_unicode=True, default_flow_style=False),
+            encoding="utf-8",
+        )
