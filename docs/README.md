@@ -19,7 +19,10 @@ yumetsuki/
 ├── main.py                     # 入口 → 设置中心
 ├── core/
 │   ├── event_bus.py            # 发布/订阅事件总线
-│   └── character.py            # 角色加载器
+│   ├── character.py            # 角色加载器
+│   ├── plugin_host.py          # 本地插件宿主
+│   ├── mcp_host.py             # MCP 宿主与 transport
+│   └── tool_registry.py        # 统一工具目录
 ├── config/
 │   ├── schema.py               # Pydantic 配置模型
 │   └── manager.py              # YAML 读写
@@ -40,9 +43,10 @@ yumetsuki/
 │       ├── window.py           # 设置中心主窗口
 │       └── pages/              # API / 角色 / 插件 / 系统
 ├── data/
-│   ├── config/                 # api.yaml, system_config.yaml
+│   ├── config/                 # api.yaml, mcp.yaml, mcp.example.yaml, system_config.yaml
 │   └── characters/             # 角色包（prompt/soul/resource/sprites）
-└── tests/                      # 14 个单元测试
+├── plugins/                    # 本地插件目录（示例插件见 example_echo）
+└── tests/                      # 32 个单元测试
 ```
 
 ### 核心流程
@@ -85,10 +89,10 @@ yumetsuki/
 | 设置中心 | ✅ 完成 | 樱花主题，4页（API/角色/插件/系统） |
 | 角色管理 | ✅ 完成 | 目录树结构 + 增删改查 + AI同步YAML |
 | TTS 适配器 | ✅ 就绪 | GPT-SoVITS 适配器，需服务端 |
-| 插件系统 | ✅ 完成 | 插件 SDK + 宿主 + 设置页展示 |
+| 插件系统 | ✅ 完成 | 插件 SDK + 宿主 + 导入/删除 + 设置页展示 |
 | Agent 层 | 🔲 未开始 | 任务规划 + 执行器 + 反思 |
 | 记忆系统 | 🔲 未开始 | mem0 长期记忆 |
-| MCP 接入 | ✅ 完成 | 配置读写 + stdio / HTTP(SSE) transport + 宿主状态 + LLM工具入口 |
+| MCP 接入 | ✅ 完成 | 配置读写 + stdio / HTTP(SSE) transport + 启停/删除 + LLM工具入口 |
 | ASR 语音识别 | 🔲 未开始 | Vosk/Whisper |
 
 ---
@@ -101,6 +105,46 @@ yumetsuki/
 2. ✅ **插件宿主** — `core/plugin_host.py` 热加载 `plugins/` 目录下的插件
 3. ✅ **LLM 工具调用** — 复用 OpenAI function calling 协议，工具列表动态注入
 4. ✅ **MCP 接入** — `data/config/mcp.yaml` 配置外部 MCP Server，stdio 与 HTTP(SSE) transport 已接入
+
+### 第二阶段收尾
+
+- 本地插件：设置页支持导入、刷新、删除
+- MCP 服务器：设置页支持添加、启停、删除
+- 工具目录：`ToolRegistry` 统一聚合插件与 MCP 工具
+- 示例文件：
+  `plugins/example_echo/plugin.py`
+  `data/config/mcp.example.yaml`
+
+### 插件示例
+
+本地插件目录结构：
+
+```text
+plugins/
+└── example_echo/
+    ├── plugin.py
+    └── README.md
+```
+
+`plugin.py` 中定义 `Plugin` 类并继承 `BasePlugin`，用 `@tool` 标记可暴露给 LLM 的工具。
+
+### MCP 配置示例
+
+`data/config/mcp.example.yaml` 提供了 `stdio` 和 `sse` 两种配置模板：
+
+```yaml
+servers:
+  - name: notes-local
+    transport: stdio
+    command: python path/to/mcp_server.py
+    url: ""
+    enabled: true
+  - name: web-tools
+    transport: sse
+    command: ""
+    url: http://127.0.0.1:8000/mcp
+    enabled: false
+```
 
 ### 第三阶段：Agent 自主执行
 

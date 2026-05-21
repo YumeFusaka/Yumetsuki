@@ -1,0 +1,11 @@
+servers:
+  - name: notes-local
+    transport: stdio
+    command: python path/to/mcp_server.py
+    url: ""
+    enabled: true
+  - name: web-tools
+    transport: sse
+    command: ""
+    url: http://127.0.0.1:8000/mcp
+    enabled: false

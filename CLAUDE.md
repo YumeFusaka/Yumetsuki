@@ -23,7 +23,8 @@ llm/                 → LLM 对话（OpenAI 兼容协议, 流式输出）
 llm/text_processor.py → 提取 [emotion:xxx] 标签
 core/character.py    → 角色加载器
 config/              → Pydantic schema + YAML 读写
-data/config/         → api.yaml（含 API key，勿提交）, system_config.yaml
+data/config/         → api.yaml（含 API key，勿提交）, mcp.yaml, system_config.yaml
+plugins/             → 本地插件目录（plugin.py 入口）
 data/characters/     → 角色包目录
 ```
 
@@ -67,7 +68,7 @@ data/characters/     → 角色包目录
 
 - 聊天窗 LLM 输出正常但需确认用户端网络连通性
 - TTS 适配器就绪但需 GPT-SoVITS 服务端运行
-- 插件系统：已实现基础 SDK / 宿主 / 设置页展示，下一步接 LLM 工具调用
+- 插件系统：已实现 SDK / 宿主 / 工具目录 / 设置页导入与管理
 - Agent 层未实现（第三阶段）
 
 ## 下一步工作

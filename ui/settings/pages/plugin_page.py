@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel,
     QLineEdit, QListWidget, QMessageBox, QPushButton, QVBoxLayout, QWidget,
 )
+from PySide6.QtCore import Qt
 
 from config.manager import ConfigManager
 from config.schema import MCPServerConfig
@@ -49,6 +50,31 @@ def _copy_plugin_dir(src: Path, dest_root: Path) -> Path | None:
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
     return dest
+
+
+def _remove_plugin_dir(plugin_dir: Path, dest_root: Path) -> bool:
+    try:
+        plugin_dir.relative_to(dest_root)
+    except ValueError:
+        return False
+    if not plugin_dir.is_dir() or not (plugin_dir / "plugin.py").exists():
+        return False
+    shutil.rmtree(plugin_dir)
+    return True
+
+
+def _toggle_mcp_server_enabled(servers: list[MCPServerConfig], index: int) -> bool:
+    if index < 0 or index >= len(servers):
+        return False
+    servers[index].enabled = not servers[index].enabled
+    return True
+
+
+def _remove_mcp_server(servers: list[MCPServerConfig], index: int) -> bool:
+    if index < 0 or index >= len(servers):
+        return False
+    del servers[index]
+    return True
 
 
 class MCPServerDialog(QDialog):
@@ -174,6 +200,15 @@ class PluginPage(QWidget):
         """)
         add_btn.clicked.connect(self._add_mcp_server)
         btn_row.addWidget(add_btn)
+        toggle_btn = QPushButton("启用/停用所选")
+        toggle_btn.setStyleSheet(add_btn.styleSheet())
+        toggle_btn.clicked.connect(self._toggle_selected_mcp)
+        btn_row.addWidget(toggle_btn)
+
+        remove_btn = QPushButton("删除所选")
+        remove_btn.setStyleSheet(add_btn.styleSheet())
+        remove_btn.clicked.connect(self._remove_selected_item)
+        btn_row.addWidget(remove_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
@@ -194,21 +229,28 @@ class PluginPage(QWidget):
             return
 
         if any(entry.source == "plugin" for entry in self._tool_registry.entries()):
-            self._list.addItem("【本地插件工具】")
+            header = self._add_list_item("【本地插件工具】")
+            header.setFlags(header.flags() & ~Qt.ItemFlag.ItemIsSelectable)
         for plugin in self._host.plugins:
             tools_count = len(plugin.tools())
             desc = f" — {plugin.description}" if plugin.description else ""
-            self._list.addItem(f"已加载：{plugin.name}{desc}（{tools_count} 个工具）")
+            item = self._add_list_item(f"已加载：{plugin.name}{desc}（{tools_count} 个工具）")
+            item.setData(Qt.ItemDataRole.UserRole, {
+                "kind": "plugin",
+                "path": str((self._host._plugins_dir / plugin.name).resolve()),
+            })
 
         if any(entry.source == "mcp" for entry in self._tool_registry.entries()):
-            self._list.addItem("【MCP 工具】")
+            header = self._add_list_item("【MCP 工具】")
+            header.setFlags(header.flags() & ~Qt.ItemFlag.ItemIsSelectable)
         for error in self._host.errors:
             self._list.addItem(f"加载失败：{error.plugin} — {error.message}")
 
-        for status in self._mcp_host.statuses:
+        for index, status in enumerate(self._mcp_host.statuses):
             state = "已连接" if status.connected else "未连接"
             extra = f" / {status.tools_count} 个工具" if status.connected else ""
-            self._list.addItem(f"MCP：{status.server} [{status.transport}] {state}{extra} — {status.message}")
+            item = self._add_list_item(f"MCP：{status.server} [{status.transport}] {state}{extra} — {status.message}")
+            item.setData(Qt.ItemDataRole.UserRole, {"kind": "mcp", "index": index})
         for entry in self._tool_registry.entries():
             self._list.addItem(
                 f"  • {entry.qualified_name} [{entry.source}] — "
@@ -243,6 +285,43 @@ class PluginPage(QWidget):
             self._show_error("所选目录中没有 plugin.py。")
             return
         self._refresh_plugins()
+
+    def _toggle_selected_mcp(self) -> None:
+        data = self._selected_data()
+        if not data or data.get("kind") != "mcp":
+            self._show_error("请选择一个 MCP 服务器条目。")
+            return
+        if _toggle_mcp_server_enabled(self._config.mcp.servers, data["index"]):
+            self._config.save_mcp()
+            self._refresh_plugins()
+
+    def _remove_selected_item(self) -> None:
+        data = self._selected_data()
+        if not data:
+            self._show_error("请先选择一个插件或 MCP 服务器。")
+            return
+        if data.get("kind") == "plugin":
+            plugins_root = Path(__file__).parent.parent.parent.parent / "plugins"
+            if _remove_plugin_dir(Path(data["path"]), plugins_root):
+                self._refresh_plugins()
+                return
+        if data.get("kind") == "mcp":
+            if _remove_mcp_server(self._config.mcp.servers, data["index"]):
+                self._config.save_mcp()
+                self._refresh_plugins()
+                return
+        self._show_error("当前选择的条目不支持删除。")
+
+    def _selected_data(self) -> dict | None:
+        item = self._list.currentItem()
+        if not item:
+            return None
+        return item.data(Qt.ItemDataRole.UserRole)
+
+    def _add_list_item(self, text: str):
+        item = self._list.item(self._list.count())
+        self._list.addItem(text)
+        return self._list.item(self._list.count() - 1)
 
     def _show_error(self, message: str) -> None:
         dlg = QMessageBox(self)
