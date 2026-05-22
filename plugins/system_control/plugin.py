@@ -49,7 +49,7 @@ class Plugin(BasePlugin):
         required_name = required.name.lower()
         return f"权限不足：当前等级为 {current_name}，该操作需要 {required_name} 及以上"
 
-    @tool(description="打开指定应用程序")
+    @tool(description="打开指定应用程序", params={"name": "应用程序名称，如 notepad、chrome、code"})
     def open_application(self, name: str) -> str:
         denied = self._check_permission(PermissionLevel.LOW)
         if denied:
@@ -63,28 +63,28 @@ class Plugin(BasePlugin):
             return denied
         return do_open_browser()
 
-    @tool(description="打开文件管理器，可指定目录路径")
+    @tool(description="打开文件管理器", params={"path": "要打开的目录路径，如 C:/Users 或 D:/Projects，留空则打开用户主目录"})
     def open_file_manager(self, path: str = "") -> str:
         denied = self._check_permission(PermissionLevel.LOW)
         if denied:
             return denied
         return do_open_file_manager(path)
 
-    @tool(description="用默认程序打开指定文件")
+    @tool(description="用默认程序打开指定文件", params={"path": "文件的完整路径，如 C:/Documents/report.pdf"})
     def open_file(self, path: str) -> str:
         denied = self._check_permission(PermissionLevel.MEDIUM)
         if denied:
             return denied
         return do_open_file(path)
 
-    @tool(description="用默认浏览器打开指定 URL")
+    @tool(description="用默认浏览器打开指定 URL", params={"url": "要打开的网址，如 https://www.google.com"})
     def open_url(self, url: str) -> str:
         denied = self._check_permission(PermissionLevel.MEDIUM)
         if denied:
             return denied
         return do_open_url(url)
 
-    @tool(description="执行系统命令并返回输出")
+    @tool(description="执行系统命令并返回输出", params={"command": "要执行的命令，如 dir、ipconfig", "timeout": "超时秒数，默认30"})
     def run_command(self, command: str, timeout: int = 30) -> str:
         denied = self._check_permission(PermissionLevel.HIGH)
         if denied:
