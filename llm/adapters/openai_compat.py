@@ -27,7 +27,7 @@ class OpenAICompatAdapter(LLMAdapter):
                 continue
             delta = chunk.choices[0].delta
             reasoning = getattr(delta, "reasoning_content", None)
-            if reasoning:
+            if isinstance(reasoning, str) and reasoning:
                 yield LLMStreamChunk(thinking=reasoning)
             if delta.content:
                 yield delta.content
