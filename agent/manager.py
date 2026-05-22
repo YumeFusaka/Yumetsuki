@@ -60,6 +60,8 @@ class AgentManager:
         self._event_bus = event_bus_instance or event_bus
 
     def chat_stream(self, user_input: str) -> Generator[ProcessedText, None, None]:
+        self._event_bus.publish(AgentEvents.USER_INPUT, {"text": user_input})
+
         memories = self._search_memories(user_input)
         if memories:
             self._event_bus.publish(AgentEvents.MEMORY_RETRIEVED, {
@@ -110,6 +112,10 @@ class AgentManager:
 
         self._event_bus.publish(AgentEvents.LLM_COMPLETE, {
             "response_length": len(assistant_response),
+        })
+        self._event_bus.publish(AgentEvents.ASSISTANT_REPLY, {
+            "text": assistant_response,
+            "character_name": "",
         })
 
         # 异步反思 + 记忆写入（不阻塞用户）
