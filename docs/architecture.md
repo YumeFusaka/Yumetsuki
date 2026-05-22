@@ -63,6 +63,7 @@ yumetsuki/
   - `system_config.yaml`
   - `mcp.yaml`
   - `memory.yaml`
+  - `agent.yaml`
 
 ### `llm/`
 
@@ -108,6 +109,10 @@ yumetsuki/
 - 每个插件一个目录
 - 至少包含 `plugin.py`
 - 示例插件：`plugins/example_echo/`
+- `plugins/system_control/`
+  系统控制插件：打开应用、浏览器、文件管理器、文件、URL、执行命令
+  内部分模块：open.py（打开类）、command.py（命令执行）
+  三级权限控制（low/medium/high）
 
 ### `data/`
 
@@ -145,40 +150,90 @@ yumetsuki/
 - 调用分发
 - 提供 UI 展示数据
 
-## 当前边界
+## Agent 系统
 
-第三阶段进行中，项目已经具备：
+Agent 层采用分层智能架构，核心设计原则：**简单对话零开销，复杂任务按需升级**。
 
-- 插件 SDK
-- 插件宿主
-- OpenAI-compatible tool calling
-- MCP stdio / HTTP(SSE) transport
-- 统一工具目录
-- 本地记忆系统（Mem0 OSS + Chroma + huggingface 本地向量模型）
-- 异步记忆加载（后台线程，不阻塞 UI）
+### 模块结构
 
-Agent 层已完成：
+- `agent/planner.py` — 分层路由（快速关键词匹配 → LLM 判断）
+- `agent/executor.py` — 工具调用执行
+- `agent/reflector.py` — 异步反思（浅层摘要 / 深层 LLM 记忆提取）
+- `agent/multi_step.py` — 多步推理（Plan→Execute→Observe 循环）
+- `agent/proactive.py` — 主动行为调度器（定时 + 事件驱动）
+- `agent/llm_helper.py` — Agent 内部 LLM 调用（非流式）
+- `agent/manager.py` — Agent 编排器
 
-- `agent/planner.py` - 意图分析与路由
-- `agent/executor.py` - 工具调用执行
-- `agent/reflector.py` - 对话反思与总结
-- `agent/manager.py` - Agent 编排器
+### 分层路由（Planner）
 
-Agent 层维持自定义实现，不引入大型外部框架。
+```text
+用户输入
+→ 快速关键词匹配（零 API 调用）
+  → 命中：直接返回路由结果
+  → 未命中 + 触发升级条件：调用 LLM judge
+    → LLM 返回路由决策（chat / tool / multi_step）
+```
+
+升级条件：输入含工具关键词、问号、多句等复杂信号。
+
+### 异步反思（Reflector）
+
+- 浅层反思：每轮对话后提取关键点（纯文本处理，无 API 调用）
+- 深层反思：满足条件时（长回复、情感内容）后台线程调用 LLM 提取记忆写入 Mem0
+
+### 多步推理（MultiStepRunner）
+
+- 由 Planner 判断触发（`needs_multi_step=True`）
+- Plan→Execute→Observe 循环，带 max_steps 和 timeout 保护
+- 通过 EventBus 发布进度事件
+
+### 主动行为（ProactiveScheduler）
+
+- QThread 后台运行，5 秒 tick
+- 闲置定时器：用户长时间不交互时主动发言
+- 自定义事件：可注册触发器（如工作提醒）
+- 全局冷却 + 事件独立冷却 + 活跃时段过滤
+- 所有参数可在设置中心配置
 
 ### Agent 事件日志
 
-Agent 模块通过 `EventBus` 发布内部行为事件：
+Agent 通过 `EventBus` 发布内部行为事件：
 
-- `agent.planner_decided` - Planner 路由决策
-- `agent.memory_retrieved` - 记忆检索结果
-- `agent.tool_executed` - 工具执行
-- `agent.tool_skipped` - 跳过工具调用
-- `agent.llm_started` - LLM 开始生成
-- `agent.llm_complete` - LLM 生成完成
-- `agent.reflection_complete` - 反思完成
+- `agent.planner_decided` — Planner 路由决策
+- `agent.memory_retrieved` — 记忆检索结果
+- `agent.tool_executed` — 工具执行
+- `agent.tool_skipped` — 跳过工具调用
+- `agent.llm_started` — LLM 开始生成
+- `agent.llm_complete` — LLM 生成完成
+- `agent.reflection_complete` — 反思完成
+- `agent.multi_step_progress` — 多步推理进度
 
-设置中心的「Agent」页面订阅这些事件，显示实时的 Agent 内部日志。
+设置中心「Agent」页面（多 Tab）订阅这些事件，显示实时日志和配置。
+
+### 配置
+
+`data/config/agent.yaml`，对应 `config/schema.py` 中的 `AgentConfig`：
+
+- `PlannerConfig` — 升级阈值、关键词列表
+- `ReflectorConfig` — 深层反思开关、触发条件
+- `MultiStepConfig` — 最大步数、超时时间
+- `ProactiveConfig` — 启用开关、闲置间隔、冷却时间、活跃时段、自定义事件列表
+
+## 当前能力边界
+
+第三阶段已完成，项目具备：
+
+- 插件 SDK + 插件宿主
+- OpenAI-compatible tool calling
+- MCP stdio / HTTP(SSE) transport
+- 统一工具目录（ToolRegistry）
+- 本地记忆系统（Mem0 OSS + Chroma + 本地向量模型）
+- 异步记忆加载
+- Agent 分层智能（路由、反思、多步推理、主动行为）
+
+尚未实现：
+
+- 更多内置插件能力扩展（媒体控制、截图等）
 
 ## 记忆系统
 
