@@ -1,6 +1,7 @@
 # TTS 句级增量播报 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status:** 计划已写完，代码尚未开始。
 
 **Goal:** 为聊天窗接入基于句号级切分的 GPT-SoVITS 自动播报，在流式出字过程中尽早合成并按句序播放语音。
 

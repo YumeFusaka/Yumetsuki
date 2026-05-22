@@ -47,7 +47,7 @@ yumetsuki/
 - `ui/settings/pages/plugin_page.py`
   插件与 MCP 管理页面
 - `ui/chat/window.py`
-  桌宠聊天窗
+  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局）
 - `ui/chat/sprite.py`
   立绘加载、缩放、情绪切换
 
@@ -77,6 +77,16 @@ yumetsuki/
   对话历史、流式输出、工具调用循环
 - `llm/text_processor.py`
   解析 `[emotion:xxx]`
+
+### `tts/`
+
+负责语音能力适配。
+
+- `tts/adapter.py`
+  TTS 适配器抽象
+- `tts/adapters/gptsovits.py`
+  GPT-SoVITS HTTP 适配器
+  当前已具备请求封装，句级增量播报链路尚未接入聊天窗口
 
 ### `core/`
 
@@ -210,6 +220,9 @@ Agent 层采用分层智能架构，核心设计原则：**简单对话零开销
 
 Agent 通过 `EventBus` 发布内部行为事件：
 
+- `agent.user_input` — 用户输入
+- `agent.assistant_reply` — 角色回复完成
+- `agent.thinking` — Thinking 预览
 - `agent.planner_decided` — Planner 路由决策
 - `agent.memory_retrieved` — 记忆检索结果
 - `agent.tool_executed` — 工具执行
@@ -219,7 +232,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - `agent.reflection_complete` — 反思完成
 - `agent.multi_step_progress` — 多步推理进度
 
-设置中心「Agent」页面（多 Tab）订阅这些事件，显示实时日志和配置。
+设置中心「Agent」页面（多 Tab）订阅这些事件，日志页会把用户输入、角色回复、Thinking 预览和内部事件合并为一条时间线显示。
 
 ### 配置
 
@@ -241,9 +254,12 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - 本地记忆系统（Mem0 OSS + Chroma + 本地向量模型）
 - 异步记忆加载
 - Agent 分层智能（路由、反思、多步推理、主动行为）
+- Agent 日志混合时间线
+- 聊天窗长文本滚动与整体缩放
 
 尚未实现：
 
+- 句级增量 TTS 播报接入（GPT-SoVITS）
 - 更多内置插件能力扩展（媒体控制、截图等）
 
 ## 记忆系统
