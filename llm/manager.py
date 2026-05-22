@@ -44,12 +44,17 @@ class LLMManager:
         messages.append({"role": "user", "content": user_input})
         return messages
 
-    def chat_stream(self, user_input: str, extra_context: str = "") -> Generator[ProcessedText, None, None]:
+    def chat_stream(
+        self,
+        user_input: str,
+        extra_context: str = "",
+        allow_tools: bool = True,
+    ) -> Generator[ProcessedText, None, None]:
         messages = self._build_messages(user_input, extra_context=extra_context)
         self._history.append({"role": "user", "content": user_input})
 
         full_response = ""
-        tools = self._tool_registry.tool_specs() if self._tool_registry else None
+        tools = self._tool_registry.tool_specs() if self._tool_registry and allow_tools else None
         for _ in range(3):
             tool_calls: list[ToolCall] = []
             for chunk in self._adapter.stream_chat(messages, tools=tools):

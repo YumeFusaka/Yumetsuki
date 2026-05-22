@@ -75,6 +75,7 @@ class AgentManager:
 
         tool_result = ""
         tool_calls: list[dict] | None = None
+        allow_tools = True
         if plan.needs_multi_step and self._config.multi_step.enabled:
             # 多步推理模式
             multi_step_runner = MultiStepRunner(
@@ -93,6 +94,7 @@ class AgentManager:
             result = self._executor.execute(plan, self._tool_registry)
             tool_result = str(result)
             tool_calls = [{"name": plan.tool_name, "result": tool_result}]
+            allow_tools = False
             self._event_bus.publish(AgentEvents.TOOL_EXECUTED, {
                 "tool": plan.tool_name,
                 "result": tool_result[:200],
@@ -105,7 +107,11 @@ class AgentManager:
         self._event_bus.publish(AgentEvents.LLM_STARTED, {})
         final_result: ProcessedText | None = None
         assistant_response = ""
-        for result in self._llm_manager.chat_stream(user_input, extra_context=extra_context):
+        for result in self._llm_manager.chat_stream(
+            user_input,
+            extra_context=extra_context,
+            allow_tools=allow_tools,
+        ):
             if result.thinking:
                 self._event_bus.publish(AgentEvents.THINKING, {"text": result.thinking})
             final_result = result
