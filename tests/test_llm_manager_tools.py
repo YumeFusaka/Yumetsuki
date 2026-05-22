@@ -104,3 +104,23 @@ def test_llm_manager_executes_mcp_tool_calls():
     assert results[-1].clean_text == "查到了 memo"
     assert adapter.calls[0]["tools"][0]["function"]["name"] == "notes__search"
     assert adapter.calls[1]["messages"][-1]["content"] == "notes__search:memo"
+
+
+class NoToolAdapter(LLMAdapter):
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def stream_chat(self, messages: list[dict], tools: list[dict] | None = None):
+        self.calls.append({"messages": messages, "tools": tools})
+        yield "普通回复"
+
+
+def test_llm_manager_can_disable_tools_for_reply_only_phase():
+    adapter = NoToolAdapter()
+    manager = LLMManager(LLMConfig(api_key="test"), tool_registry=FakeMCPRegistry())
+    manager._adapter = adapter
+
+    results = list(manager.chat_stream("打开浏览器", allow_tools=False))
+
+    assert results[-1].clean_text == "普通回复"
+    assert adapter.calls[0]["tools"] is None

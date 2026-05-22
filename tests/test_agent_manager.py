@@ -79,8 +79,12 @@ class FakeLLMManager:
         self.final_text = final_text
         self.calls = []
 
-    def chat_stream(self, user_input, extra_context=""):
-        self.calls.append({"user_input": user_input, "extra_context": extra_context})
+    def chat_stream(self, user_input, extra_context="", allow_tools=True):
+        self.calls.append({
+            "user_input": user_input,
+            "extra_context": extra_context,
+            "allow_tools": allow_tools,
+        })
         yield ProcessedText(clean_text=self.final_text.replace("[emotion:开心]", ""), emotion="开心")
 
 
@@ -120,6 +124,29 @@ def test_agent_manager_executes_tool_then_calls_llm():
 
     assert results[-1].clean_text == "我帮你查到了"
     assert "找到 3 条待办" in manager._llm_manager.calls[0]["extra_context"]
+
+
+def test_agent_manager_tool_mode_disables_followup_llm_tools():
+    llm = FakeLLMManager("[emotion:开心]已经打开了")
+    manager = AgentManager(
+        llm_manager=llm,
+        planner=FakePlanner(FakePlan(
+            mode="tool",
+            goal="open browser",
+            tool_name="system_control__open_browser",
+            arguments={},
+        )),
+        executor=FakeExecutor("已打开浏览器"),
+        memory_store=FakeMemoryStore(),
+        tool_registry=FakeToolRegistry(),
+        user_id="u1",
+    )
+
+    results = list(manager.chat_stream("打开浏览器"))
+
+    assert results[-1].clean_text == "已经打开了"
+    assert llm.calls[0]["allow_tools"] is False
+    assert "已打开浏览器" in llm.calls[0]["extra_context"]
 
 
 def test_agent_manager_does_not_block_on_add_conversation():

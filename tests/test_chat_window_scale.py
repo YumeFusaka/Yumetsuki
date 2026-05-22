@@ -73,3 +73,12 @@ def test_rebuild_stylesheet_contains_layered_theme_borders():
     source = inspect.getsource(win_module.ChatWindow._rebuild_stylesheet)
     assert "rgba(212, 86, 122, 0.32)" in source
     assert "rgba(155, 48, 96, 0.18)" in source
+
+
+def test_rebuild_stylesheet_keeps_theme_tint_on_top_border():
+    """输入框和按钮顶边应保留浅粉主题色，而不是纯白。"""
+    import ui.chat.window as win_module
+
+    source = inspect.getsource(win_module.ChatWindow._rebuild_stylesheet)
+    assert "border-top: 1px solid rgba(255, 214, 224, 0.78);" in source
+    assert "border-top: 1px solid rgba(255, 220, 228, 0.8);" in source
