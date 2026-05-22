@@ -230,7 +230,7 @@ class ChatWindow(QWidget):
         self._input.setStyleSheet("""
             QLineEdit {
                 background: rgba(255, 255, 255, 0.7);
-                border: 1px solid rgba(220, 160, 180, 0.35);
+                border: 2px solid rgba(220, 160, 180, 0.35);
                 border-radius: 8px; padding: 8px 12px;
                 color: #4a3040; font-size: 13px;
             }
@@ -263,7 +263,7 @@ class ChatWindow(QWidget):
         return f"""
             QPushButton {{
                 background: {bg};
-                border: 1px solid {border};
+                border: 2px solid {border};
                 border-radius: 17px; color: #6b4a5a; font-size: 14px;
             }}
             QPushButton:hover {{
@@ -353,9 +353,9 @@ class ChatWindow(QWidget):
         self._input.setStyleSheet(f"""
             QLineEdit {{
                 background: rgba(255, 255, 255, 0.64);
-                border: 1px solid rgba(212, 86, 122, 0.32);
-                border-top: 1px solid rgba(255, 214, 224, 0.78);
-                border-bottom: 1px solid rgba(155, 48, 96, 0.18);
+                border: 2px solid rgba(212, 86, 122, 0.32);
+                border-top: 2px solid rgba(255, 214, 224, 0.78);
+                border-bottom: 2px solid rgba(155, 48, 96, 0.18);
                 border-radius: {radius}px; padding: {int(8*s)}px {padding}px;
                 color: #4a3040; font-size: {input_font}px;
             }}
@@ -371,9 +371,9 @@ class ChatWindow(QWidget):
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background: rgba(255,255,255,0.68);
-                    border: 1px solid rgba(212, 86, 122, 0.32);
-                    border-top: 1px solid rgba(255, 220, 228, 0.8);
-                    border-bottom: 1px solid rgba(155, 48, 96, 0.18);
+                    border: 2px solid rgba(212, 86, 122, 0.32);
+                    border-top: 2px solid rgba(255, 220, 228, 0.8);
+                    border-bottom: 2px solid rgba(155, 48, 96, 0.18);
                     border-radius: {btn_radius}px; color: #6b4a5a; font-size: {int(14*s)}px;
                 }}
                 QPushButton:hover {{
