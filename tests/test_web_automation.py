@@ -100,3 +100,61 @@ def test_format_results():
 
 def test_format_results_empty():
     assert format_results([]) == "未找到搜索结果"
+
+
+from plugins.web_automation.plugin import Plugin, PermissionLevel
+
+
+def test_wa_permission_level_ordering():
+    assert PermissionLevel.LOW.value < PermissionLevel.MEDIUM.value
+    assert PermissionLevel.MEDIUM.value < PermissionLevel.HIGH.value
+
+
+def test_wa_plugin_has_all_tools():
+    plugin = Plugin()
+    tool_names = [t.name for t in plugin.tools()]
+    assert "web_search" in tool_names
+    assert "web_search_visible" in tool_names
+    assert "web_extract" in tool_names
+    assert "web_screenshot" in tool_names
+
+
+def test_wa_low_permission_blocks_extract():
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.LOW
+    result = plugin.call_tool("web_extract", {"url": "https://example.com"})
+    assert "权限不足" in result
+
+
+def test_wa_low_permission_blocks_screenshot():
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.LOW
+    result = plugin.call_tool("web_screenshot", {"url": "https://example.com"})
+    assert "权限不足" in result
+
+
+def test_wa_medium_permission_blocks_screenshot():
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.MEDIUM
+    result = plugin.call_tool("web_screenshot", {"url": "https://example.com"})
+    assert "权限不足" in result
+
+
+@patch("plugins.web_automation.plugin.run_headless")
+def test_wa_low_permission_allows_search(mock_run):
+    mock_run.return_value = "1. 结果标题\n   https://example.com\n   摘要"
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.LOW
+    result = plugin.call_tool("web_search", {"query": "test"})
+    mock_run.assert_called_once()
+    assert "结果" in result
+
+
+@patch("plugins.web_automation.plugin.run_headless")
+def test_wa_medium_permission_allows_extract(mock_run):
+    mock_run.return_value = "页面文本内容"
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.MEDIUM
+    result = plugin.call_tool("web_extract", {"url": "https://example.com"})
+    mock_run.assert_called_once()
+    assert "页面文本" in result
