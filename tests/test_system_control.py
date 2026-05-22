@@ -102,3 +102,70 @@ def test_run_command_output_truncated(mock_run):
     )
     result = do_run_command("cat bigfile", timeout=30)
     assert len(result) <= 4200  # 4096 + some prefix text
+
+
+from plugins.system_control.plugin import Plugin, PermissionLevel
+
+
+def test_permission_level_ordering():
+    assert PermissionLevel.LOW.value < PermissionLevel.MEDIUM.value
+    assert PermissionLevel.MEDIUM.value < PermissionLevel.HIGH.value
+
+
+def test_plugin_has_all_tools():
+    plugin = Plugin()
+    tool_names = [t.name for t in plugin.tools()]
+    assert "open_application" in tool_names
+    assert "open_browser" in tool_names
+    assert "open_file_manager" in tool_names
+    assert "open_file" in tool_names
+    assert "open_url" in tool_names
+    assert "run_command" in tool_names
+
+
+@patch("plugins.system_control.open.subprocess.Popen")
+@patch("plugins.system_control.open.shutil.which", return_value="/usr/bin/notepad")
+def test_plugin_low_permission_allows_open_app(mock_which, mock_popen):
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.LOW
+    result = plugin.call_tool("open_application", {"name": "notepad"})
+    assert "已打开" in result
+
+
+def test_plugin_low_permission_blocks_open_file():
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.LOW
+    result = plugin.call_tool("open_file", {"path": "C:/test.txt"})
+    assert "权限不足" in result
+
+
+def test_plugin_low_permission_blocks_run_command():
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.LOW
+    result = plugin.call_tool("run_command", {"command": "echo hi"})
+    assert "权限不足" in result
+
+
+@patch("plugins.system_control.open.os.path.exists", return_value=True)
+@patch("plugins.system_control.open.os.startfile")
+def test_plugin_medium_permission_allows_open_file(mock_startfile, mock_exists):
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.MEDIUM
+    result = plugin.call_tool("open_file", {"path": "C:/test.txt"})
+    assert "已打开" in result
+
+
+def test_plugin_medium_permission_blocks_run_command():
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.MEDIUM
+    result = plugin.call_tool("run_command", {"command": "echo hi"})
+    assert "权限不足" in result
+
+
+@patch("plugins.system_control.command.subprocess.run")
+def test_plugin_high_permission_allows_run_command(mock_run):
+    mock_run.return_value = MagicMock(stdout="hi\n", stderr="", returncode=0)
+    plugin = Plugin()
+    plugin._permission_level = PermissionLevel.HIGH
+    result = plugin.call_tool("run_command", {"command": "echo hi", "timeout": 30})
+    assert "hi" in result
