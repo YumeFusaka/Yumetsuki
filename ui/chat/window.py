@@ -3,7 +3,7 @@ import getpass
 from html import escape
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QPushButton, QMenu,
-    QApplication, QSizePolicy,
+    QApplication, QSizePolicy, QScrollArea,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize
 from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush
@@ -46,23 +46,54 @@ class GlassPanel(QWidget):
 
 
 class ConversationPane(QWidget):
-    """Keeps speaker name and dialog body pinned to the top-left."""
+    """Keeps speaker name and scrollable dialog body."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.name_label = QLabel("...", self)
-        self.dialog_label = QLabel("...", self)
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+
+        self._scroll_area = QScrollArea(self)
+        self._scroll_area.setWidgetResizable(True)
+        self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._scroll_area.setStyleSheet("""
+            QScrollArea { background: transparent; border: none; }
+            QScrollBar:vertical {
+                width: 6px; background: transparent;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(212, 86, 122, 0.4); border-radius: 3px; min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgba(212, 86, 122, 0.6);
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: transparent;
+            }
+        """)
+
+        self.dialog_label = QLabel("...")
         self.dialog_label.setTextFormat(Qt.TextFormat.RichText)
         self.dialog_label.setWordWrap(True)
         self.dialog_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.dialog_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.dialog_label.setStyleSheet("background: transparent;")
+        self._scroll_area.setWidget(self.dialog_label)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         name_h = 24
         gap = 8
         self.name_label.setGeometry(0, 0, self.width(), name_h)
-        self.dialog_label.setGeometry(0, name_h + gap, self.width(), max(0, self.height() - name_h - gap))
+        self._scroll_area.setGeometry(0, name_h + gap, self.width(), max(0, self.height() - name_h - gap))
+
+    def scroll_to_top(self):
+        self._scroll_area.verticalScrollBar().setValue(0)
 
 
 class ChatWindow(QWidget):
@@ -72,6 +103,13 @@ class ChatWindow(QWidget):
     BASE_HEIGHT = 600
     MIN_SCALE = 0.5
     MAX_SCALE = 2.0
+    BASE_FONT = 17
+    BASE_NAME_FONT = 17
+    BASE_INPUT_FONT = 13
+    BASE_PADDING = 12
+    BASE_RADIUS = 8
+    BASE_BTN_SIZE = 34
+    BASE_SCROLLBAR_WIDTH = 6
     CHARACTER_NAME_COLOR = "#9b3060"
     USER_NAME_COLOR = "#5f6fb2"
 
@@ -219,26 +257,80 @@ class ChatWindow(QWidget):
 
     def _set_speaker_name(self, name: str, is_user: bool = False) -> None:
         color = self.USER_NAME_COLOR if is_user else self.CHARACTER_NAME_COLOR
+        font = int(self.BASE_NAME_FONT * self._scale)
         self._name_label.setText(name)
         self._name_label.setStyleSheet(f"""
-            color: {color}; font-size: 17px; font-weight: bold;
+            color: {color}; font-size: {font}px; font-weight: bold;
             background: transparent;
         """)
 
     def _set_dialog_text(self, text: str) -> None:
+        font = int(self.BASE_FONT * self._scale)
         body = escape(text).replace("\n", "<br>")
         self._dialog_box.setText(
-            f"<div style='line-height: 145%; color: #4a3040; font-size: 15px;'>{body}</div>"
+            f"<div style='line-height: 145%; color: #4a3040; font-size: {font}px;'>{body}</div>"
         )
+        self._conversation_pane.scroll_to_top()
 
     def _apply_scale(self):
         w = int(self.BASE_WIDTH * self._scale)
         h = int(self.BASE_HEIGHT * self._scale)
         self.setFixedSize(w, h)
-        # Position glass panel at bottom ~38% of window
-        panel_h = int(h * 0.38)
+        panel_h = int(h * 0.50)
         self._panel.setGeometry(10, h - panel_h - 6, w - 20, panel_h)
+        self._rebuild_stylesheet()
         self._reload_sprite()
+
+    def _rebuild_stylesheet(self):
+        s = self._scale
+        font = int(self.BASE_FONT * s)
+        name_font = int(self.BASE_NAME_FONT * s)
+        input_font = int(self.BASE_INPUT_FONT * s)
+        padding = int(self.BASE_PADDING * s)
+        radius = int(self.BASE_RADIUS * s)
+        btn_size = int(self.BASE_BTN_SIZE * s)
+        scrollbar_w = max(4, int(self.BASE_SCROLLBAR_WIDTH * s))
+
+        self._dialog_box.setStyleSheet(f"""
+            color: #4a3040; font-size: {font}px;
+            padding: 2px 0 {padding}px 0; background: transparent;
+        """)
+
+        self._input.setStyleSheet(f"""
+            QLineEdit {{
+                background: rgba(255, 255, 255, 0.7);
+                border: 1px solid rgba(220, 160, 180, 0.35);
+                border-radius: {radius}px; padding: {int(8*s)}px {padding}px;
+                color: #4a3040; font-size: {input_font}px;
+            }}
+            QLineEdit:focus {{ border-color: #d4567a; }}
+        """)
+
+        for btn in self._panel.findChildren(QPushButton):
+            btn.setFixedSize(btn_size, btn_size)
+            btn_radius = btn_size // 2
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: rgba(255,255,255,0.7); border: 1px solid rgba(220,160,180,0.3);
+                    border-radius: {btn_radius}px; color: #6b4a5a; font-size: {int(14*s)}px;
+                }}
+                QPushButton:hover {{ background: rgba(255,200,210,0.6); }}
+            """)
+
+        self._conversation_pane._scroll_area.setStyleSheet(f"""
+            QScrollArea {{ background: transparent; border: none; }}
+            QScrollBar:vertical {{
+                width: {scrollbar_w}px; background: transparent;
+            }}
+            QScrollBar::handle:vertical {{
+                background: rgba(212, 86, 122, 0.4); border-radius: {scrollbar_w//2}px; min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: rgba(212, 86, 122, 0.6);
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
+        """)
 
     def _reload_sprite(self):
         """Reload sprite at current scale."""
