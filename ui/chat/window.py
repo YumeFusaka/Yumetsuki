@@ -99,7 +99,7 @@ class ConversationPane(QWidget):
 class ChatWindow(QWidget):
     """Desktop pet style chat window — frameless, transparent, draggable."""
 
-    BASE_WIDTH = 420
+    BASE_WIDTH = 500
     BASE_HEIGHT = 600
     MIN_SCALE = 0.5
     MAX_SCALE = 2.0
@@ -195,8 +195,8 @@ class ChatWindow(QWidget):
         # Glass panel at bottom
         self._panel = GlassPanel(self)
         panel_layout = QVBoxLayout(self._panel)
-        panel_layout.setContentsMargins(20, 16, 20, 16)
-        panel_layout.setSpacing(9)
+        panel_layout.setContentsMargins(18, 14, 18, 14)
+        panel_layout.setSpacing(7)
 
         self._conversation_pane = ConversationPane()
         self._name_label = self._conversation_pane.name_label
@@ -276,8 +276,10 @@ class ChatWindow(QWidget):
         w = int(self.BASE_WIDTH * self._scale)
         h = int(self.BASE_HEIGHT * self._scale)
         self.setFixedSize(w, h)
-        panel_h = int(h * 0.50)
-        self._panel.setGeometry(10, h - panel_h - 6, w - 20, panel_h)
+        panel_h = int(h * 0.45)
+        panel_x = max(6, int(8 * self._scale))
+        panel_bottom = max(4, int(4 * self._scale))
+        self._panel.setGeometry(panel_x, h - panel_h - panel_bottom, w - panel_x * 2, panel_h)
         self._rebuild_stylesheet()
         self._reload_sprite()
 
@@ -334,9 +336,10 @@ class ChatWindow(QWidget):
 
     def _reload_sprite(self):
         """Reload sprite at current scale."""
-        sprite_area_h = int(self.height() * 0.85)
-        self._sprite_label.setFixedHeight(sprite_area_h)
-        target_size = QSize(self.width(), sprite_area_h)
+        sprite_area_h = int(self.height() * 0.92)
+        self._sprite_label.setFixedHeight(self.height())
+        self._sprite_label.setContentsMargins(0, 0, 0, -max(10, int(22 * self._scale)))
+        target_size = QSize(int(self.width() * 1.04), sprite_area_h)
         self._sprite_mgr.reload(target_size)
 
     # --- Dragging ---
