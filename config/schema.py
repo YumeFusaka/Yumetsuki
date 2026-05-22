@@ -96,8 +96,13 @@ class ProactiveConfig(BaseModel):
     events: list[ProactiveEventConfig] = []
 
 
+class SystemControlConfig(BaseModel):
+    permission_level: str = "low"
+
+
 class AgentConfig(BaseModel):
     planner: PlannerConfig = PlannerConfig()
     reflector: ReflectorConfig = ReflectorConfig()
     multi_step: MultiStepConfig = MultiStepConfig()
     proactive: ProactiveConfig = ProactiveConfig()
+    system_control: SystemControlConfig = SystemControlConfig()
