@@ -1,12 +1,12 @@
 import inspect
 
 
-def test_panel_height_is_50_percent():
-    """对话框 panel 应占窗口高度的 50%。"""
+def test_panel_height_is_45_percent():
+    """对话框 panel 应占窗口高度的 45%。"""
     import ui.chat.window as win_module
     source = inspect.getsource(win_module.ChatWindow._apply_scale)
-    assert "0.50" in source or "0.5)" in source, "panel 比例应为 50%"
-    assert "0.38" not in source, "旧的 38% 比例应已移除"
+    assert "0.45" in source or "0.45)" in source, "panel 比例应为 45%"
+    assert "0.50" not in source and "0.5)" not in source, "旧的 50% 比例应已移除"
 
 
 def test_scale_constants_defined():
