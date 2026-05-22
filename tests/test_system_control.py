@@ -71,3 +71,34 @@ def test_open_url(mock_open):
     result = do_open_url("https://example.com")
     mock_open.assert_called_once_with("https://example.com")
     assert "https://example.com" in result
+
+
+from plugins.system_control.command import do_run_command
+
+
+@patch("plugins.system_control.command.subprocess.run")
+def test_run_command_success(mock_run):
+    mock_run.return_value = MagicMock(
+        stdout="hello\n", stderr="", returncode=0
+    )
+    result = do_run_command("echo hello", timeout=30)
+    assert "hello" in result
+    mock_run.assert_called_once()
+
+
+@patch("plugins.system_control.command.subprocess.run")
+def test_run_command_timeout(mock_run):
+    import subprocess as sp
+    mock_run.side_effect = sp.TimeoutExpired(cmd="sleep 100", timeout=5)
+    result = do_run_command("sleep 100", timeout=5)
+    assert "超时" in result or "timeout" in result.lower()
+
+
+@patch("plugins.system_control.command.subprocess.run")
+def test_run_command_output_truncated(mock_run):
+    long_output = "x" * 5000
+    mock_run.return_value = MagicMock(
+        stdout=long_output, stderr="", returncode=0
+    )
+    result = do_run_command("cat bigfile", timeout=30)
+    assert len(result) <= 4200  # 4096 + some prefix text
