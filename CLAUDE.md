@@ -25,6 +25,8 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第三阶段已完成。
 - 优先沿用现有 UI 风格和提交信息格式
 - 当前不引入 LangChain / LangGraph，继续走自定义架构
 - 完成的功能同步更新文档：每次提交的改动必须同步更新 CLAUDE.md 和 docs/ 目录中的相关文档；已完成的 specs 和 plan 文件应及时删除或更新
+- 所有文档必须使用中文
+- 每个插件必须在 `docs/` 下有对应的说明文档（如 `docs/plugin-system-control.md`）
 
 ## 当前阶段
 
