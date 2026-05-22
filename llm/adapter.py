@@ -14,6 +14,7 @@ class ToolCall:
 class LLMStreamChunk:
     content: str = ""
     tool_calls: list[ToolCall] | None = None
+    thinking: str = ""
 
 
 class LLMAdapter(ABC):

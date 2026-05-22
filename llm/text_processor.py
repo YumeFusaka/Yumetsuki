@@ -8,6 +8,7 @@ _EMOTION_RE = re.compile(r"\[emotion:(\w+)\]")
 class ProcessedText:
     clean_text: str
     emotion: str | None
+    thinking: str = ""
 
 
 class TextProcessor:

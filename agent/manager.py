@@ -106,6 +106,8 @@ class AgentManager:
         final_result: ProcessedText | None = None
         assistant_response = ""
         for result in self._llm_manager.chat_stream(user_input, extra_context=extra_context):
+            if result.thinking:
+                self._event_bus.publish(AgentEvents.THINKING, {"text": result.thinking})
             final_result = result
             assistant_response = result.clean_text
             yield result

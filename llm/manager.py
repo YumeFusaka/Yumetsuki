@@ -54,6 +54,8 @@ class LLMManager:
             tool_calls: list[ToolCall] = []
             for chunk in self._adapter.stream_chat(messages, tools=tools):
                 if isinstance(chunk, LLMStreamChunk):
+                    if chunk.thinking:
+                        yield ProcessedText(clean_text=full_response, emotion=None, thinking=chunk.thinking)
                     if chunk.content:
                         full_response += chunk.content
                         yield self._processor.process(full_response)

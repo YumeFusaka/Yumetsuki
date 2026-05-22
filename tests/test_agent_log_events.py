@@ -14,6 +14,18 @@ def test_new_event_constants_exist():
     assert AgentEvents.THINKING == "agent.thinking"
 
 
+def test_stream_chunk_has_thinking_field():
+    from llm.adapter import LLMStreamChunk
+    chunk = LLMStreamChunk(thinking="我在思考...")
+    assert chunk.thinking == "我在思考..."
+
+
+def test_processed_text_has_thinking_field():
+    from llm.text_processor import ProcessedText
+    pt = ProcessedText(clean_text="hello", emotion=None, thinking="思考中")
+    assert pt.thinking == "思考中"
+
+
 def test_chat_stream_publishes_user_input_and_reply():
     """chat_stream 应发布 USER_INPUT 和 ASSISTANT_REPLY 事件。"""
     bus = EventBus()
