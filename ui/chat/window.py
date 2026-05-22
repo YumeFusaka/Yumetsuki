@@ -34,6 +34,16 @@ class LLMWorker(QThread):
 
 class GlassPanel(QWidget):
     """Frosted glass panel drawn with rounded rect + semi-transparent fill."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._border_width = 3
+        self._border_color = "#d4567a"
+
+    def set_border_style(self, width: int, color: str) -> None:
+        self._border_width = width
+        self._border_color = color
+        self.update()
+
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -43,7 +53,7 @@ class GlassPanel(QWidget):
         panel_path.addRoundedRect(panel_rect, 16, 16)
 
         p.fillPath(panel_path, QBrush(QColor(255, 245, 250, 168)))
-        p.setPen(QPen(QColor("#d4567a"), 3))
+        p.setPen(QPen(QColor(self._border_color), self._border_width))
         p.drawPath(panel_path)
         p.end()
 
@@ -277,6 +287,12 @@ class ChatWindow(QWidget):
         """)
 
     @staticmethod
+    def _scaled_border_widths(scale: float) -> tuple[int, int]:
+        panel_border = max(2, round(3 * scale))
+        control_border = max(1, round(2 * scale))
+        return panel_border, control_border
+
+    @staticmethod
     def _normalize_dialog_text(text: str) -> str:
         normalized = text.strip()
         return re.sub(r"\n{3,}", "\n\n", normalized)
@@ -339,6 +355,9 @@ class ChatWindow(QWidget):
         radius = int(self.BASE_RADIUS * s)
         btn_size = int(self.BASE_BTN_SIZE * s)
         scrollbar_w = max(4, int(self.BASE_SCROLLBAR_WIDTH * s))
+        panel_border, control_border = self._scaled_border_widths(s)
+
+        self._panel.set_border_style(panel_border, "#d4567a")
 
         self._dialog_box.setStyleSheet(f"""
             color: #4a3040; font-size: {font}px;
@@ -348,7 +367,7 @@ class ChatWindow(QWidget):
         self._input.setStyleSheet(f"""
             QLineEdit {{
                 background: rgba(255, 255, 255, 0.64);
-                border: 3px solid #d4567a;
+                border: {control_border}px solid #d4567a;
                 border-radius: {radius}px; padding: {int(8*s)}px {padding}px;
                 color: #4a3040; font-size: {input_font}px;
             }}
@@ -364,7 +383,7 @@ class ChatWindow(QWidget):
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background: rgba(255,255,255,0.68);
-                    border: 3px solid #d4567a;
+                    border: {control_border}px solid #d4567a;
                     border-radius: {btn_radius}px; color: #6b4a5a; font-size: {int(14*s)}px;
                 }}
                 QPushButton:hover {{

@@ -67,11 +67,11 @@ def test_dialog_html_uses_tighter_line_height_and_paragraph_gap():
 
 
 def test_rebuild_stylesheet_contains_layered_theme_borders():
-    """输入框和按钮样式应包含纯玫瑰色主描边。"""
+    """输入框和按钮样式应包含动态纯玫瑰色主描边。"""
     import ui.chat.window as win_module
 
     source = inspect.getsource(win_module.ChatWindow._rebuild_stylesheet)
-    assert "border: 3px solid #d4567a;" in source
+    assert "border: {control_border}px solid #d4567a;" in source
     assert "border-color: #9b3060;" in source
 
 
@@ -85,17 +85,28 @@ def test_rebuild_stylesheet_keeps_theme_tint_on_top_border():
 
 
 def test_rebuild_stylesheet_uses_thicker_control_borders():
-    """输入框和圆形按钮的主题描边应加厚到 3px。"""
+    """输入框和圆形按钮的主题描边应使用缩放后的 control_border。"""
     import ui.chat.window as win_module
 
     source = inspect.getsource(win_module.ChatWindow._rebuild_stylesheet)
-    assert source.count("border: 3px solid #d4567a;") >= 2
+    assert source.count("border: {control_border}px solid #d4567a;") >= 2
 
 
 def test_glass_panel_uses_solid_rose_border():
-    """对话框外框应使用纯玫瑰色描边，不再叠加白色高光边。"""
+    """对话框外框应使用缩放后的纯玫瑰色描边。"""
     import ui.chat.window as win_module
 
-    source = inspect.getsource(win_module.GlassPanel.paintEvent)
-    assert "QColor('#d4567a')" in source or 'QColor("#d4567a")' in source
-    assert "QColor(255, 255, 255, 92)" not in source
+    panel_source = inspect.getsource(win_module.GlassPanel.paintEvent)
+    rebuild_source = inspect.getsource(win_module.ChatWindow._rebuild_stylesheet)
+    assert "QColor(self._border_color)" in panel_source
+    assert "self._panel.set_border_style(panel_border, \"#d4567a\")" in rebuild_source
+    assert "QColor(255, 255, 255, 92)" not in panel_source
+
+
+def test_chat_window_border_widths_scale_with_minimums():
+    """默认边框厚度和缩放下限应固定。"""
+    from ui.chat.window import ChatWindow
+
+    assert ChatWindow._scaled_border_widths(1.0) == (3, 2)
+    assert ChatWindow._scaled_border_widths(0.5) == (2, 1)
+    assert ChatWindow._scaled_border_widths(1.8) == (5, 4)
