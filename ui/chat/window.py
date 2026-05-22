@@ -1,5 +1,6 @@
 from pathlib import Path
 import getpass
+import re
 from html import escape
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QPushButton, QMenu,
@@ -280,12 +281,47 @@ class ChatWindow(QWidget):
             background: transparent;
         """)
 
+    @staticmethod
+    def _normalize_dialog_text(text: str) -> str:
+        normalized = text.strip()
+        return re.sub(r"\n{3,}", "\n\n", normalized)
+
+    @staticmethod
+    def _build_dialog_html(
+        text: str,
+        font: int,
+        line_height: int = 132,
+        paragraph_gap: int = 4,
+    ) -> str:
+        normalized = ChatWindow._normalize_dialog_text(text)
+        if not normalized:
+            return (
+                f"<div style='line-height: {line_height}%; color: #4a3040; "
+                f"font-size: {font}px; margin:0;'></div>"
+            )
+
+        paragraphs = normalized.split("\n\n")
+        html_parts = []
+        for index, paragraph in enumerate(paragraphs):
+            margin = "0" if index == len(paragraphs) - 1 else f"0 0 {paragraph_gap}px 0"
+            body = escape(paragraph).replace("\n", "<br>")
+            html_parts.append(f"<div style='margin:{margin};'>{body}</div>")
+
+        return (
+            f"<div style='line-height: {line_height}%; color: #4a3040; "
+            f"font-size: {font}px;'>{''.join(html_parts)}</div>"
+        )
+
     def _set_dialog_text(self, text: str) -> None:
         font = int(self.BASE_FONT * self._scale)
-        body = escape(text).replace("\n", "<br>")
-        self._dialog_box.setText(
-            f"<div style='line-height: 145%; color: #4a3040; font-size: {font}px;'>{body}</div>"
+        paragraph_gap = max(2, int(4 * self._scale))
+        html = self._build_dialog_html(
+            text,
+            font=font,
+            line_height=132,
+            paragraph_gap=paragraph_gap,
         )
+        self._dialog_box.setText(html)
         self._conversation_pane.scroll_to_top()
 
     def _apply_scale(self):
@@ -311,7 +347,7 @@ class ChatWindow(QWidget):
 
         self._dialog_box.setStyleSheet(f"""
             color: #4a3040; font-size: {font}px;
-            padding: 2px 0 {padding}px 0; background: transparent;
+            padding: 1px 0 {max(4, int(6 * s))}px 0; background: transparent;
         """)
 
         self._input.setStyleSheet(f"""
