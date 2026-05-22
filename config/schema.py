@@ -100,9 +100,16 @@ class SystemControlConfig(BaseModel):
     permission_level: str = "low"
 
 
+class WebAutomationConfig(BaseModel):
+    permission_level: str = "medium"
+    default_engine: str = "bing"
+    screenshot_dir: str = "data/screenshots"
+
+
 class AgentConfig(BaseModel):
     planner: PlannerConfig = PlannerConfig()
     reflector: ReflectorConfig = ReflectorConfig()
     multi_step: MultiStepConfig = MultiStepConfig()
     proactive: ProactiveConfig = ProactiveConfig()
     system_control: SystemControlConfig = SystemControlConfig()
+    web_automation: WebAutomationConfig = WebAutomationConfig()
