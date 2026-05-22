@@ -76,3 +76,8 @@ cython_debug/
 *.swp
 *.swo
 data/models/
+data/memory/
+data/config/api.yaml
+data/config/memory.yaml
+data/screenshots/
+.claude/
