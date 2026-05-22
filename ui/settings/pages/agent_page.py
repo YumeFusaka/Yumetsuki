@@ -1,3 +1,6 @@
+from datetime import datetime
+from html import escape as html_escape
+
 from PySide6.QtCore import Qt, QObject, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -481,6 +484,15 @@ class AgentPage(QWidget):
         event_bus.subscribe(AgentEvents.LLM_COMPLETE, self._on_llm_complete)
         event_bus.subscribe(AgentEvents.REFLECTION_COMPLETE, self._on_reflection)
         event_bus.subscribe(AgentEvents.MULTI_STEP_PROGRESS, self._on_multi_step_progress)
+        event_bus.subscribe(AgentEvents.USER_INPUT, self._on_user_input)
+        event_bus.subscribe(AgentEvents.ASSISTANT_REPLY, self._on_assistant_reply)
+        event_bus.subscribe(AgentEvents.THINKING, self._on_thinking)
+
+    def _timestamp(self) -> str:
+        return datetime.now().strftime("%H:%M:%S")
+
+    def _escape(self, text: str) -> str:
+        return html_escape(text).replace("\n", "<br>")
 
     def _on_log_enabled_changed(self, state):
         on = state != 0
@@ -500,7 +512,7 @@ class AgentPage(QWidget):
         self._log_entries.append(text)
         if len(self._log_entries) > 200:
             self._log_entries.pop(0)
-        self._log_text.append(text)
+        self._log_text.insertHtml(text + "<br>")
         if self._auto_scroll:
             scrollbar = self._log_text.verticalScrollBar()
             scrollbar.setValue(scrollbar.maximum())
@@ -514,47 +526,97 @@ class AgentPage(QWidget):
         tool = data.get("tool_name")
         multi = data.get("needs_multi_step", False)
         if multi:
-            self._log_handler.log_entry.emit("[Planner] 路由到多步推理模式")
+            msg = "路由到多步推理模式"
         elif mode == "tool" and tool:
-            self._log_handler.log_entry.emit(f"[Planner] 路由到工具: {tool}")
+            msg = f"路由到工具: {tool}"
         else:
-            self._log_handler.log_entry.emit("[Planner] 路由到对话模式")
+            msg = "路由到对话模式"
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#6b8a7a;">[Planner]</span> {msg}'
+        )
 
     def _on_memory_retrieved(self, data):
         count = data.get("count", 0)
-        self._log_handler.log_entry.emit(f"[Memory] 检索到 {count} 条相关记忆")
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#8a7ab0;">[Memory]</span> 检索到 {count} 条相关记忆'
+        )
 
     def _on_tool_executed(self, data):
         tool = data.get("tool", "unknown")
         result_preview = data.get("result", "")[:100]
-        msg = f"[Tool] 执行: {tool}"
+        msg = f"执行: {tool}"
         if result_preview:
-            msg += f"\n    结果: {result_preview}..."
-        self._log_handler.log_entry.emit(msg)
+            msg += f" → {self._escape(result_preview)}..."
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#b08a40;">[Tool]</span> {msg}'
+        )
 
     def _on_tool_skipped(self, data):
-        self._log_handler.log_entry.emit("[Tool] 跳过 (对话模式)")
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#b08a40;">[Tool]</span> 跳过 (对话模式)'
+        )
 
     def _on_llm_started(self, data):
-        self._log_handler.log_entry.emit("[LLM] 开始生成回复...")
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#5a8a9a;">[LLM]</span> 开始生成回复...'
+        )
 
     def _on_llm_complete(self, data):
         length = data.get("response_length", 0)
-        self._log_handler.log_entry.emit(f"[LLM] 回复完成 ({length} 字符)")
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#5a8a9a;">[LLM]</span> 回复完成 ({length} 字符)'
+        )
 
     def _on_reflection(self, data):
-        points = data.get("key_points", [])
         memories = data.get("memories_extracted", 0)
-        msg = "[Reflector] 反思完成"
+        points = data.get("key_points", [])
+        msg = "反思完成"
         if memories:
-            msg += f"\n    提取记忆: {memories} 条"
+            msg += f" | 提取记忆: {memories} 条"
         if points:
-            msg += f"\n    关键点: {points[0][:50]}..."
-        self._log_handler.log_entry.emit(msg)
+            msg += f" | {self._escape(points[0][:50])}..."
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#7a6a9a;">[Reflector]</span> {msg}'
+        )
 
     def _on_multi_step_progress(self, data):
         idx = data.get("step_index", 0)
         desc = data.get("description", "")
         ok = data.get("success", True)
         status = "✓" if ok else "✗"
-        self._log_handler.log_entry.emit(f"[MultiStep] 步骤{idx + 1} {status} {desc}")
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#6b8a7a;">[MultiStep]</span> 步骤{idx + 1} {status} {desc}'
+        )
+
+    def _on_user_input(self, data):
+        text = data.get("text", "")
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#5f6fb2;font-weight:bold;">[User]</span> {self._escape(text)}'
+        )
+
+    def _on_assistant_reply(self, data):
+        text = data.get("text", "")
+        name = data.get("character_name", "") or "Assistant"
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#9b3060;font-weight:bold;">[{self._escape(name)}]</span> {self._escape(text)}'
+        )
+
+    def _on_thinking(self, data):
+        text = data.get("text", "")
+        preview = text[:80]
+        suffix = "..." if len(text) > 80 else ""
+        self._log_handler.log_entry.emit(
+            f'<span style="color:#888;font-size:11px;">[{self._timestamp()}]</span> '
+            f'<span style="color:#888;font-style:italic;">[Thinking]</span> '
+            f'<span style="color:#888;font-style:italic;">{self._escape(preview)}{suffix}</span>'
+        )
