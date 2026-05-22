@@ -354,7 +354,7 @@ class ChatWindow(QWidget):
             QLineEdit {{
                 background: rgba(255, 255, 255, 0.64);
                 border: 1px solid rgba(212, 86, 122, 0.32);
-                border-top: 1px solid rgba(255, 255, 255, 0.72);
+                border-top: 1px solid rgba(255, 214, 224, 0.78);
                 border-bottom: 1px solid rgba(155, 48, 96, 0.18);
                 border-radius: {radius}px; padding: {int(8*s)}px {padding}px;
                 color: #4a3040; font-size: {input_font}px;
@@ -372,7 +372,7 @@ class ChatWindow(QWidget):
                 QPushButton {{
                     background: rgba(255,255,255,0.68);
                     border: 1px solid rgba(212, 86, 122, 0.32);
-                    border-top: 1px solid rgba(255, 255, 255, 0.74);
+                    border-top: 1px solid rgba(255, 220, 228, 0.8);
                     border-bottom: 1px solid rgba(155, 48, 96, 0.18);
                     border-radius: {btn_radius}px; color: #6b4a5a; font-size: {int(14*s)}px;
                 }}
