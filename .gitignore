@@ -81,3 +81,4 @@ data/config/api.yaml
 data/config/memory.yaml
 data/screenshots/
 .claude/
+.worktrees/
