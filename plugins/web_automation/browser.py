@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from playwright.sync_api import sync_playwright, Page
 
+def run_headless(callback: Callable[..., Any]) -> Any:
+    from playwright.sync_api import sync_playwright
 
-def run_headless(callback: Callable[[Page], Any]) -> Any:
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel="msedge", headless=True)
         try:
@@ -15,7 +15,9 @@ def run_headless(callback: Callable[[Page], Any]) -> Any:
             browser.close()
 
 
-def run_visible(callback: Callable[[Page], Any]) -> Any:
+def run_visible(callback: Callable[..., Any]) -> Any:
+    from playwright.sync_api import sync_playwright
+
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel="msedge", headless=False)
         page = browser.new_page()

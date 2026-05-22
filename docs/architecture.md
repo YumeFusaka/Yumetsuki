@@ -113,6 +113,10 @@ yumetsuki/
   系统控制插件：打开应用、浏览器、文件管理器、文件、URL、执行命令
   内部分模块：open.py（打开类）、command.py（命令执行）
   三级权限控制（low/medium/high）
+- `plugins/web_automation/`
+  网页自动化插件：搜索、提取文本、截图（Playwright + Edge）
+  内部分模块：browser.py（浏览器管理）、search.py（搜索引擎）、page.py（页面操作）
+  三级权限控制（low/medium/high）
 
 ### `data/`
 

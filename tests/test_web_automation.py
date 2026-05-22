@@ -16,7 +16,7 @@ def test_web_automation_config_in_agent_config():
     assert agent.web_automation.default_engine == "bing"
 
 
-@patch("plugins.web_automation.browser.sync_playwright")
+@patch("playwright.sync_api.sync_playwright")
 def test_run_headless(mock_playwright_ctx):
     from plugins.web_automation.browser import run_headless
 
@@ -37,7 +37,7 @@ def test_run_headless(mock_playwright_ctx):
     assert result == "test_result"
 
 
-@patch("plugins.web_automation.browser.sync_playwright")
+@patch("playwright.sync_api.sync_playwright")
 def test_run_visible_does_not_close(mock_playwright_ctx):
     from plugins.web_automation.browser import run_visible
 
