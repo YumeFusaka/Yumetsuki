@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QApplication, QSizePolicy, QScrollArea,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize
-from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush
+from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush, QPen
 from ui.chat.sprite import SpriteManager
 from core.tool_registry import ToolRegistry
 from agent.manager import AgentManager
@@ -37,19 +37,14 @@ class GlassPanel(QWidget):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        outer_rect = self.rect().adjusted(1, 1, -1, -1)
-        inner_rect = self.rect().adjusted(2, 2, -2, -2)
+        panel_rect = self.rect().adjusted(2, 2, -2, -2)
 
-        outer_path = QPainterPath()
-        outer_path.addRoundedRect(outer_rect, 16, 16)
-        inner_path = QPainterPath()
-        inner_path.addRoundedRect(inner_rect, 15, 15)
+        panel_path = QPainterPath()
+        panel_path.addRoundedRect(panel_rect, 16, 16)
 
-        p.fillPath(outer_path, QBrush(QColor(255, 245, 250, 168)))
-        p.setPen(QColor(212, 86, 122, 82))
-        p.drawPath(outer_path)
-        p.setPen(QColor(255, 255, 255, 92))
-        p.drawPath(inner_path)
+        p.fillPath(panel_path, QBrush(QColor(255, 245, 250, 168)))
+        p.setPen(QPen(QColor("#d4567a"), 3))
+        p.drawPath(panel_path)
         p.end()
 
 
@@ -230,11 +225,11 @@ class ChatWindow(QWidget):
         self._input.setStyleSheet("""
             QLineEdit {
                 background: rgba(255, 255, 255, 0.7);
-                border: 2px solid rgba(220, 160, 180, 0.35);
+                border: 3px solid #d4567a;
                 border-radius: 8px; padding: 8px 12px;
                 color: #4a3040; font-size: 13px;
             }
-            QLineEdit:focus { border-color: #d4567a; }
+            QLineEdit:focus { border-color: #9b3060; }
         """)
         self._input.returnPressed.connect(self._on_send)
         input_row.addWidget(self._input)
@@ -263,12 +258,12 @@ class ChatWindow(QWidget):
         return f"""
             QPushButton {{
                 background: {bg};
-                border: 2px solid {border};
+                border: 3px solid #d4567a;
                 border-radius: 17px; color: #6b4a5a; font-size: 14px;
             }}
             QPushButton:hover {{
                 background: {hover};
-                border-color: rgba(155, 48, 96, 0.42);
+                border-color: #9b3060;
             }}
         """
 
@@ -353,14 +348,12 @@ class ChatWindow(QWidget):
         self._input.setStyleSheet(f"""
             QLineEdit {{
                 background: rgba(255, 255, 255, 0.64);
-                border: 2px solid rgba(212, 86, 122, 0.32);
-                border-top: 2px solid rgba(255, 214, 224, 0.78);
-                border-bottom: 2px solid rgba(155, 48, 96, 0.18);
+                border: 3px solid #d4567a;
                 border-radius: {radius}px; padding: {int(8*s)}px {padding}px;
                 color: #4a3040; font-size: {input_font}px;
             }}
             QLineEdit:focus {{
-                border-color: rgba(155, 48, 96, 0.56);
+                border-color: #9b3060;
                 background: rgba(255, 252, 254, 0.78);
             }}
         """)
@@ -371,14 +364,12 @@ class ChatWindow(QWidget):
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background: rgba(255,255,255,0.68);
-                    border: 2px solid rgba(212, 86, 122, 0.32);
-                    border-top: 2px solid rgba(255, 220, 228, 0.8);
-                    border-bottom: 2px solid rgba(155, 48, 96, 0.18);
+                    border: 3px solid #d4567a;
                     border-radius: {btn_radius}px; color: #6b4a5a; font-size: {int(14*s)}px;
                 }}
                 QPushButton:hover {{
                     background: rgba(255,214,224,0.82);
-                    border-color: rgba(155, 48, 96, 0.42);
+                    border-color: #9b3060;
                 }}
             """)
 
