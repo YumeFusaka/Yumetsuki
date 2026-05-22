@@ -320,6 +320,7 @@ class SettingsWindow(QMainWindow):
             user_id=self._config.memory.user_id,
             settings_window_factory=lambda: self,
             agent_config=self._config.agent,
+            tts_config=self._config.api.tts,
         )
         self._chat_window.show()
         show_feedback(self, "启动成功", "桌宠对话窗口已启动，正在加载记忆...")

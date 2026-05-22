@@ -1,20 +1,27 @@
 from pathlib import Path
 import getpass
 import re
+import unicodedata
 from html import escape
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QPushButton, QMenu,
     QApplication, QSizePolicy, QScrollArea,
 )
-from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize
+from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize, QBuffer, QByteArray, QIODevice
 from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush, QPen
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from ui.chat.sprite import SpriteManager
 from core.tool_registry import ToolRegistry
 from agent.manager import AgentManager
 from llm.manager import LLMManager
 from llm.text_processor import ProcessedText
-from config.schema import LLMConfig
+from llm.adapter import LLMStreamChunk
+from config.schema import LLMConfig, TTSConfig
 from core.character import load_character, build_system_prompt
+from tts.adapters.gptsovits import GPTSoVITSAdapter
+
+
+SENTENCE_ENDINGS = "。！？；\n"
 
 
 class LLMWorker(QThread):
@@ -30,6 +37,41 @@ class LLMWorker(QThread):
         for result in self._chat_engine.chat_stream(self._input):
             self.chunk_received.emit(result)
         self.finished_signal.emit()
+
+
+class TTSWorker(QThread):
+    result_ready = Signal(int, int, object)
+
+    def __init__(self, adapter, utterance_id: int, segment_id: int, text: str):
+        super().__init__()
+        self._adapter = adapter
+        self._utterance_id = utterance_id
+        self._segment_id = segment_id
+        self._text = text
+
+    def run(self):
+        audio = None
+        if self._adapter is not None:
+            audio = self._adapter.synthesize(self._text)
+        self.result_ready.emit(self._utterance_id, self._segment_id, audio)
+
+
+class TTSTranslationWorker(QThread):
+    result_ready = Signal(int, int, object)
+
+    def __init__(self, translate_func, utterance_id: int, segment_id: int, text: str, target_lang: str):
+        super().__init__()
+        self._translate_func = translate_func
+        self._utterance_id = utterance_id
+        self._segment_id = segment_id
+        self._text = text
+        self._target_lang = target_lang
+
+    def run(self):
+        translated_text = None
+        if self._translate_func is not None:
+            translated_text = self._translate_func(self._text, self._target_lang)
+        self.result_ready.emit(self._utterance_id, self._segment_id, translated_text)
 
 
 class GlassPanel(QWidget):
@@ -135,6 +177,7 @@ class ChatWindow(QWidget):
         user_id: str | None = None,
         settings_window_factory=None,
         agent_config = None,
+        tts_config: TTSConfig | None = None,
     ):
         super().__init__()
         self._scale = 1.0
@@ -142,6 +185,21 @@ class ChatWindow(QWidget):
         self._char_dir = character_dir
         self._settings_window_factory = settings_window_factory
         self._settings_window = None
+        self._tts_adapter = self._create_tts_adapter(tts_config)
+        self._tts_output_lang = self._normalize_tts_lang(tts_config.output_lang if tts_config else "")
+        self._streamed_assistant_text = ""
+        self._tts_pending_buffer = ""
+        self._current_utterance_id = 0
+        self._next_segment_id = 0
+        self._next_play_id = 0
+        self._segment_results: dict[tuple[int, int], bytes] = {}
+        self._active_tts_workers = []
+        self._active_translation_workers = []
+        self._audio_output = None
+        self._audio_player = None
+        self._audio_buffer = None
+        self._is_audio_playing = False
+        self._pending_audio_queue: list[bytes] = []
 
         # Window flags: frameless, transparent, always on top
         self.setWindowFlags(
@@ -509,12 +567,323 @@ class ChatWindow(QWidget):
     def _clear_settings_window_ref(self):
         self._settings_window = None
 
+    @staticmethod
+    def _create_tts_adapter(tts_config: TTSConfig | None):
+        if tts_config is None:
+            return None
+        if tts_config.engine == "gptsovits":
+            return GPTSoVITSAdapter(tts_config)
+        return None
+
+    @staticmethod
+    def _normalize_tts_lang(language: str) -> str:
+        normalized = language.strip()
+        if not normalized:
+            return ""
+        return GPTSoVITSAdapter._normalize_prompt_lang(normalized)
+
+    @staticmethod
+    def _is_neutral_tts_char(char: str) -> bool:
+        if char.isspace() or char.isdigit():
+            return True
+        return unicodedata.category(char).startswith(("P", "S"))
+
+    @staticmethod
+    def _is_cjk(char: str) -> bool:
+        codepoint = ord(char)
+        return (
+            0x3400 <= codepoint <= 0x4DBF
+            or 0x4E00 <= codepoint <= 0x9FFF
+            or 0xF900 <= codepoint <= 0xFAFF
+        )
+
+    @staticmethod
+    def _is_hiragana(char: str) -> bool:
+        codepoint = ord(char)
+        return 0x3040 <= codepoint <= 0x309F
+
+    @staticmethod
+    def _is_katakana(char: str) -> bool:
+        codepoint = ord(char)
+        return 0x30A0 <= codepoint <= 0x30FF or 0x31F0 <= codepoint <= 0x31FF
+
+    @staticmethod
+    def _is_hangul(char: str) -> bool:
+        codepoint = ord(char)
+        return (
+            0x1100 <= codepoint <= 0x11FF
+            or 0x3130 <= codepoint <= 0x318F
+            or 0xAC00 <= codepoint <= 0xD7AF
+        )
+
+    @staticmethod
+    def _is_ascii_letter(char: str) -> bool:
+        return ("a" <= char <= "z") or ("A" <= char <= "Z")
+
+    @classmethod
+    def _looks_like_chinese(cls, text: str) -> bool:
+        has_cjk = False
+        for char in text:
+            if cls._is_neutral_tts_char(char):
+                continue
+            if cls._is_cjk(char):
+                has_cjk = True
+                continue
+            return False
+        return has_cjk
+
+    @classmethod
+    def _looks_like_english(cls, text: str) -> bool:
+        has_ascii_letter = False
+        for char in text:
+            if cls._is_neutral_tts_char(char):
+                continue
+            if cls._is_ascii_letter(char):
+                has_ascii_letter = True
+                continue
+            return False
+        return has_ascii_letter
+
+    @classmethod
+    def _looks_like_japanese(cls, text: str) -> bool:
+        has_kana = False
+        for char in text:
+            if cls._is_neutral_tts_char(char):
+                continue
+            if cls._is_hiragana(char) or cls._is_katakana(char):
+                has_kana = True
+                continue
+            if cls._is_cjk(char):
+                continue
+            return False
+        return has_kana
+
+    @classmethod
+    def _looks_like_korean(cls, text: str) -> bool:
+        has_hangul = False
+        for char in text:
+            if cls._is_neutral_tts_char(char):
+                continue
+            if cls._is_hangul(char):
+                has_hangul = True
+                continue
+            return False
+        return has_hangul
+
+    def _tts_text_matches_output_lang(self, text: str) -> bool:
+        if not self._tts_output_lang:
+            return True
+        if self._tts_output_lang in {"zh", "yue"}:
+            return self._looks_like_chinese(text)
+        if self._tts_output_lang == "en":
+            return self._looks_like_english(text)
+        if self._tts_output_lang == "ja":
+            return self._looks_like_japanese(text)
+        if self._tts_output_lang == "ko":
+            return self._looks_like_korean(text)
+        return False
+
+    @staticmethod
+    def _find_sentence_break(text: str) -> int:
+        for index, char in enumerate(text):
+            if char in SENTENCE_ENDINGS:
+                return index + 1
+        return -1
+
+    def _extract_tts_segments(self, flush: bool = False) -> list[str]:
+        segments: list[str] = []
+        while True:
+            cut_index = self._find_sentence_break(self._tts_pending_buffer)
+            if cut_index < 0:
+                break
+            segment = self._tts_pending_buffer[:cut_index].strip()
+            self._tts_pending_buffer = self._tts_pending_buffer[cut_index:]
+            if segment:
+                segments.append(segment)
+        if flush and self._tts_pending_buffer.strip():
+            segments.append(self._tts_pending_buffer.strip())
+            self._tts_pending_buffer = ""
+        return segments
+
+    def _enqueue_tts_segment(self, text: str) -> None:
+        segment_id = self._next_segment_id
+        self._next_segment_id += 1
+        if not self._tts_text_matches_output_lang(text):
+            self._start_translation_worker(
+                self._current_utterance_id,
+                segment_id,
+                text,
+                self._tts_output_lang,
+            )
+            return
+        self._start_tts_worker(self._current_utterance_id, segment_id, text)
+
+    def _start_tts_worker(self, utterance_id: int, segment_id: int, text: str) -> None:
+        if self._tts_adapter is None:
+            return
+        worker = TTSWorker(self._tts_adapter, utterance_id, segment_id, text)
+        worker.result_ready.connect(self._handle_tts_result, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(lambda: self._on_tts_worker_finished(worker))
+        self._active_tts_workers.append(worker)
+        worker.start()
+
+    def _start_translation_worker(self, utterance_id: int, segment_id: int, text: str, target_lang: str) -> None:
+        if not target_lang:
+            self._start_tts_worker(utterance_id, segment_id, text)
+            return
+        worker = TTSTranslationWorker(
+            self._translate_tts_text,
+            utterance_id,
+            segment_id,
+            text,
+            target_lang,
+        )
+        worker.result_ready.connect(self._handle_translation_result, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(lambda: self._on_translation_worker_finished(worker))
+        self._active_translation_workers.append(worker)
+        worker.start()
+
+    def _on_tts_worker_finished(self, worker: TTSWorker) -> None:
+        if worker in self._active_tts_workers:
+            self._active_tts_workers.remove(worker)
+        worker.deleteLater()
+
+    def _on_translation_worker_finished(self, worker: TTSTranslationWorker) -> None:
+        if worker in self._active_translation_workers:
+            self._active_translation_workers.remove(worker)
+        worker.deleteLater()
+
+    def _begin_new_tts_turn(self) -> None:
+        self._current_utterance_id += 1
+        self._streamed_assistant_text = ""
+        self._tts_pending_buffer = ""
+        self._next_segment_id = 0
+        self._next_play_id = 0
+        self._segment_results.clear()
+        self._pending_audio_queue.clear()
+        if self._audio_player is not None:
+            self._is_audio_playing = False
+            self._audio_player.stop()
+        self._release_audio_buffer()
+
+    def _complete_tts_segment(self, utterance_id: int, segment_id: int, audio: bytes | None) -> None:
+        self._segment_results[(utterance_id, segment_id)] = audio or b""
+        self._drain_ready_audio()
+
+    def _handle_tts_result(self, utterance_id: int, segment_id: int, audio: bytes | None) -> None:
+        if utterance_id != self._current_utterance_id:
+            return
+        if audio is None:
+            print(f"[TTS] segment {segment_id} synthesis failed")
+        self._complete_tts_segment(utterance_id, segment_id, audio)
+
+    def _handle_translation_result(self, utterance_id: int, segment_id: int, translated_text: str | None) -> None:
+        if utterance_id != self._current_utterance_id:
+            return
+        translated = (translated_text or "").strip()
+        if not translated:
+            print(f"[TTS] segment {segment_id} translation failed")
+            self._complete_tts_segment(utterance_id, segment_id, None)
+            return
+        self._start_tts_worker(utterance_id, segment_id, translated)
+
+    def _translate_tts_text(self, text: str, target_lang: str) -> str | None:
+        adapter = getattr(self._llm, "_adapter", None)
+        if adapter is None:
+            return None
+        language_name = {
+            "zh": "简体中文",
+            "yue": "粤语",
+            "en": "English",
+            "ja": "日本語",
+            "ko": "한국어",
+        }.get(target_lang, target_lang)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    f"请把用户提供的文本翻译成{language_name}，"
+                    "只输出译文，保留原有语气、语义和标点，不要添加解释。"
+                ),
+            },
+            {"role": "user", "content": text},
+        ]
+        try:
+            translated_parts: list[str] = []
+            for chunk in adapter.stream_chat(messages):
+                if isinstance(chunk, str):
+                    translated_parts.append(chunk)
+                elif isinstance(chunk, LLMStreamChunk) and chunk.content:
+                    translated_parts.append(chunk.content)
+            translated = "".join(translated_parts).strip()
+            return translated or None
+        except Exception as exc:
+            print(f"[TTS] translation request failed: {exc}")
+            return None
+
+    def _drain_ready_audio(self) -> None:
+        while True:
+            key = (self._current_utterance_id, self._next_play_id)
+            if key not in self._segment_results:
+                break
+            audio = self._segment_results.pop(key)
+            if audio:
+                self._play_audio_bytes(audio)
+            self._next_play_id += 1
+
+    def _ensure_audio_backend(self) -> None:
+        if self._audio_player is not None:
+            return
+        self._audio_output = QAudioOutput(self)
+        self._audio_player = QMediaPlayer(self)
+        self._audio_player.setAudioOutput(self._audio_output)
+        self._audio_player.playbackStateChanged.connect(
+            self._on_audio_playback_state_changed,
+            Qt.ConnectionType.QueuedConnection,
+        )
+
+    def _release_audio_buffer(self) -> None:
+        if self._audio_buffer is None:
+            return
+        if self._audio_buffer.isOpen():
+            self._audio_buffer.close()
+        self._audio_buffer.deleteLater()
+        self._audio_buffer = None
+
+    def _start_audio_playback(self, audio: bytes) -> None:
+        self._ensure_audio_backend()
+        self._release_audio_buffer()
+        self._audio_buffer = QBuffer(self)
+        self._audio_buffer.setData(QByteArray(audio))
+        self._audio_buffer.open(QIODevice.OpenModeFlag.ReadOnly)
+        self._audio_player.setSourceDevice(self._audio_buffer)
+        self._is_audio_playing = True
+        self._audio_player.play()
+
+    def _play_audio_bytes(self, audio: bytes) -> None:
+        if not audio:
+            return
+        if self._is_audio_playing:
+            self._pending_audio_queue.append(audio)
+            return
+        self._start_audio_playback(audio)
+
+    def _on_audio_playback_state_changed(self, state) -> None:
+        if state != QMediaPlayer.PlaybackState.StoppedState or not self._is_audio_playing:
+            return
+        self._is_audio_playing = False
+        self._release_audio_buffer()
+        if self._pending_audio_queue:
+            next_audio = self._pending_audio_queue.pop(0)
+            self._start_audio_playback(next_audio)
+
     # --- Chat logic ---
     def _on_send(self):
         text = self._input.text().strip()
         if not text or self._worker is not None:
             return
         self._input.clear()
+        self._begin_new_tts_turn()
         self._set_speaker_name("我", is_user=True)
         self._set_dialog_text(text)
 
@@ -531,10 +900,22 @@ class ChatWindow(QWidget):
         if self._name_label.text() == "我" and self._char_name:
             self._set_speaker_name(self._char_name)
         self._set_dialog_text(result.clean_text)
+        if self._tts_adapter is not None:
+            delta = result.clean_text
+            if result.clean_text.startswith(self._streamed_assistant_text):
+                delta = result.clean_text[len(self._streamed_assistant_text):]
+            self._streamed_assistant_text = result.clean_text
+            if delta:
+                self._tts_pending_buffer += delta
+                for segment in self._extract_tts_segments():
+                    self._enqueue_tts_segment(segment)
         if result.emotion:
             self._sprite_mgr.set_emotion(result.emotion)
 
     def _on_llm_done(self):
+        if self._tts_adapter is not None:
+            for segment in self._extract_tts_segments(flush=True):
+                self._enqueue_tts_segment(segment)
         self._worker = None
 
     def _on_proactive_message(self, message: str, source: str):
@@ -549,4 +930,9 @@ class ChatWindow(QWidget):
     def closeEvent(self, event):
         if self._proactive_scheduler is not None:
             self._proactive_scheduler.stop()
+        self._pending_audio_queue.clear()
+        if self._audio_player is not None:
+            self._is_audio_playing = False
+            self._audio_player.stop()
+        self._release_audio_buffer()
         super().closeEvent(event)

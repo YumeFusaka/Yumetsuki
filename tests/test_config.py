@@ -57,6 +57,25 @@ tts:
     assert mgr2.api.llm.model == "new-model"
 
 
+def test_save_and_reload_extended_tts_config(tmp_path):
+    mgr = ConfigManager(config_dir=tmp_path)
+    mgr.api.tts.engine = "gptsovits"
+    mgr.api.tts.api_url = "http://127.0.0.1:9880"
+    mgr.api.tts.ref_audio_path = "data/audio/ref.wav"
+    mgr.api.tts.prompt_lang = "zh"
+    mgr.api.tts.output_lang = "en"
+    mgr.api.tts.prompt_text = "你好，我是参考音频"
+    mgr.save_api()
+
+    mgr2 = ConfigManager(config_dir=tmp_path)
+    assert mgr2.api.tts.engine == "gptsovits"
+    assert mgr2.api.tts.api_url == "http://127.0.0.1:9880"
+    assert mgr2.api.tts.ref_audio_path == "data/audio/ref.wav"
+    assert mgr2.api.tts.prompt_lang == "zh"
+    assert mgr2.api.tts.output_lang == "en"
+    assert mgr2.api.tts.prompt_text == "你好，我是参考音频"
+
+
 def test_load_and_save_mcp_config(tmp_path):
     mcp_yaml = tmp_path / "mcp.yaml"
     mcp_yaml.write_text("""

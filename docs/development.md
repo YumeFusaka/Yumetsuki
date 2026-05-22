@@ -16,6 +16,7 @@
 - `data/config/api.yaml`
   API 配置
   含 key，不应提交
+  其中 TTS 的 `ref_audio_path`、`prompt_lang`、`output_lang`、`prompt_text` 可能包含本地语音素材路径或私有参考文本，也按本地敏感配置处理
 - `data/config/system_config.yaml`
   系统配置
 - `data/config/mcp.yaml`
@@ -54,6 +55,12 @@
   - `py_compile`
   - 必要时 Qt offscreen 实例化
   - 聊天窗缩放 / 滚动类调整优先补回归测试
+- TTS 相关改动优先覆盖：
+  - `SettingsWindow -> ChatWindow` 配置透传
+  - 句级切分边界（`。！？；` / 换行）
+  - `prompt_lang` / `output_lang` 透传与语言别名兼容
+  - 逐句翻译、旧轮失效、失败跳过与顺序播放
+  - 避免依赖真实 GPT-SoVITS 服务或真实音频设备
 
 ## 页面保存语义
 
@@ -84,3 +91,5 @@
 5. Agent 设置页日志混合时间线（用户输入 / 角色回复 / Thinking）
 6. 聊天窗长文本滚动与整体缩放
 7. 工具重复执行修复与聊天窗边框统一
+8. 句级增量 TTS 播报接入（GPT-SoVITS）
+9. 输出语言强约束与句级翻译播报

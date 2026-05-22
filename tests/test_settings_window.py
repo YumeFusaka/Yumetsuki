@@ -1,7 +1,10 @@
 from PySide6.QtWidgets import QApplication, QPushButton
 
+from config.schema import APIConfig
 from config.schema import LLMConfig
 from ui.chat.window import ChatWindow
+import ui.settings.pages.api_page as api_page_module
+from ui.settings.pages.api_page import APIPage
 from ui.settings.window import SettingsWindow
 
 
@@ -50,6 +53,59 @@ def test_api_page_discards_unsaved_changes_when_switching_away():
 
     assert window._api_page._model.text() == original_model
     assert window._api_page._temp_spin.value() == original_temp
+
+
+def test_api_page_browse_tts_reference_audio_updates_input(monkeypatch):
+    _app()
+    page = APIPage(APIConfig())
+
+    class _FakeFileDialog:
+        @staticmethod
+        def getOpenFileName(*args, **kwargs):
+            return ("D:/voices/ref.wav", "Audio Files (*.wav *.mp3 *.ogg *.flac)")
+
+    monkeypatch.setattr(api_page_module, "QFileDialog", _FakeFileDialog, raising=False)
+
+    page._browse_tts_ref_audio()
+
+    assert page._tts_ref_audio.text() == "D:/voices/ref.wav"
+
+
+def test_api_page_tts_language_combos_have_presets_and_remain_editable():
+    _app()
+    page = APIPage(APIConfig())
+
+    prompt_items = [page._tts_prompt_lang.itemText(i) for i in range(page._tts_prompt_lang.count())]
+    output_items = [page._tts_output_lang.itemText(i) for i in range(page._tts_output_lang.count())]
+
+    assert page._tts_prompt_lang.isEditable()
+    assert page._tts_output_lang.isEditable()
+    assert prompt_items == ["zh", "ja", "en", "ko", "yue"]
+    assert output_items == ["zh", "ja", "en", "ko", "yue"]
+
+
+def test_api_page_tts_language_and_ref_audio_apply_and_reset():
+    _app()
+    config = APIConfig()
+    page = APIPage(config)
+
+    page._tts_ref_audio.setText("D:/voices/live.wav")
+    page._tts_prompt_lang.setCurrentText("ja")
+    page._tts_output_lang.setCurrentText("en")
+    page.apply()
+
+    assert config.tts.ref_audio_path == "D:/voices/live.wav"
+    assert config.tts.prompt_lang == "ja"
+    assert config.tts.output_lang == "en"
+
+    config.tts.ref_audio_path = "E:/samples/reset.wav"
+    config.tts.prompt_lang = "yue"
+    config.tts.output_lang = "ko"
+    page.reset()
+
+    assert page._tts_ref_audio.text() == "E:/samples/reset.wav"
+    assert page._tts_prompt_lang.currentText() == "yue"
+    assert page._tts_output_lang.currentText() == "ko"
 
 
 class _FakeLLMManager:

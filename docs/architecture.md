@@ -47,7 +47,7 @@ yumetsuki/
 - `ui/settings/pages/plugin_page.py`
   插件与 MCP 管理页面
 - `ui/chat/window.py`
-  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局）
+  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局、句级增量 TTS）
 - `ui/chat/sprite.py`
   立绘加载、缩放、情绪切换
 
@@ -86,7 +86,8 @@ yumetsuki/
   TTS 适配器抽象
 - `tts/adapters/gptsovits.py`
   GPT-SoVITS HTTP 适配器
-  当前已具备请求封装，句级增量播报链路尚未接入聊天窗口
+  提供 HTTP 合成请求与基础失败日志
+  会把基础地址规范化到 `/tts`，并透传参考音频、参考语言、输出语言、参考文本等 GPT-SoVITS 专属字段
 
 ### `core/`
 
@@ -148,6 +149,10 @@ yumetsuki/
 → 如有 tool call，则通过 ToolRegistry 分发执行
 → tool result 回填给模型
 → UI 显示文本并切换立绘
+→ ChatWindow 按 `。！？；` / 换行切句
+→ 若句子与目标输出语言不一致，则逐句调用 LLM 翻译
+→ 翻译结果进入 GPT-SoVITS 合成
+→ Qt 多媒体按句序播放音频
 ```
 
 ## 工具系统
@@ -256,10 +261,11 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - Agent 分层智能（路由、反思、多步推理、主动行为）
 - Agent 日志混合时间线
 - 聊天窗长文本滚动与整体缩放
+- 句级增量 TTS 播报（GPT-SoVITS）
+- 输出语言强约束与句级翻译播报
 
 尚未实现：
 
-- 句级增量 TTS 播报接入（GPT-SoVITS）
 - 更多内置插件能力扩展（媒体控制、截图等）
 
 ## 记忆系统

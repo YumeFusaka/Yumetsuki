@@ -1,13 +1,14 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit,
     QComboBox, QLabel, QGroupBox, QScrollArea, QSlider, QHBoxLayout,
+    QPushButton, QFileDialog,
 )
 from PySide6.QtCore import Qt
 from config.schema import APIConfig
 from ui.widgets.rose_spin_box import RoseSpinBox
 
 FORM_STYLE = """
-QLineEdit, QComboBox {
+QLineEdit {
     background: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 6px;
@@ -16,14 +17,32 @@ QLineEdit, QComboBox {
     font-size: 13px;
     min-height: 18px;
 }
-QLineEdit:focus, QComboBox:focus {
+QLineEdit:focus {
     border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
 }
-QComboBox::drop-down { border: none; padding-right: 8px; }
+QComboBox {
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(220, 160, 180, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #4a3040;
+    font-size: 13px;
+    min-height: 20px;
+    min-width: 200px;
+    selection-background-color: rgba(212, 86, 122, 0.2);
+}
+QComboBox:focus { border-color: #d4567a; }
+QComboBox::drop-down {
+    border: none;
+    width: 24px;
+}
 QComboBox QAbstractItemView {
-    background: #fff5f7; border: 1px solid rgba(220, 160, 180, 0.3);
-    color: #4a3040; selection-background-color: rgba(255, 154, 162, 0.3);
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(220, 160, 180, 0.3);
+    border-radius: 6px;
+    color: #4a3040;
+    selection-background-color: rgba(212, 86, 122, 0.2);
 }
 QLabel { color: #6b4a5a; font-size: 13px; }
 QGroupBox {
@@ -45,10 +64,24 @@ QSlider::sub-page:horizontal {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff9aaa, stop:1 #e8a0c8);
     border-radius: 2px;
 }
+QPushButton#browseBtn {
+    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(220, 160, 180, 0.34);
+    border-radius: 6px;
+    padding: 6px 14px;
+    color: #6b4a5a;
+    font-size: 13px;
+}
+QPushButton#browseBtn:hover {
+    background: rgba(255, 225, 232, 0.92);
+    border-color: rgba(212, 86, 122, 0.44);
+}
 """
 
 
 class APIPage(QWidget):
+    TTS_LANGUAGE_OPTIONS = ["zh", "ja", "en", "ko", "yue"]
+
     def __init__(self, config: APIConfig, parent=None):
         super().__init__(parent)
         self._config = config
@@ -137,6 +170,37 @@ class APIPage(QWidget):
         self._tts_url = QLineEdit(config.tts.api_url)
         tts_form.addRow("API URL:", self._tts_url)
 
+        ref_audio_row = QWidget()
+        ref_audio_layout = QHBoxLayout(ref_audio_row)
+        ref_audio_layout.setContentsMargins(0, 0, 0, 0)
+        ref_audio_layout.setSpacing(8)
+
+        self._tts_ref_audio = QLineEdit(config.tts.ref_audio_path)
+        self._tts_ref_audio.setPlaceholderText("参考音频文件路径（GPT-SoVITS 常需填写）")
+        ref_audio_layout.addWidget(self._tts_ref_audio, 1)
+
+        self._tts_ref_audio_browse_btn = QPushButton("浏览...")
+        self._tts_ref_audio_browse_btn.setObjectName("browseBtn")
+        self._tts_ref_audio_browse_btn.clicked.connect(self._browse_tts_ref_audio)
+        ref_audio_layout.addWidget(self._tts_ref_audio_browse_btn)
+        tts_form.addRow("参考音频:", ref_audio_row)
+
+        self._tts_prompt_lang = QComboBox()
+        self._tts_prompt_lang.setEditable(True)
+        self._tts_prompt_lang.addItems(self.TTS_LANGUAGE_OPTIONS)
+        self._tts_prompt_lang.setCurrentText(config.tts.prompt_lang)
+        tts_form.addRow("参考语言:", self._tts_prompt_lang)
+
+        self._tts_output_lang = QComboBox()
+        self._tts_output_lang.setEditable(True)
+        self._tts_output_lang.addItems(self.TTS_LANGUAGE_OPTIONS)
+        self._tts_output_lang.setCurrentText(config.tts.output_lang)
+        tts_form.addRow("输出语言:", self._tts_output_lang)
+
+        self._tts_prompt_text = QLineEdit(config.tts.prompt_text)
+        self._tts_prompt_text.setPlaceholderText("参考音频对应文本")
+        tts_form.addRow("参考文本:", self._tts_prompt_text)
+
         layout.addWidget(tts_group)
 
         # ASR Group
@@ -162,6 +226,16 @@ class APIPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
 
+    def _browse_tts_ref_audio(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择参考音频",
+            self._tts_ref_audio.text(),
+            "Audio Files (*.wav *.mp3 *.ogg *.flac);;All Files (*)",
+        )
+        if path:
+            self._tts_ref_audio.setText(path)
+
     def apply(self) -> None:
         self._config.llm.provider = self._provider.currentText()
         self._config.llm.model = self._model.text()
@@ -171,6 +245,10 @@ class APIPage(QWidget):
         self._config.llm.max_tokens = self._tok_slider.value()
         self._config.tts.engine = self._tts_engine.currentText()
         self._config.tts.api_url = self._tts_url.text()
+        self._config.tts.ref_audio_path = self._tts_ref_audio.text()
+        self._config.tts.prompt_lang = self._tts_prompt_lang.currentText()
+        self._config.tts.output_lang = self._tts_output_lang.currentText()
+        self._config.tts.prompt_text = self._tts_prompt_text.text()
         self._config.asr.engine = self._asr_engine.currentText()
         self._config.asr.model_path = self._asr_model.text()
 
@@ -185,5 +263,9 @@ class APIPage(QWidget):
         self._tok_spin.setValue(self._config.llm.max_tokens)
         self._tts_engine.setCurrentText(self._config.tts.engine)
         self._tts_url.setText(self._config.tts.api_url)
+        self._tts_ref_audio.setText(self._config.tts.ref_audio_path)
+        self._tts_prompt_lang.setCurrentText(self._config.tts.prompt_lang)
+        self._tts_output_lang.setCurrentText(self._config.tts.output_lang)
+        self._tts_prompt_text.setText(self._config.tts.prompt_text)
         self._asr_engine.setCurrentText(self._config.asr.engine)
         self._asr_model.setText(self._config.asr.model_path)
