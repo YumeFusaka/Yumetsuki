@@ -60,7 +60,7 @@ class Plugin(BasePlugin):
         return format_results(results)
 
     @tool(
-        description="后台搜索关键词，返回结果摘要",
+        description="后台静默搜索关键词并返回结果摘要文本（不打开任何窗口，用户看不到浏览器）。仅当用户只需要搜索结果文本、未要求看到浏览器时使用",
         params={"query": "搜索关键词", "engine": "搜索引擎：bing 或 google，留空用默认", "count": "返回结果数量，默认5"},
     )
     def web_search(self, query: str, engine: str = "", count: int = 5) -> str:
@@ -73,7 +73,7 @@ class Plugin(BasePlugin):
             return f"搜索失败：{e}"
 
     @tool(
-        description="打开可见浏览器搜索，用户可看到操作过程",
+        description="打开可见浏览器窗口并执行搜索，用户可以看到浏览器和搜索过程。当用户要求“打开浏览器搜索 xxx”、“用浏览器查 xxx”、“先打开浏览器再搜索”等任何希望看到浏览器的场景，必须用此工具一步完成，不要先调用 system_control.open_browser 再调用 web_search",
         params={"query": "搜索关键词", "engine": "搜索引擎：bing 或 google，留空用默认"},
     )
     def web_search_visible(self, query: str, engine: str = "") -> str:

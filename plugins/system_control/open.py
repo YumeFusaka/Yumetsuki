@@ -57,10 +57,17 @@ def do_open_application(name: str) -> str:
 
 
 def do_open_browser() -> str:
+    path = _resolve_application("edge") or _resolve_application("chrome") or _resolve_application("firefox")
+    if path:
+        try:
+            subprocess.Popen([path])
+            return "已打开默认浏览器"
+        except OSError as e:
+            return f"打开浏览器失败：{e}"
     try:
-        webbrowser.open("")
+        os.startfile("http://")
         return "已打开默认浏览器"
-    except Exception as e:
+    except OSError as e:
         return f"打开浏览器失败：{e}"
 
 

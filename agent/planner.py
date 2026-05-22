@@ -27,7 +27,9 @@ _JUDGE_SYSTEM_PROMPT = """你是一个意图分类器。根据用户输入和可
 - 明确需要调用某个工具 → mode=tool, tool_name=工具qualified_name, arguments=根据工具参数schema从用户输入中提取的参数值
 - 需要多步操作（先做A再做B）→ mode=multi_step, needs_multi_step=true, steps列出每步
 - 如果不确定，选 chat
-- arguments 的 key 必须严格匹配工具参数 schema 中的参数名"""
+- arguments 的 key 必须严格匹配工具参数 schema 中的参数名
+- 优先选择能一步完成用户意图的复合工具。例如：用户说"打开浏览器搜索 xxx"或"先打开浏览器再搜索 xxx"时，应直接用 web_automation__web_search_visible 一步完成（mode=tool），不要拆成"先 open_browser 再 web_search"两步
+- 仔细识别工具 description 中"可见/后台"、"打开窗口/静默"等关键差异，按用户原意选择"""
 
 # 多动作模式关键词
 _MULTI_ACTION_PATTERNS = (

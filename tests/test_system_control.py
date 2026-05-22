@@ -44,10 +44,11 @@ def test_open_application_not_found(mock_which):
     assert "找不到" in result or "not found" in result.lower()
 
 
-@patch("plugins.system_control.open.webbrowser.open")
-def test_open_browser(mock_open):
+@patch("plugins.system_control.open.subprocess.Popen")
+@patch("plugins.system_control.open._resolve_application", return_value="C:\\msedge.exe")
+def test_open_browser(mock_resolve, mock_popen):
     result = do_open_browser()
-    mock_open.assert_called_once()
+    mock_popen.assert_called_once()
     assert "浏览器" in result or "browser" in result.lower()
 
 
