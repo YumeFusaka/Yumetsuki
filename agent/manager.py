@@ -21,6 +21,9 @@ class AgentEvents:
     LLM_STARTED = "agent.llm_started"
     LLM_COMPLETE = "agent.llm_complete"
     MULTI_STEP_PROGRESS = "agent.multi_step_progress"
+    USER_INPUT = "agent.user_input"
+    ASSISTANT_REPLY = "agent.assistant_reply"
+    THINKING = "agent.thinking"
 
 
 class AgentManager:
