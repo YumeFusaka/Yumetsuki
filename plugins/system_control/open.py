@@ -5,9 +5,48 @@ import shutil
 import subprocess
 import webbrowser
 
+_APP_ALIASES: dict[str, list[str]] = {
+    "edge": ["msedge", "microsoft-edge"],
+    "chrome": ["chrome", "google-chrome"],
+    "firefox": ["firefox"],
+    "notepad": ["notepad"],
+    "vscode": ["code"],
+    "code": ["code"],
+    "explorer": ["explorer"],
+    "cmd": ["cmd"],
+    "powershell": ["powershell", "pwsh"],
+    "terminal": ["wt"],
+    "calculator": ["calc"],
+    "paint": ["mspaint"],
+}
+
+_COMMON_PATHS: dict[str, str] = {
+    "msedge": r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    "chrome": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    "firefox": r"C:\Program Files\Mozilla Firefox\firefox.exe",
+}
+
+
+def _resolve_application(name: str) -> str | None:
+    """尝试多种方式查找应用程序路径。"""
+    normalized = name.lower().strip()
+    candidates = [normalized]
+    if normalized in _APP_ALIASES:
+        candidates = _APP_ALIASES[normalized]
+
+    for candidate in candidates:
+        path = shutil.which(candidate)
+        if path:
+            return path
+        if candidate in _COMMON_PATHS:
+            common = _COMMON_PATHS[candidate]
+            if os.path.isfile(common):
+                return common
+    return None
+
 
 def do_open_application(name: str) -> str:
-    path = shutil.which(name)
+    path = _resolve_application(name)
     if path is None:
         return f"找不到应用程序：{name}"
     try:
