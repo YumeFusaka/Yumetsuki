@@ -36,12 +36,19 @@ class GlassPanel(QWidget):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        path = QPainterPath()
-        path.addRoundedRect(0, 0, self.width(), self.height(), 14, 14)
-        p.fillPath(path, QBrush(QColor(255, 245, 250, 190)))
-        # Subtle border
-        p.setPen(QColor(220, 160, 180, 80))
-        p.drawPath(path)
+        outer_rect = self.rect().adjusted(1, 1, -1, -1)
+        inner_rect = self.rect().adjusted(2, 2, -2, -2)
+
+        outer_path = QPainterPath()
+        outer_path.addRoundedRect(outer_rect, 16, 16)
+        inner_path = QPainterPath()
+        inner_path.addRoundedRect(inner_rect, 15, 15)
+
+        p.fillPath(outer_path, QBrush(QColor(255, 245, 250, 168)))
+        p.setPen(QColor(212, 86, 122, 82))
+        p.drawPath(outer_path)
+        p.setPen(QColor(255, 255, 255, 92))
+        p.drawPath(inner_path)
         p.end()
 
 
@@ -246,13 +253,22 @@ class ChatWindow(QWidget):
 
         panel_layout.addLayout(input_row)
 
-    def _circle_btn_style(self, bg="rgba(255,255,255,0.7)", hover="rgba(255,200,210,0.6)"):
+    def _circle_btn_style(
+        self,
+        bg="rgba(255,255,255,0.68)",
+        hover="rgba(255,214,224,0.82)",
+        border="rgba(212, 86, 122, 0.32)",
+    ):
         return f"""
             QPushButton {{
-                background: {bg}; border: 1px solid rgba(220,160,180,0.3);
+                background: {bg};
+                border: 1px solid {border};
                 border-radius: 17px; color: #6b4a5a; font-size: 14px;
             }}
-            QPushButton:hover {{ background: {hover}; }}
+            QPushButton:hover {{
+                background: {hover};
+                border-color: rgba(155, 48, 96, 0.42);
+            }}
         """
 
     def _set_speaker_name(self, name: str, is_user: bool = False) -> None:
@@ -300,12 +316,17 @@ class ChatWindow(QWidget):
 
         self._input.setStyleSheet(f"""
             QLineEdit {{
-                background: rgba(255, 255, 255, 0.7);
-                border: 1px solid rgba(220, 160, 180, 0.35);
+                background: rgba(255, 255, 255, 0.64);
+                border: 1px solid rgba(212, 86, 122, 0.32);
+                border-top: 1px solid rgba(255, 255, 255, 0.72);
+                border-bottom: 1px solid rgba(155, 48, 96, 0.18);
                 border-radius: {radius}px; padding: {int(8*s)}px {padding}px;
                 color: #4a3040; font-size: {input_font}px;
             }}
-            QLineEdit:focus {{ border-color: #d4567a; }}
+            QLineEdit:focus {{
+                border-color: rgba(155, 48, 96, 0.56);
+                background: rgba(255, 252, 254, 0.78);
+            }}
         """)
 
         for btn in self._panel.findChildren(QPushButton):
@@ -313,22 +334,29 @@ class ChatWindow(QWidget):
             btn_radius = btn_size // 2
             btn.setStyleSheet(f"""
                 QPushButton {{
-                    background: rgba(255,255,255,0.7); border: 1px solid rgba(220,160,180,0.3);
+                    background: rgba(255,255,255,0.68);
+                    border: 1px solid rgba(212, 86, 122, 0.32);
+                    border-top: 1px solid rgba(255, 255, 255, 0.74);
+                    border-bottom: 1px solid rgba(155, 48, 96, 0.18);
                     border-radius: {btn_radius}px; color: #6b4a5a; font-size: {int(14*s)}px;
                 }}
-                QPushButton:hover {{ background: rgba(255,200,210,0.6); }}
+                QPushButton:hover {{
+                    background: rgba(255,214,224,0.82);
+                    border-color: rgba(155, 48, 96, 0.42);
+                }}
             """)
 
         self._conversation_pane._scroll_area.setStyleSheet(f"""
             QScrollArea {{ background: transparent; border: none; }}
             QScrollBar:vertical {{
-                width: {scrollbar_w}px; background: transparent;
+                width: {scrollbar_w}px;
+                background: rgba(255, 255, 255, 0.12);
             }}
             QScrollBar::handle:vertical {{
-                background: rgba(212, 86, 122, 0.4); border-radius: {scrollbar_w//2}px; min-height: 20px;
+                background: rgba(212, 86, 122, 0.36); border-radius: {scrollbar_w//2}px; min-height: 20px;
             }}
             QScrollBar::handle:vertical:hover {{
-                background: rgba(212, 86, 122, 0.6);
+                background: rgba(155, 48, 96, 0.48);
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
