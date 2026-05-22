@@ -61,7 +61,7 @@ class SystemConfig(BaseModel):
 class PlannerConfig(BaseModel):
     llm_judge_enabled: bool = True
     complexity_threshold: int = 80
-    judge_max_tokens: int = 200
+    judge_max_tokens: int = 300
     extra_trigger_keywords: list[str] = []
 
 

@@ -18,15 +18,16 @@ class AgentPlan:
 
 
 # LLM 精判 system prompt
-_JUDGE_SYSTEM_PROMPT = """你是一个意图分类器。根据用户输入和可用工具列表，判断用户意图。
+_JUDGE_SYSTEM_PROMPT = """你是一个意图分类器。根据用户输入和可用工具列表，判断用户意图并提取工具参数。
 输出严格 JSON，不要输出其他内容：
-{"mode": "chat"|"tool"|"multi_step", "goal": "简短描述", "tool_name": "工具名或null", "needs_multi_step": true|false, "steps": ["步骤1", "步骤2"]}
+{"mode": "chat"|"tool"|"multi_step", "goal": "简短描述", "tool_name": "工具名或null", "arguments": {}, "needs_multi_step": true|false, "steps": ["步骤1", "步骤2"]}
 
 规则：
 - 普通对话/闲聊/问候 → mode=chat
-- 明确需要调用某个工具 → mode=tool, tool_name=工具qualified_name
+- 明确需要调用某个工具 → mode=tool, tool_name=工具qualified_name, arguments=根据工具参数schema从用户输入中提取的参数值
 - 需要多步操作（先做A再做B）→ mode=multi_step, needs_multi_step=true, steps列出每步
-- 如果不确定，选 chat"""
+- 如果不确定，选 chat
+- arguments 的 key 必须严格匹配工具参数 schema 中的参数名"""
 
 # 多动作模式关键词
 _MULTI_ACTION_PATTERNS = (
@@ -82,10 +83,23 @@ class AgentPlanner:
                     mode="tool",
                     goal=f"use {tool.qualified_name}",
                     tool_name=tool.qualified_name,
-                    arguments={"query": user_input},
+                    arguments=self._guess_arguments(user_input, tool),
                 )
 
         return AgentPlan(mode="chat", goal="reply")
+
+    def _guess_arguments(self, user_input: str, tool: ToolEntry) -> dict[str, object]:
+        """快速路由 fallback：根据工具 schema 尝试填充参数。"""
+        params = tool.schema.get("parameters", {})
+        properties = params.get("properties", {})
+        required = list(params.get("required", []))
+        if not properties:
+            return {}
+        if len(required) == 1:
+            return {required[0]: user_input}
+        if len(properties) == 1:
+            return {list(properties.keys())[0]: user_input}
+        return {k: user_input for k in required} if required else {}
 
     def _should_escalate(self, user_input: str, fast_result: AgentPlan) -> bool:
         """判断是否需要 LLM 精判。"""
@@ -117,9 +131,9 @@ class AgentPlanner:
         return False
 
     def _llm_judge(self, user_input: str, tools: list[ToolEntry]) -> AgentPlan | None:
-        """调用 LLM 做意图精判。失败返回 None。"""
+        """调用 LLM 做意图精判 + 参数提取。失败返回 None。"""
         tool_desc = "\n".join(
-            f"- {t.qualified_name}: {t.schema.get('description', '')}"
+            f"- {t.qualified_name}: {t.schema.get('description', '')} | 参数: {self._format_params(t)}"
             for t in tools
         ) or "无可用工具"
 
@@ -152,14 +166,31 @@ class AgentPlanner:
         if mode == "multi_step":
             needs_multi_step = True
 
+        arguments = result.get("arguments", {}) or {}
+
         return AgentPlan(
             mode=mode,
             goal=result.get("goal", ""),
             tool_name=tool_name,
-            arguments={"query": user_input} if tool_name else {},
+            arguments=arguments,
             needs_multi_step=needs_multi_step,
             steps=steps,
         )
+
+    def _format_params(self, tool: ToolEntry) -> str:
+        """格式化工具参数 schema 供 LLM 阅读。"""
+        params = tool.schema.get("parameters", {})
+        properties = params.get("properties", {})
+        required = set(params.get("required", []))
+        if not properties:
+            return "无参数"
+        parts = []
+        for name, info in properties.items():
+            req = "(必填)" if name in required else "(可选)"
+            desc = info.get("description", "")
+            desc_str = f" - {desc}" if desc else ""
+            parts.append(f"{name}: {info.get('type', 'string')}{req}{desc_str}")
+        return "; ".join(parts)
 
     def _looks_like_tool_request(self, normalized_input: str) -> bool:
         return any(keyword in normalized_input for keyword in self._TOOL_INTENT_KEYWORDS)
