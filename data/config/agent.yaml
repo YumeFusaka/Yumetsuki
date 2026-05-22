@@ -1,0 +1,32 @@
+multi_step:
+  enabled: true
+  max_steps: 3
+  step_timeout: 30.0
+  total_timeout: 60.0
+planner:
+  complexity_threshold: 80
+  extra_trigger_keywords: []
+  judge_max_tokens: 300
+  llm_judge_enabled: true
+proactive:
+  active_hours_end: 23
+  active_hours_start: 8
+  enabled: false
+  events: []
+  idle_interval_minutes: 30
+  min_interval_minutes: 10
+reflector:
+  deep_threshold: 30
+  enabled: true
+  extract_types:
+  - preference
+  - fact
+  - emotion
+  - topic
+  reflect_max_tokens: 300
+system_control:
+  permission_level: low
+web_automation:
+  default_engine: bing
+  permission_level: medium
+  screenshot_dir: data/screenshots
