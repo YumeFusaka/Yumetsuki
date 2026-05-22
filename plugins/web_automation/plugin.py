@@ -73,7 +73,7 @@ class Plugin(BasePlugin):
             return f"搜索失败：{e}"
 
     @tool(
-        description="打开可见浏览器窗口并执行搜索，用户可以看到浏览器和搜索过程。当用户要求“打开浏览器搜索 xxx”、“用浏览器查 xxx”、“先打开浏览器再搜索”等任何希望看到浏览器的场景，必须用此工具一步完成，不要先调用 system_control.open_browser 再调用 web_search",
+        description="启动 Playwright 控制的可见自动化浏览器窗口并执行搜索。它不复用系统默认浏览器当前窗口，仅当用户明确要求看到自动化搜索过程时使用",
         params={"query": "搜索关键词", "engine": "搜索引擎：bing 或 google，留空用默认"},
     )
     def web_search_visible(self, query: str, engine: str = "") -> str:

@@ -37,8 +37,8 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第三阶段已完成。
   - 记忆设置页 UI + 异步加载
   - Agent 分层智能架构（分层路由、异步反思、多步推理、主动行为）
   - Agent 设置页（多 Tab 配置 + 实时日志）
-  - 系统控制插件（`plugins/system_control/`）：打开应用、浏览器、文件管理器、文件、URL、执行命令；三级权限控制
-  - Web 自动化插件（`plugins/web_automation/`）：搜索、提取文本、截图；Playwright + Edge；三级权限控制
+  - 系统控制插件（`plugins/system_control/`）：打开应用、系统默认浏览器、默认浏览器搜索、文件管理器、文件、URL、执行命令；三级权限控制
+  - Web 自动化插件（`plugins/web_automation/`）：后台搜索、可见自动化搜索、提取文本、截图；Playwright + Edge；三级权限控制
 
 ## 下一步
 

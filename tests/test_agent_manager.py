@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import threading
+import time
 
 from agent.manager import AgentManager
 from llm.text_processor import ProcessedText
@@ -50,6 +52,18 @@ class FakeMemoryStore:
             "assistant_text": assistant_text,
             "user_id": user_id,
         })
+
+
+class SlowMemoryStore(FakeMemoryStore):
+    def __init__(self):
+        super().__init__([])
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def add_conversation(self, user_text, assistant_text, user_id):
+        self.started.set()
+        self.release.wait(timeout=1.0)
+        super().add_conversation(user_text, assistant_text, user_id)
 
 
 class FakeToolRegistry:
@@ -106,3 +120,24 @@ def test_agent_manager_executes_tool_then_calls_llm():
 
     assert results[-1].clean_text == "我帮你查到了"
     assert "找到 3 条待办" in manager._llm_manager.calls[0]["extra_context"]
+
+
+def test_agent_manager_does_not_block_on_add_conversation():
+    memory_store = SlowMemoryStore()
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("[emotion:开心]马上完成"),
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        memory_store=memory_store,
+        tool_registry=FakeToolRegistry(),
+        user_id="u1",
+    )
+
+    start = time.perf_counter()
+    results = list(manager.chat_stream("测试一下"))
+    elapsed = time.perf_counter() - start
+
+    assert results[-1].clean_text == "马上完成"
+    assert memory_store.started.is_set()
+    assert elapsed < 0.5
+    memory_store.release.set()

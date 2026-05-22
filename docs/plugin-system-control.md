@@ -17,7 +17,7 @@ system_control:
 
 | 等级 | 允许操作 |
 |------|---------|
-| low | 打开已知应用、浏览器、文件管理器 |
+| low | 打开已知应用、系统默认浏览器、默认浏览器搜索、文件管理器 |
 | medium | + 打开任意文件、打开任意 URL |
 | high | + 执行任意系统命令 |
 
@@ -26,7 +26,8 @@ system_control:
 | 工具名 | 描述 | 最低权限 | 参数 |
 |--------|------|---------|------|
 | `open_application` | 打开指定应用程序 | low | `name` — 应用名称（如 notepad、edge、chrome） |
-| `open_browser` | 打开默认浏览器 | low | 无 |
+| `open_browser` | 打开系统默认浏览器首页 | low | 无 |
+| `search_in_browser` | 使用系统默认浏览器搜索关键词 | low | `query` — 搜索关键词；`engine`（可选）— `bing` / `google` |
 | `open_file_manager` | 打开文件管理器 | low | `path`（可选）— 目录路径 |
 | `open_file` | 用默认程序打开文件 | medium | `path` — 文件完整路径 |
 | `open_url` | 用默认浏览器打开 URL | medium | `url` — 网址 |
@@ -51,6 +52,14 @@ plugins/system_control/
 - `firefox` → firefox.exe
 - `vscode` / `code` → code.exe
 - `notepad`、`calc`、`paint` 等系统工具
+
+## 浏览器行为说明
+
+- `open_browser`
+  使用操作系统默认关联打开浏览器首页，不再硬编码优先 Edge / Chrome / Firefox
+- `search_in_browser`
+  使用系统默认浏览器直接发起搜索，适用于“用浏览器搜索 xxx”“打开浏览器搜索 xxx”这类场景
+- 如果用户需要“返回搜索结果文本摘要”而不是只打开浏览器，应优先使用 `web_automation.web_search`
 
 ## 安全说明
 

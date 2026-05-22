@@ -119,6 +119,13 @@ def test_wa_plugin_has_all_tools():
     assert "web_screenshot" in tool_names
 
 
+def test_web_search_visible_description_mentions_automation_window():
+    plugin = Plugin()
+    visible_tool = next(t for t in plugin.tools() if t.name == "web_search_visible")
+    assert "Playwright" in visible_tool.description or "自动化浏览器" in visible_tool.description
+    assert "默认浏览器" in visible_tool.description
+
+
 def test_wa_low_permission_blocks_extract():
     plugin = Plugin()
     plugin._permission_level = PermissionLevel.LOW

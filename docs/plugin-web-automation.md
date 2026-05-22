@@ -28,7 +28,7 @@ web_automation:
 | 工具名 | 描述 | 最低权限 | 模式 | 参数 |
 |--------|------|---------|------|------|
 | `web_search` | 后台搜索，返回结果摘要 | low | headless | `query`, `engine`(可选), `count`(可选) |
-| `web_search_visible` | 打开可见浏览器搜索 | low | visible | `query`, `engine`(可选) |
+| `web_search_visible` | 启动可见 Playwright 自动化浏览器搜索 | low | visible | `query`, `engine`(可选) |
 | `web_extract` | 提取指定 URL 的页面文本 | medium | headless | `url`, `max_length`(可选) |
 | `web_screenshot` | 截图指定 URL 保存到本地 | high | headless | `url`, `filename`(可选) |
 
@@ -39,12 +39,24 @@ web_automation:
 - 用户说"帮我搜索xxx" → `web_search`
 - 启动 headless Edge → 执行操作 → 提取结果 → 关闭浏览器 → 返回文本
 - 用户看不到浏览器窗口
+- 适用于“把结果告诉我”“帮我总结搜索结果”这类场景
 
 ### Visible 模式（可见）
 
-- 用户说"打开浏览器搜索xxx" → `web_search_visible`
+- 仅当用户明确要求展示自动化搜索过程时使用 `web_search_visible`
 - 启动可见 Edge 窗口 → 执行搜索 → 返回结果文本
-- 浏览器窗口保持打开，用户可继续使用
+- 这是 Playwright 控制的自动化浏览器，不复用用户当前系统默认浏览器窗口
+
+## 与系统默认浏览器的分工
+
+- 普通桌面操作：
+  - “打开浏览器” → `system_control.open_browser`
+  - “用浏览器搜索 xxx” → `system_control.search_in_browser`
+- 网页自动化：
+  - “后台搜索并返回结果” → `web_search`
+  - “提取网页正文” → `web_extract`
+  - “截图网页” → `web_screenshot`
+  - “展示自动化搜索过程” → `web_search_visible`
 
 ## 内部结构
 

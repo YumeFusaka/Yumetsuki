@@ -28,8 +28,11 @@ _JUDGE_SYSTEM_PROMPT = """你是一个意图分类器。根据用户输入和可
 - 需要多步操作（先做A再做B）→ mode=multi_step, needs_multi_step=true, steps列出每步
 - 如果不确定，选 chat
 - arguments 的 key 必须严格匹配工具参数 schema 中的参数名
-- 优先选择能一步完成用户意图的复合工具。例如：用户说"打开浏览器搜索 xxx"或"先打开浏览器再搜索 xxx"时，应直接用 web_automation__web_search_visible 一步完成（mode=tool），不要拆成"先 open_browser 再 web_search"两步
-- 仔细识别工具 description 中"可见/后台"、"打开窗口/静默"等关键差异，按用户原意选择"""
+- 用户说"打开浏览器"时，优先选择 system_control__open_browser
+- 用户说"用浏览器搜索 xxx"、"打开浏览器搜索 xxx"、"在浏览器里搜 xxx"时，优先选择 system_control__search_in_browser
+- 只有当用户明确要求返回搜索结果文本、后台静默搜索、提取网页内容、截图网页、或明确要求展示自动化搜索过程时，才选择 web_automation 工具
+- web_search_visible 是 Playwright 自动化可见窗口，不等同于系统默认浏览器当前窗口
+- 仔细识别工具 description 中"可见/后台"、"默认浏览器/自动化浏览器"、"打开窗口/静默"等关键差异，按用户原意选择"""
 
 # 多动作模式关键词
 _MULTI_ACTION_PATTERNS = (
@@ -79,6 +82,10 @@ class AgentPlanner:
         if not self._looks_like_tool_request(normalized):
             return AgentPlan(mode="chat", goal="reply")
 
+        preferred = self._prefer_browser_tool(user_input, tools)
+        if preferred is not None:
+            return preferred
+
         for tool in tools:
             if self._matches_tool(normalized, tool):
                 return AgentPlan(
@@ -89,6 +96,39 @@ class AgentPlanner:
                 )
 
         return AgentPlan(mode="chat", goal="reply")
+
+    def _prefer_browser_tool(self, user_input: str, tools: list[ToolEntry]) -> AgentPlan | None:
+        text = user_input.lower()
+        if "浏览器" not in user_input and "browser" not in text:
+            return None
+
+        if any(keyword in user_input for keyword in ("搜索", "搜", "查")) or any(
+            keyword in text for keyword in ("search", "find", "lookup")
+        ):
+            tool = self._find_tool_by_name(tools, "system_control__search_in_browser")
+            if tool is not None:
+                return AgentPlan(
+                    mode="tool",
+                    goal=f"use {tool.qualified_name}",
+                    tool_name=tool.qualified_name,
+                    arguments=self._guess_arguments(user_input, tool),
+                )
+
+        tool = self._find_tool_by_name(tools, "system_control__open_browser")
+        if tool is not None:
+            return AgentPlan(
+                mode="tool",
+                goal=f"use {tool.qualified_name}",
+                tool_name=tool.qualified_name,
+                arguments=self._guess_arguments(user_input, tool),
+            )
+        return None
+
+    def _find_tool_by_name(self, tools: list[ToolEntry], qualified_name: str) -> ToolEntry | None:
+        for tool in tools:
+            if tool.qualified_name == qualified_name:
+                return tool
+        return None
 
     def _guess_arguments(self, user_input: str, tool: ToolEntry) -> dict[str, object]:
         """快速路由 fallback：根据工具 schema 尝试填充参数。"""

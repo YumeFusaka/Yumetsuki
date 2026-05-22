@@ -33,3 +33,16 @@ def test_planner_selects_tool_when_input_mentions_tool_intent():
     assert plan.mode == "tool"
     assert plan.tool_name == "notes__search"
     assert plan.arguments == {"query": "帮我搜索一下便签里的待办"}
+
+
+def test_planner_prefers_default_browser_search_tool():
+    planner = AgentPlanner()
+    tools = [
+        _tool("web_automation__web_search_visible", "打开可见浏览器窗口并执行自动化搜索"),
+        _tool("system_control__search_in_browser", "使用系统默认浏览器直接搜索关键词，适用于用浏览器搜索"),
+    ]
+
+    plan = planner.plan("用浏览器搜索 Python 教程", tools)
+
+    assert plan.mode == "tool"
+    assert plan.tool_name == "system_control__search_in_browser"

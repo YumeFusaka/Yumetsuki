@@ -120,23 +120,28 @@ class AgentManager:
             "character_name": "",
         })
 
-        # 异步反思 + 记忆写入（不阻塞用户）
-        if final_result and self._memory_store:
-            self._memory_store.add_conversation(
-                user_text=user_input,
-                assistant_text=final_result.clean_text,
-                user_id=self._user_id,
-            )
-            self._async_reflect(user_input, assistant_response, tool_calls)
+        # 对话结束后立即返回，记忆写入和反思均放到后台执行
+        if final_result:
+            self._async_persist_and_reflect(user_input, assistant_response, tool_calls)
 
-    def _async_reflect(
+    def _async_persist_and_reflect(
         self,
         user_input: str,
         assistant_response: str,
         tool_calls: list[dict] | None,
     ) -> None:
-        """在后台线程执行反思，不阻塞主流程。"""
+        """在后台线程执行记忆写入与反思，不阻塞主流程。"""
         def _run():
+            if self._memory_store:
+                try:
+                    self._memory_store.add_conversation(
+                        user_text=user_input,
+                        assistant_text=assistant_response,
+                        user_id=self._user_id,
+                    )
+                except Exception:
+                    pass
+
             reflection = self._reflector.reflect(user_input, assistant_response, tool_calls)
 
             # 将提取的记忆写入 memory_store

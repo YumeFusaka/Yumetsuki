@@ -110,11 +110,11 @@ yumetsuki/
 - 至少包含 `plugin.py`
 - 示例插件：`plugins/example_echo/`
 - `plugins/system_control/`
-  系统控制插件：打开应用、浏览器、文件管理器、文件、URL、执行命令
+  系统控制插件：打开应用、系统默认浏览器、默认浏览器搜索、文件管理器、文件、URL、执行命令
   内部分模块：open.py（打开类）、command.py（命令执行）
   三级权限控制（low/medium/high）
 - `plugins/web_automation/`
-  网页自动化插件：搜索、提取文本、截图（Playwright + Edge）
+  网页自动化插件：后台搜索、可见自动化搜索、提取文本、截图（Playwright + Edge）
   内部分模块：browser.py（浏览器管理）、search.py（搜索引擎）、page.py（页面操作）
   三级权限控制（low/medium/high）
 
@@ -179,6 +179,13 @@ Agent 层采用分层智能架构，核心设计原则：**简单对话零开销
 ```
 
 升级条件：输入含工具关键词、问号、多句等复杂信号。
+
+浏览器相关路由约定：
+
+- “打开浏览器”优先走系统控制插件的默认浏览器工具
+- “用浏览器搜索 xxx”优先走系统控制插件的默认浏览器搜索工具
+- “后台搜索并返回结果”“提取网页内容”“截图网页”优先走 `web_automation`
+- `web_search_visible` 仅用于明确要求展示 Playwright 自动化搜索过程的场景
 
 ### 异步反思（Reflector）
 
@@ -266,5 +273,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
        → 后台线程加载向量模型
        → 模型就绪后注入 AgentManager
 用户输入 → AgentManager 检索相关记忆 → 注入 extra_context → LLM 生成回复
-回复完成 → 记忆写入 Mem0/Chroma
+回复完成 → UI 立即解锁输入
+       → 后台线程写入 Mem0/Chroma
+       → 后台线程执行反思与深层记忆提取
 ```

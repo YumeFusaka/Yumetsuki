@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import webbrowser
+from urllib.parse import quote_plus
 
 _APP_ALIASES: dict[str, list[str]] = {
     "edge": ["msedge", "microsoft-edge"],
@@ -25,6 +26,8 @@ _COMMON_PATHS: dict[str, str] = {
     "chrome": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     "firefox": r"C:\Program Files\Mozilla Firefox\firefox.exe",
 }
+
+_DEFAULT_BROWSER_HOME_URL = "https://www.bing.com"
 
 
 def _resolve_application(name: str) -> str | None:
@@ -57,16 +60,22 @@ def do_open_application(name: str) -> str:
 
 
 def do_open_browser() -> str:
-    path = _resolve_application("edge") or _resolve_application("chrome") or _resolve_application("firefox")
-    if path:
-        try:
-            subprocess.Popen([path])
-            return "已打开默认浏览器"
-        except OSError as e:
-            return f"打开浏览器失败：{e}"
     try:
-        os.startfile("http://")
-        return "已打开默认浏览器"
+        os.startfile(_DEFAULT_BROWSER_HOME_URL)
+        return "已打开系统默认浏览器"
+    except OSError as e:
+        return f"打开浏览器失败：{e}"
+
+
+def do_search_in_browser(query: str, engine: str = "") -> str:
+    engine_name = engine if engine in ("bing", "google") else "bing"
+    if engine_name == "google":
+        url = f"https://www.google.com/search?q={quote_plus(query)}"
+    else:
+        url = f"https://www.bing.com/search?q={quote_plus(query)}"
+    try:
+        os.startfile(url)
+        return f"已使用默认浏览器搜索：{query}"
     except OSError as e:
         return f"打开浏览器失败：{e}"
 

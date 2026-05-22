@@ -9,6 +9,7 @@ from sdk.base import BasePlugin, tool
 from plugins.system_control.open import (
     do_open_application,
     do_open_browser,
+    do_search_in_browser,
     do_open_file_manager,
     do_open_file,
     do_open_url,
@@ -62,6 +63,16 @@ class Plugin(BasePlugin):
         if denied:
             return denied
         return do_open_browser()
+
+    @tool(
+        description="使用系统默认浏览器直接搜索关键词，适用于“用浏览器搜索 xxx”“打开浏览器搜索 xxx”这类场景",
+        params={"query": "搜索关键词", "engine": "搜索引擎：bing 或 google，留空默认 bing"},
+    )
+    def search_in_browser(self, query: str, engine: str = "") -> str:
+        denied = self._check_permission(PermissionLevel.LOW)
+        if denied:
+            return denied
+        return do_search_in_browser(query, engine)
 
     @tool(description="打开文件管理器", params={"path": "要打开的目录路径，如 C:/Users 或 D:/Projects，留空则打开用户主目录"})
     def open_file_manager(self, path: str = "") -> str:

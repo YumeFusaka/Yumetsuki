@@ -44,12 +44,26 @@ def test_open_application_not_found(mock_which):
     assert "找不到" in result or "not found" in result.lower()
 
 
-@patch("plugins.system_control.open.subprocess.Popen")
-@patch("plugins.system_control.open._resolve_application", return_value="C:\\msedge.exe")
-def test_open_browser(mock_resolve, mock_popen):
+@patch("plugins.system_control.open.os.startfile")
+def test_open_browser_uses_default_browser(mock_startfile):
     result = do_open_browser()
-    mock_popen.assert_called_once()
-    assert "浏览器" in result or "browser" in result.lower()
+    mock_startfile.assert_called_once()
+    opened_target = mock_startfile.call_args.args[0]
+    assert opened_target.startswith("http")
+    assert "默认浏览器" in result
+
+
+@patch("plugins.system_control.open.os.startfile")
+def test_search_in_browser_opens_search_url(mock_startfile):
+    from plugins.system_control.open import do_search_in_browser
+
+    result = do_search_in_browser("Python 教程", engine="bing")
+
+    mock_startfile.assert_called_once()
+    opened_target = mock_startfile.call_args.args[0]
+    assert opened_target.startswith("https://www.bing.com/search?q=")
+    assert "Python" in opened_target or "%E6%95%99%E7%A8%8B" in opened_target
+    assert "搜索" in result
 
 
 @patch("plugins.system_control.open.os.startfile")
@@ -118,6 +132,7 @@ def test_plugin_has_all_tools():
     tool_names = [t.name for t in plugin.tools()]
     assert "open_application" in tool_names
     assert "open_browser" in tool_names
+    assert "search_in_browser" in tool_names
     assert "open_file_manager" in tool_names
     assert "open_file" in tool_names
     assert "open_url" in tool_names
