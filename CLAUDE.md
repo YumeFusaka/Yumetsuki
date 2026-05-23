@@ -47,7 +47,8 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第三阶段已完成。
   - 句级增量 TTS 播报与服务端兼容能力已接入：支持句级合成、输出语言约束、参考模式 / 预热与兼容回退，以及 `audio_mode=auto/pcm_stream/wav`
   - ChatWindow 在窗口生命周期内生成 TTS `session_id`，仅用于显式扩展路径下的 GPT-SoVITS speaker 会话化
   - `auto` 模式优先请求 PCM 流式，若流式失败则在当前聊天会话内锁定为 WAV；原版默认 `/tts` 语义与无扩展字段请求保持不变
-  - `audio_mode=wav + reference_mode=inline` 被定义为桌宠端保底原版模式：不调用 `set_refer_audio`、不透传 `session_id`、不发送 PCM/流式扩展参数；其余组合才进入扩展模式
+  - `audio_mode=wav + reference_mode=inline` 被定义为桌宠端保底模式：不调用 `set_refer_audio`、不透传 `session_id`、不发送 PCM/流式扩展参数
+  - `pcm_stream + inline` 属于音频扩展，但不属于会话扩展；只有带 `session_id` 的组合才进入当前服务端实现的会话扩展路径
   - 当前已确认的剩余 TTS 异常（如服务端 warmup 文本语言选择错误、`、。` 之类切分异常）归因服务端；在桌宠端已正确传递 `session_id`、`prompt_lang`、`prompt_text` 的前提下，不再视为本仓库当前已知根因
 
 ## 下一步
