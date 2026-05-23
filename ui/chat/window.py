@@ -187,6 +187,13 @@ class ChatWindow(QWidget):
     TTS_TRANSLATION_SOFT_MIN_CHARS = 24
     TTS_TRANSLATION_SOFT_TARGET_CHARS = 32
     TTS_TRANSLATION_SOFT_MAX_CHARS = 48
+    TTS_PHONETIC_MARKUP_TAG = "phonetic"
+    TTS_EXPRESSIVE_CHARS = set(
+        "啊呀哇呜诶欸唉哎咦噫呦哟哦喔嗷呐嗯唔哼嘿哈啦嘛喵"
+        "ぁあぃいぅうぇえぉおゃやゅゆょよゎわっー゛゜"
+        "ァアィイゥウェエォオャヤュユョヨヮワッー"
+        "으아어오우이야여요유와왜에애얘워웅흥하허호후힝냥"
+    )
 
     def __init__(
         self,
@@ -719,6 +726,66 @@ class ChatWindow(QWidget):
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
         return cleaned
 
+    @classmethod
+    def _is_tts_expressive_char(cls, char: str) -> bool:
+        return char in cls.TTS_EXPRESSIVE_CHARS
+
+    @staticmethod
+    def _is_tts_repeatable_sound_char(char: str) -> bool:
+        if char in {"~", "～", "ー"}:
+            return True
+        return unicodedata.category(char).startswith("L")
+
+    @classmethod
+    def _looks_like_phonetic_tts_token(cls, token: str) -> bool:
+        core = token.strip("~～ー…,.!?;:，。！？；：、")
+        if len(core) < 2 or len(core) > 8:
+            return False
+        if any(not cls._is_tts_repeatable_sound_char(char) for char in core):
+            return False
+        if re.fullmatch(r"(.{1,2})\1{1,}", core):
+            return True
+        return all(cls._is_tts_expressive_char(char) for char in core)
+
+    @classmethod
+    def _mark_tts_phonetic_spans(cls, text: str) -> str:
+        tag = cls.TTS_PHONETIC_MARKUP_TAG
+
+        def replace(match: re.Match[str]) -> str:
+            token = match.group(0)
+            if cls._looks_like_phonetic_tts_token(token):
+                return f"<{tag}>{token}</{tag}>"
+            return token
+
+        return re.sub(r"[^\s，。！？；：、,.!?;:]+", replace, text)
+
+    def _build_tts_translation_messages(self, text: str, target_lang: str) -> list[dict[str, str]]:
+        language_name = {
+            "zh": "简体中文",
+            "yue": "粤语",
+            "en": "English",
+            "ja": "日本語",
+            "ko": "한국어",
+        }.get(target_lang, target_lang)
+        marked_text = self._mark_tts_phonetic_spans(text)
+        return [
+            {
+                "role": "system",
+                "content": (
+                    f"你在为 TTS 语音合成准备译文。请把用户提供的文本翻译成{language_name}，"
+                    "只输出译文，不要添加解释。\n"
+                    "必须保留原文的语气、情绪强度、节奏和标点。\n"
+                    "对 <phonetic>...</phonetic> 标记的片段，以及任何拟声词、语气词、拖长音、重复音节，"
+                    "优先保留发音感觉，可做音译或近音转写，不要只做语义意译。\n"
+                    "这类片段如果有重复、长音或停顿，尽量保留对应的重复次数、长短音和节奏。\n"
+                    "不要输出任何标签本身。\n"
+                    "示例：像“呀呀呀”这样的惊呼，应优先变成目标语言里发音接近的形式，"
+                    "而不是替换成普通感叹词。"
+                ),
+            },
+            {"role": "user", "content": marked_text},
+        ]
+
     def _tts_soft_thresholds(self, text: str) -> tuple[int, int, int]:
         if self._tts_output_lang and not self._tts_text_matches_output_lang(text):
             return (
@@ -887,23 +954,7 @@ class ChatWindow(QWidget):
         adapter = getattr(self._llm, "_adapter", None)
         if adapter is None:
             return None
-        language_name = {
-            "zh": "简体中文",
-            "yue": "粤语",
-            "en": "English",
-            "ja": "日本語",
-            "ko": "한국어",
-        }.get(target_lang, target_lang)
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    f"请把用户提供的文本翻译成{language_name}，"
-                    "只输出译文，保留原有语气、语义和标点，不要添加解释。"
-                ),
-            },
-            {"role": "user", "content": text},
-        ]
+        messages = self._build_tts_translation_messages(text, target_lang)
         try:
             translated_parts: list[str] = []
             for chunk in adapter.stream_chat(messages):

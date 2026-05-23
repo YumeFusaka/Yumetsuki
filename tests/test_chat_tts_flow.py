@@ -243,6 +243,40 @@ def test_translation_result_starts_tts_for_original_segment(chat_window):
     assert chat_window._started_segments == [(chat_window._current_utterance_id, 3, "hello.")]
 
 
+def test_tts_translation_prompt_marks_phonetic_spans_for_sound_preservation(chat_window):
+    captured = {}
+
+    class _FakeAdapter:
+        def stream_chat(self, messages, tools=None):
+            captured["messages"] = messages
+            yield "ややや、"
+            yield "やめて。"
+
+    chat_window._llm = SimpleNamespace(_adapter=_FakeAdapter())
+
+    translated = chat_window._translate_tts_text("呀呀呀，不要这样。", "ja")
+
+    assert translated == "ややや、やめて。"
+    assert "优先保留发音感觉" in captured["messages"][0]["content"]
+    assert "<phonetic>呀呀呀</phonetic>，不要这样。" in captured["messages"][1]["content"]
+
+
+def test_tts_translation_prompt_does_not_mark_plain_text(chat_window):
+    captured = {}
+
+    class _FakeAdapter:
+        def stream_chat(self, messages, tools=None):
+            captured["messages"] = messages
+            yield "hello there."
+
+    chat_window._llm = SimpleNamespace(_adapter=_FakeAdapter())
+
+    translated = chat_window._translate_tts_text("你好，今天怎么样？", "en")
+
+    assert translated == "hello there."
+    assert "<phonetic>" not in captured["messages"][1]["content"]
+
+
 def test_translation_failure_skips_current_segment_and_keeps_following_playable(chat_window):
     chat_window._current_utterance_id = 1
     chat_window._next_play_id = 0
