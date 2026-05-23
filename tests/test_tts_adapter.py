@@ -1,4 +1,5 @@
 from unittest.mock import patch, MagicMock
+import requests
 from tts.adapter import TTSAdapter
 from tts.adapters.gptsovits import GPTSoVITSAdapter
 from tts.types import TTSAudioFormat, TTSStreamEvent
@@ -97,20 +98,32 @@ def test_gptsovits_synthesize_uses_tts_endpoint_and_text_lang(monkeypatch):
     config = TTSConfig(engine="gptsovits", api_url="http://fake:9880")
     captured = {}
 
+    class _FakeResponse:
+        status_code = 200
+        content = b"ok"
+        headers = {
+            "X-Audio-Sample-Rate": "32000",
+            "X-Audio-Channels": "1",
+            "X-Audio-Sample-Width": "2",
+        }
+
+        def iter_content(self, chunk_size=None):
+            yield b"ok"
+
     def fake_post(url, json=None, timeout=None):
         captured["url"] = url
         captured["json"] = json
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"ok"
-        return mock_resp
+        return _FakeResponse()
 
     monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: MagicMock(post=fake_post))
     adapter = GPTSoVITSAdapter(config)
 
     assert adapter.synthesize("你好呀") == b"ok"
     assert captured["url"] == "http://fake:9880/tts"
-    assert captured["json"] == {"text": "你好呀", "text_lang": "zh"}
+    assert captured["json"]["text"] == "你好呀"
+    assert captured["json"]["text_lang"] == "zh"
+    assert captured["json"]["media_type"] == "raw"
+    assert captured["json"]["streaming_mode"] == 3
 
 
 def test_gptsovits_synthesize_uses_output_lang_for_text_lang(monkeypatch):
@@ -178,24 +191,33 @@ def test_gptsovits_synthesize_includes_reference_audio_fields_when_configured(mo
     )
     captured = {}
 
+    class _FakeResponse:
+        status_code = 200
+        content = b"ok"
+        headers = {
+            "X-Audio-Sample-Rate": "32000",
+            "X-Audio-Channels": "1",
+            "X-Audio-Sample-Width": "2",
+        }
+
+        def iter_content(self, chunk_size=None):
+            yield b"ok"
+
     def fake_post(url, json=None, timeout=None):
         captured["json"] = json
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"ok"
-        return mock_resp
+        return _FakeResponse()
 
     monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: MagicMock(post=fake_post))
     adapter = GPTSoVITSAdapter(config)
 
     assert adapter.synthesize("你好呀") == b"ok"
-    assert captured["json"] == {
-        "text": "你好呀",
-        "text_lang": "zh",
-        "ref_audio_path": "ref.wav",
-        "prompt_lang": "zh",
-        "prompt_text": "这是参考音频文本",
-    }
+    assert captured["json"]["text"] == "你好呀"
+    assert captured["json"]["text_lang"] == "zh"
+    assert captured["json"]["ref_audio_path"] == "ref.wav"
+    assert captured["json"]["prompt_lang"] == "zh"
+    assert captured["json"]["prompt_text"] == "这是参考音频文本"
+    assert captured["json"]["media_type"] == "raw"
+    assert captured["json"]["streaming_mode"] == 3
 
 
 def test_gptsovits_synthesize_normalizes_legacy_prompt_lang_alias(monkeypatch):
@@ -226,12 +248,21 @@ def test_gptsovits_server_managed_mode_never_sends_reference(monkeypatch):
     GPTSoVITSAdapter._REFERENCE_CAPABILITY_CACHE.clear()
     captured = {}
 
+    class _FakeResponse:
+        status_code = 200
+        content = b"ok"
+        headers = {
+            "X-Audio-Sample-Rate": "32000",
+            "X-Audio-Channels": "1",
+            "X-Audio-Sample-Width": "2",
+        }
+
+        def iter_content(self, chunk_size=None):
+            yield b"ok"
+
     def fake_post(url, json=None, timeout=None):
         captured["json"] = json
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"ok"
-        return mock_resp
+        return _FakeResponse()
 
     monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: MagicMock(post=fake_post))
 
@@ -247,7 +278,10 @@ def test_gptsovits_server_managed_mode_never_sends_reference(monkeypatch):
 
     assert adapter.needs_reference_prepare() is False
     assert adapter.synthesize("hello") == b"ok"
-    assert captured["json"] == {"text": "hello", "text_lang": "zh"}
+    assert captured["json"]["text"] == "hello"
+    assert captured["json"]["text_lang"] == "zh"
+    assert "ref_audio_path" not in captured["json"]
+    assert captured["json"]["media_type"] == "raw"
 
 
 def test_gptsovits_session_preload_uses_prepare_endpoint_then_skips_reference(monkeypatch):
@@ -284,7 +318,10 @@ def test_gptsovits_session_preload_uses_prepare_endpoint_then_skips_reference(mo
     assert adapter.prepare_reference() is True
     assert adapter.synthesize("hello") == b"ok"
     assert calls[0] == ("GET", "http://fake:9880/set_refer_audio", {"refer_audio_path": "ref.wav"})
-    assert calls[1][2] == {"text": "hello", "text_lang": "zh"}
+    assert calls[1][2]["text"] == "hello"
+    assert calls[1][2]["text_lang"] == "zh"
+    assert calls[1][2]["media_type"] == "raw"
+    assert "ref_audio_path" not in calls[1][2]
 
 
 def test_gptsovits_auto_mode_falls_back_to_inline_when_prepare_fails(monkeypatch):
@@ -359,7 +396,9 @@ def test_gptsovits_prepared_mode_falls_back_to_inline_when_service_still_require
     adapter = GPTSoVITSAdapter(config)
     assert adapter.prepare_reference() is True
     assert adapter.synthesize("hello") == b"ok"
-    assert calls[1][2] == {"text": "hello", "text_lang": "zh"}
+    assert calls[1][2]["text"] == "hello"
+    assert calls[1][2]["text_lang"] == "zh"
+    assert calls[1][2]["media_type"] == "raw"
     assert calls[2][2]["prompt_text"] == "参考文本"
 
 
@@ -594,7 +633,7 @@ def test_gptsovits_disables_session_id_for_tts_after_prepare_retry_fallback(monk
     assert "session_id" not in calls[0]
 
 
-def test_gptsovits_retries_tts_without_session_id_when_extension_is_rejected(monkeypatch):
+def test_gptsovits_strict_original_mode_never_attempts_session_retry(monkeypatch):
     calls = []
 
     class _FakeSession:
@@ -604,14 +643,9 @@ def test_gptsovits_retries_tts_without_session_id_when_extension_is_rejected(mon
         def post(self, url, json=None, timeout=None, stream=None):
             calls.append(json)
             mock_resp = MagicMock()
-            if len(calls) == 1:
-                mock_resp.status_code = 400
-                mock_resp.text = "unknown field session_id"
-                mock_resp.content = b""
-            else:
-                mock_resp.status_code = 200
-                mock_resp.text = "ok"
-                mock_resp.content = b"wav-ok"
+            mock_resp.status_code = 200
+            mock_resp.text = "ok"
+            mock_resp.content = b"wav-ok"
             return mock_resp
 
     monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: _FakeSession())
@@ -627,8 +661,7 @@ def test_gptsovits_retries_tts_without_session_id_when_extension_is_rejected(mon
     )
 
     assert adapter.synthesize("hello") == b"wav-ok"
-    assert calls[0]["session_id"] == "sess-1"
-    assert "session_id" not in calls[1]
+    assert "session_id" not in calls[0]
 
 
 def test_gptsovits_pcm_stream_mode_uses_low_latency_payload(monkeypatch):
@@ -740,3 +773,126 @@ def test_gptsovits_without_session_extension_keeps_original_reference_flow(monke
     assert captured["json"]["media_type"] == "wav"
     assert captured["json"]["streaming_mode"] == 0
     assert captured["stream"] is False
+
+
+def test_gptsovits_wav_inline_mode_keeps_strict_original_path(monkeypatch):
+    calls = []
+
+    class _FakeSession:
+        def get(self, *args, **kwargs):
+            calls.append(("GET", args, kwargs))
+            raise AssertionError("prepare should not be used in strict original mode")
+
+        def post(self, url, json=None, timeout=None, stream=None):
+            calls.append(("POST", url, json, timeout, stream))
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.content = b"wav-bytes"
+            return mock_resp
+
+    monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: _FakeSession())
+    adapter = GPTSoVITSAdapter(
+        TTSConfig(
+            engine="gptsovits",
+            api_url="http://fake:9880",
+            audio_mode="wav",
+            reference_mode="inline",
+            ref_audio_path="ref.wav",
+            prompt_lang="zh",
+            prompt_text="参考文本",
+        ),
+        session_id="sess-1",
+    )
+
+    assert adapter.needs_reference_prepare() is False
+    assert adapter.synthesize("hello") == b"wav-bytes"
+    assert calls == [
+        (
+            "POST",
+            "http://fake:9880/tts",
+            {
+                "text": "hello",
+                "text_lang": "zh",
+                "ref_audio_path": "ref.wav",
+                "prompt_lang": "zh",
+                "prompt_text": "参考文本",
+            },
+            30,
+            None,
+        )
+    ]
+
+
+def test_gptsovits_inline_reference_mode_does_not_send_session_id_for_pcm_extension(monkeypatch):
+    captured = {}
+
+    class _FakeResponse:
+        status_code = 200
+        headers = {
+            "X-Audio-Sample-Rate": "32000",
+            "X-Audio-Channels": "1",
+            "X-Audio-Sample-Width": "2",
+        }
+
+        def iter_content(self, chunk_size=None):
+            yield b"\x00\x01"
+
+    class _FakeSession:
+        def get(self, *args, **kwargs):
+            raise AssertionError("prepare should not be used for inline reference mode")
+
+        def post(self, url, json=None, timeout=None, stream=None):
+            captured["json"] = json
+            captured["timeout"] = timeout
+            captured["stream"] = stream
+            return _FakeResponse()
+
+    monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: _FakeSession())
+    adapter = GPTSoVITSAdapter(
+        TTSConfig(
+            engine="gptsovits",
+            api_url="http://fake:9880",
+            audio_mode="auto",
+            reference_mode="inline",
+            ref_audio_path="ref.wav",
+            prompt_lang="zh",
+            prompt_text="参考文本",
+        ),
+        session_id="sess-1",
+    )
+
+    events = list(adapter.stream_synthesize("hello"))
+    assert [event.kind for event in events] == ["start", "chunk", "end"]
+    assert "session_id" not in captured["json"]
+    assert captured["json"]["media_type"] == "raw"
+    assert captured["stream"] is True
+
+
+def test_gptsovits_pcm_stream_timeout_yields_error_event_instead_of_raising(monkeypatch):
+    class _FakeResponse:
+        status_code = 200
+        headers = {
+            "X-Audio-Sample-Rate": "32000",
+            "X-Audio-Channels": "1",
+            "X-Audio-Sample-Width": "2",
+        }
+
+        def iter_content(self, chunk_size=None):
+            raise requests.exceptions.ConnectionError("Read timed out.")
+
+    class _FakeSession:
+        def get(self, *args, **kwargs):
+            raise AssertionError("not used")
+
+        def post(self, url, json=None, timeout=None, stream=None):
+            return _FakeResponse()
+
+    monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: _FakeSession())
+    adapter = GPTSoVITSAdapter(
+        TTSConfig(engine="gptsovits", api_url="http://fake:9880", audio_mode="pcm_stream"),
+        session_id="sess-1",
+    )
+
+    events = list(adapter.stream_synthesize("hello"))
+    assert [event.kind for event in events] == ["start", "error"]
+    assert "timed out" in events[-1].message.lower()

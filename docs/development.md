@@ -54,6 +54,9 @@
   - 改写原版必填项约束
   - 破坏原版成功 / 失败响应格式
 - 文档、设计稿和实现计划都必须显式遵循以上原则，避免出现“以桌宠端为主导致原版失配”的表述
+- 当前桌宠端的 TTS 模式边界：
+  - `audio_mode=wav + reference_mode=inline` = 保底原版模式
+  - 其余组合 = 扩展模式
 
 ## 测试策略
 
@@ -70,6 +73,8 @@
   - 必要时 Qt offscreen 实例化
   - 聊天窗缩放 / 滚动类调整优先补回归测试
 - TTS 相关改动优先覆盖：
+  - `wav + inline` 下不得透传 `session_id`、不得调用 `set_refer_audio`、不得发送 PCM/流式扩展参数
+  - `inline` 参考模式下，音频扩展与参考会话扩展必须解耦；允许 PCM 扩展但不得顺带透传 `session_id`
   - `audio_mode` 持久化与设置页 apply/reset
   - 原版 GPT-SoVITS 无 `session_id` 请求时的旧行为兼容
   - 新增扩展字段时不得改变原版 `wav` / 非流式默认路径

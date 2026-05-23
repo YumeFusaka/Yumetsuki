@@ -125,7 +125,7 @@ class PcmStreamPlaybackBackend(QObject):
         self._has_started_playback = False
         self._finish_requested = False
         if self._sink is not None and hasattr(self._sink, "stateChanged"):
-            self._sink.stateChanged.connect(self._on_sink_state_changed)
+            self._sink.stateChanged.connect(lambda: self._on_sink_state_changed())
         if self._sink is not None:
             try:
                 self._sink.start(self._buffer)
@@ -184,9 +184,12 @@ class PcmStreamPlaybackBackend(QObject):
                 continue
         return None
 
-    def _on_sink_state_changed(self, state) -> None:
+    def _on_sink_state_changed(self) -> None:
         if not self._finish_requested or self._buffer is None:
             return
+        if self._sink is None or not hasattr(self._sink, "state"):
+            return
+        state = self._sink.state()
         state_name = getattr(state, "name", str(state))
         if state_name not in {"IdleState", "StoppedState"}:
             return

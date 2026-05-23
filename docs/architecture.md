@@ -92,7 +92,8 @@ yumetsuki/
   GPT-SoVITS HTTP 适配器
   提供 HTTP 合成请求、流式事件输出与基础失败日志
   会把基础地址规范化到 `/tts`，支持 `reference_mode` 参考策略：逐次携带、会话预热、自动回退或完全由服务端托管；可在启动聊天后异步通过 `GET /set_refer_audio?refer_audio_path=...` 预热参考，并在需要时只向 `/tts` 发送正文与输出语言；若 `auto` 模式探测到目标服务端仍要求逐次携带参考，会在当前进程内缓存该能力判断，避免重复首句试错
-  同时支持 `audio_mode=auto/pcm_stream/wav`：在显式扩展路径下可透传 `session_id`、`prompt_lang`、`prompt_text`、请求 PCM chunk stream，并在当前聊天会话内按需锁定 WAV 回退；无扩展字段请求继续保持原版默认行为
+  同时支持 `audio_mode=auto/pcm_stream/wav`：在显式扩展路径下可透传 `session_id`、`prompt_lang`、`prompt_text`、请求 PCM chunk stream，并在当前聊天会话内按需锁定 WAV 回退
+  `audio_mode=wav + reference_mode=inline` 被实现为桌宠端保底原版模式：不调用 `set_refer_audio`、不透传 `session_id`、不发送 PCM/流式扩展参数，只保留原版显式参考字段工作流
 
 ### `core/`
 

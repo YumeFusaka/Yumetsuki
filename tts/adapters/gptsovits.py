@@ -100,8 +100,23 @@ class GPTSoVITSAdapter(TTSAdapter):
             return "inline"
         return "inline"
 
+    def _is_strict_original_mode(self) -> bool:
+        return self._audio_mode == self.AUDIO_MODE_WAV and self._reference_mode == self.REFERENCE_MODE_INLINE
+
+    def _reference_mode_allows_session_extension(self) -> bool:
+        return self._reference_mode in {
+            self.REFERENCE_MODE_AUTO,
+            self.REFERENCE_MODE_SESSION_PRELOAD,
+            self.REFERENCE_MODE_SERVER_MANAGED,
+        }
+
     def _supports_session_extension(self) -> bool:
-        return bool(self._session_id) and self._session_extension_enabled is not False
+        return bool(
+            self._session_id
+            and self._session_extension_enabled is not False
+            and not self._is_strict_original_mode()
+            and self._reference_mode_allows_session_extension()
+        )
 
     def needs_reference_prepare(self) -> bool:
         return bool(
@@ -173,8 +188,10 @@ class GPTSoVITSAdapter(TTSAdapter):
     def get_session_audio_mode(self) -> str:
         if self._session_audio_mode_override:
             return self._session_audio_mode_override
+        if self._is_strict_original_mode():
+            return self.AUDIO_MODE_WAV
         if self._audio_mode == self.AUDIO_MODE_AUTO:
-            return self.AUDIO_MODE_PCM_STREAM if self._supports_session_extension() else self.AUDIO_MODE_WAV
+            return self.AUDIO_MODE_PCM_STREAM
         return self._audio_mode
 
     def force_session_audio_mode(self, audio_mode: str) -> None:
@@ -185,10 +202,10 @@ class GPTSoVITSAdapter(TTSAdapter):
         return self.get_session_audio_mode()
 
     def _should_send_explicit_audio_fields(self, audio_mode: str) -> bool:
+        if self._is_strict_original_mode():
+            return False
         if self._session_audio_mode_override is not None:
             return True
-        if self._audio_mode == self.AUDIO_MODE_AUTO and not self._supports_session_extension():
-            return False
         return audio_mode in {self.AUDIO_MODE_PCM_STREAM, self.AUDIO_MODE_WAV}
 
     def _build_audio_payload(self, audio_mode: str) -> dict[str, object]:
@@ -281,12 +298,13 @@ class GPTSoVITSAdapter(TTSAdapter):
 
     def _request_audio(self, payload: dict[str, object], audio_mode: str):
         wants_stream = audio_mode == self.AUDIO_MODE_PCM_STREAM
+        timeout = (30, None) if wants_stream else 30
         if wants_stream or self._should_send_explicit_audio_fields(audio_mode):
             try:
                 return self._session.post(
                     self._api_url,
                     json=payload,
-                    timeout=30,
+                    timeout=timeout,
                     stream=wants_stream,
                 )
             except TypeError:
@@ -294,7 +312,7 @@ class GPTSoVITSAdapter(TTSAdapter):
         return self._session.post(
             self._api_url,
             json=payload,
-            timeout=30,
+            timeout=timeout,
         )
 
     def _yield_wav_response(self, resp) -> Iterator[TTSStreamEvent]:
@@ -318,11 +336,16 @@ class GPTSoVITSAdapter(TTSAdapter):
             ),
         )
         emitted = False
-        for chunk in resp.iter_content(chunk_size=None):
-            if not chunk:
-                continue
-            emitted = True
-            yield TTSStreamEvent(kind="chunk", data=chunk)
+        try:
+            for chunk in resp.iter_content(chunk_size=None):
+                if not chunk:
+                    continue
+                emitted = True
+                yield TTSStreamEvent(kind="chunk", data=chunk)
+        except Exception as exc:
+            print(f"[TTS] GPT-SoVITS PCM stream failed: {exc}")
+            yield TTSStreamEvent(kind="error", message=str(exc))
+            return None
         if emitted:
             yield TTSStreamEvent(kind="end")
             return True
@@ -367,6 +390,8 @@ class GPTSoVITSAdapter(TTSAdapter):
                 success = yield from self._yield_pcm_response(resp)
                 if success:
                     return True
+                if success is None:
+                    return False
                 if allow_auto_retry:
                     success = yield from self._stream_request(
                         text,

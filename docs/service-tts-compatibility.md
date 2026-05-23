@@ -109,6 +109,12 @@
 - `session_id`、PCM 流式、结构化错误与元数据头属于扩展能力，不属于 Yumetsuki 当前的无条件基础依赖。
 - 服务端若支持会话能力，只能把 `session_id` 作为可选扩展键，不得把它提升为原版路径前置条件。
 
+### 客户端模式边界
+
+- Yumetsuki 将 `audio_mode=wav + reference_mode=inline` 定义为保底原版模式。
+- 在该模式下，客户端不得透传 `session_id`，不得调用 `set_refer_audio`，不得发送 `media_type=raw`、`streaming_mode=3` 或其他桌宠端扩展参数。
+- 只有偏离上述组合时，客户端才允许进入扩展模式，并按显式扩展路径协商 `session_id`、会话预热、PCM 流式或服务端托管参考。
+
 ### 当前问题归因边界
 
 - 当 Yumetsuki 已经在显式扩展路径下正确传递 `session_id`、`prompt_lang`、`prompt_text` 后，服务端 warmup 内部生成何种探测文本、以及该探测文本是否与 `prompt_lang` 对齐，属于服务端责任。
