@@ -87,7 +87,7 @@ yumetsuki/
 - `tts/adapters/gptsovits.py`
   GPT-SoVITS HTTP 适配器
   提供 HTTP 合成请求与基础失败日志
-  会把基础地址规范化到 `/tts`，并透传参考音频、参考语言、输出语言、参考文本等 GPT-SoVITS 专属字段
+  会把基础地址规范化到 `/tts`，支持 `reference_mode` 参考策略：逐次携带、会话预热、自动回退或完全由服务端托管；可在启动聊天后异步通过 `GET /set_refer_audio?refer_audio_path=...` 预热参考，并在需要时只向 `/tts` 发送正文与输出语言；若 `auto` 模式探测到目标服务端仍要求逐次携带参考，会在当前进程内缓存该能力判断，避免重复首句试错
 
 ### `core/`
 
@@ -149,7 +149,8 @@ yumetsuki/
 → 如有 tool call，则通过 ToolRegistry 分发执行
 → tool result 回填给模型
 → UI 显示文本并切换立绘
-→ ChatWindow 按 `。！？；` / 换行切句
+→ TextProcessor 与 ChatWindow 会剥离 `[emotion:...]` 等情绪标签，避免它们进入 TTS
+→ ChatWindow 按 `。！？；` / 换行切句，并在长句达到阈值时优先按 `，、：` / 空格软切分
 → 若句子与目标输出语言不一致，则逐句调用 LLM 翻译
 → 翻译结果进入 GPT-SoVITS 合成
 → Qt 多媒体按句序播放音频
@@ -261,7 +262,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - Agent 分层智能（路由、反思、多步推理、主动行为）
 - Agent 日志混合时间线
 - 聊天窗长文本滚动与整体缩放
-- 句级增量 TTS 播报（GPT-SoVITS）
+- 句级增量 TTS 播报（GPT-SoVITS，支持参考预热与软切分）
 - 输出语言强约束与句级翻译播报
 
 尚未实现：

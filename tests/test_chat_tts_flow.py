@@ -294,3 +294,81 @@ def test_play_audio_bytes_uses_player_backend(chat_window, monkeypatch):
     chat_window._play_audio_bytes(payload)
 
     assert chat_window._player_payloads == [payload]
+
+
+def test_chat_window_starts_reference_prepare_when_adapter_requests_it(monkeypatch):
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    class _FakeAdapter:
+        def needs_reference_prepare(self):
+            return True
+
+    starts = []
+    monkeypatch.setattr("ui.chat.window.ChatWindow._create_tts_adapter", staticmethod(lambda *_args: _FakeAdapter()))
+    monkeypatch.setattr("ui.chat.window.ChatWindow._start_tts_reference_prepare", lambda self: starts.append(True))
+
+    ChatWindow(LLMConfig(), tts_config=TTSConfig(engine="gptsovits", api_url="http://fake:9880"))
+
+    assert starts == [True]
+
+
+def test_soft_split_enqueues_long_sentence_before_terminal_punctuation(chat_window):
+    chat_window._on_chunk(
+        ProcessedText(
+            clean_text="今天的天气其实挺舒服的，所以我还是想陪你一起慢慢散步，然后再去买点甜品",
+            emotion=None,
+        )
+    )
+
+    assert chat_window._queued_texts == ["今天的天气其实挺舒服的，所以我还是想陪你一起慢慢散步，"]
+
+
+def test_translation_segments_use_more_conservative_soft_split_threshold(chat_window):
+    chat_window._tts_output_lang = "en"
+    chat_window._on_chunk(
+        ProcessedText(
+            clean_text="今天的天气其实挺舒服的，所以我还是想陪你一起慢慢散步",
+            emotion=None,
+        )
+    )
+
+    assert chat_window._queued_texts == []
+
+
+def test_tts_segment_text_is_cleaned_before_worker(chat_window, monkeypatch):
+    monkeypatch.setattr(
+        chat_window,
+        "_enqueue_tts_segment",
+        ChatWindow._enqueue_tts_segment.__get__(chat_window, ChatWindow),
+    )
+
+    chat_window._enqueue_tts_segment("  你好   呀  ")
+
+    assert chat_window._started_segments == [(chat_window._current_utterance_id, 0, "你好 呀")]
+
+
+def test_emotion_tag_is_removed_before_tts_worker(chat_window, monkeypatch):
+    monkeypatch.setattr(
+        chat_window,
+        "_enqueue_tts_segment",
+        ChatWindow._enqueue_tts_segment.__get__(chat_window, ChatWindow),
+    )
+
+    chat_window._enqueue_tts_segment("[emotion:超やばい！]")
+
+    assert chat_window._started_segments == []
+
+
+def test_streaming_emotion_tag_cleanup_does_not_leave_dirty_pending_buffer(chat_window):
+    chat_window._on_chunk(ProcessedText(clean_text="[emotion:超", emotion=None))
+    assert chat_window._queued_texts == []
+
+    chat_window._on_chunk(ProcessedText(clean_text="", emotion="超やや！"))
+    assert chat_window._queued_texts == []
+
+    chat_window._on_chunk(ProcessedText(clean_text="こんにちは！", emotion="超やや！"))
+
+    assert chat_window._queued_texts == ["こんにちは！"]

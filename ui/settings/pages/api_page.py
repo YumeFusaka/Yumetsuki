@@ -34,8 +34,8 @@ QComboBox {
 }
 QComboBox:focus { border-color: #d4567a; }
 QComboBox::drop-down {
+    width: 0px;
     border: none;
-    width: 24px;
 }
 QComboBox QAbstractItemView {
     background: rgba(255, 255, 255, 0.95);
@@ -76,11 +76,32 @@ QPushButton#browseBtn:hover {
     background: rgba(255, 225, 232, 0.92);
     border-color: rgba(212, 86, 122, 0.44);
 }
+QPushButton#comboPopupBtn {
+    background: rgba(255, 245, 248, 0.92);
+    border: 1px solid rgba(220, 160, 180, 0.34);
+    border-radius: 6px;
+    min-width: 28px;
+    max-width: 28px;
+    padding: 0px;
+    color: #9b3060;
+    font-size: 11px;
+    font-weight: bold;
+}
+QPushButton#comboPopupBtn:hover {
+    background: rgba(255, 225, 232, 0.96);
+    border-color: rgba(212, 86, 122, 0.5);
+}
 """
 
 
 class APIPage(QWidget):
     TTS_LANGUAGE_OPTIONS = ["zh", "ja", "en", "ko", "yue"]
+    TTS_REFERENCE_MODE_OPTIONS = [
+        ("自动（推荐）", "auto"),
+        ("每次请求携带参考", "inline"),
+        ("启动对话时初始化一次", "session_preload"),
+        ("参考由服务端管理", "server_managed"),
+    ]
 
     def __init__(self, config: APIConfig, parent=None):
         super().__init__(parent)
@@ -185,17 +206,26 @@ class APIPage(QWidget):
         ref_audio_layout.addWidget(self._tts_ref_audio_browse_btn)
         tts_form.addRow("参考音频:", ref_audio_row)
 
+        self._tts_reference_mode = QComboBox()
+        for label, value in self.TTS_REFERENCE_MODE_OPTIONS:
+            self._tts_reference_mode.addItem(label, value)
+        self._set_reference_mode(config.tts.reference_mode)
+        self._tts_reference_mode.setToolTip("控制参考音频/参考文本是每次携带、会话初始化一次，还是完全由服务端托管。")
+        tts_form.addRow("参考模式:", self._tts_reference_mode)
+
         self._tts_prompt_lang = QComboBox()
         self._tts_prompt_lang.setEditable(True)
         self._tts_prompt_lang.addItems(self.TTS_LANGUAGE_OPTIONS)
         self._tts_prompt_lang.setCurrentText(config.tts.prompt_lang)
-        tts_form.addRow("参考语言:", self._tts_prompt_lang)
+        prompt_lang_row, self._tts_prompt_lang_popup_btn = self._build_popup_combo_row(self._tts_prompt_lang)
+        tts_form.addRow("参考语言:", prompt_lang_row)
 
         self._tts_output_lang = QComboBox()
         self._tts_output_lang.setEditable(True)
         self._tts_output_lang.addItems(self.TTS_LANGUAGE_OPTIONS)
         self._tts_output_lang.setCurrentText(config.tts.output_lang)
-        tts_form.addRow("输出语言:", self._tts_output_lang)
+        output_lang_row, self._tts_output_lang_popup_btn = self._build_popup_combo_row(self._tts_output_lang)
+        tts_form.addRow("输出语言:", output_lang_row)
 
         self._tts_prompt_text = QLineEdit(config.tts.prompt_text)
         self._tts_prompt_text.setPlaceholderText("参考音频对应文本")
@@ -236,6 +266,27 @@ class APIPage(QWidget):
         if path:
             self._tts_ref_audio.setText(path)
 
+    def _build_popup_combo_row(self, combo: QComboBox) -> tuple[QWidget, QPushButton]:
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(combo, 1)
+
+        popup_btn = QPushButton("▼")
+        popup_btn.setObjectName("comboPopupBtn")
+        popup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        popup_btn.setToolTip("展开选项")
+        popup_btn.clicked.connect(combo.showPopup)
+        layout.addWidget(popup_btn)
+        return row, popup_btn
+
+    def _set_reference_mode(self, reference_mode: str) -> None:
+        index = self._tts_reference_mode.findData(reference_mode or "auto")
+        if index < 0:
+            index = 0
+        self._tts_reference_mode.setCurrentIndex(index)
+
     def apply(self) -> None:
         self._config.llm.provider = self._provider.currentText()
         self._config.llm.model = self._model.text()
@@ -246,6 +297,7 @@ class APIPage(QWidget):
         self._config.tts.engine = self._tts_engine.currentText()
         self._config.tts.api_url = self._tts_url.text()
         self._config.tts.ref_audio_path = self._tts_ref_audio.text()
+        self._config.tts.reference_mode = self._tts_reference_mode.currentData()
         self._config.tts.prompt_lang = self._tts_prompt_lang.currentText()
         self._config.tts.output_lang = self._tts_output_lang.currentText()
         self._config.tts.prompt_text = self._tts_prompt_text.text()
@@ -264,6 +316,7 @@ class APIPage(QWidget):
         self._tts_engine.setCurrentText(self._config.tts.engine)
         self._tts_url.setText(self._config.tts.api_url)
         self._tts_ref_audio.setText(self._config.tts.ref_audio_path)
+        self._set_reference_mode(self._config.tts.reference_mode)
         self._tts_prompt_lang.setCurrentText(self._config.tts.prompt_lang)
         self._tts_output_lang.setCurrentText(self._config.tts.output_lang)
         self._tts_prompt_text.setText(self._config.tts.prompt_text)

@@ -74,6 +74,20 @@ class TTSTranslationWorker(QThread):
         self.result_ready.emit(self._utterance_id, self._segment_id, translated_text)
 
 
+class TTSReferencePrepareWorker(QThread):
+    result_ready = Signal(object)
+
+    def __init__(self, adapter):
+        super().__init__()
+        self._adapter = adapter
+
+    def run(self):
+        result = None
+        if self._adapter is not None:
+            result = self._adapter.prepare_reference()
+        self.result_ready.emit(result)
+
+
 class GlassPanel(QWidget):
     """Frosted glass panel drawn with rounded rect + semi-transparent fill."""
     def __init__(self, parent=None):
@@ -167,6 +181,12 @@ class ChatWindow(QWidget):
     BASE_SCROLLBAR_WIDTH = 6
     CHARACTER_NAME_COLOR = "#9b3060"
     USER_NAME_COLOR = "#5f6fb2"
+    TTS_SOFT_MIN_CHARS = 20
+    TTS_SOFT_TARGET_CHARS = 28
+    TTS_SOFT_MAX_CHARS = 40
+    TTS_TRANSLATION_SOFT_MIN_CHARS = 24
+    TTS_TRANSLATION_SOFT_TARGET_CHARS = 32
+    TTS_TRANSLATION_SOFT_MAX_CHARS = 48
 
     def __init__(
         self,
@@ -188,6 +208,7 @@ class ChatWindow(QWidget):
         self._tts_adapter = self._create_tts_adapter(tts_config)
         self._tts_output_lang = self._normalize_tts_lang(tts_config.output_lang if tts_config else "")
         self._streamed_assistant_text = ""
+        self._tts_committed_text = ""
         self._tts_pending_buffer = ""
         self._current_utterance_id = 0
         self._next_segment_id = 0
@@ -195,11 +216,13 @@ class ChatWindow(QWidget):
         self._segment_results: dict[tuple[int, int], bytes] = {}
         self._active_tts_workers = []
         self._active_translation_workers = []
+        self._tts_prepare_worker = None
         self._audio_output = None
         self._audio_player = None
         self._audio_buffer = None
         self._is_audio_playing = False
         self._pending_audio_queue: list[bytes] = []
+        self._start_tts_reference_prepare()
 
         # Window flags: frameless, transparent, always on top
         self.setWindowFlags(
@@ -690,10 +713,56 @@ class ChatWindow(QWidget):
                 return index + 1
         return -1
 
+    @staticmethod
+    def _clean_tts_text(text: str) -> str:
+        cleaned = re.sub(r"\[emotion:[^\]]+\]", "", text, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        return cleaned
+
+    def _tts_soft_thresholds(self, text: str) -> tuple[int, int, int]:
+        if self._tts_output_lang and not self._tts_text_matches_output_lang(text):
+            return (
+                self.TTS_TRANSLATION_SOFT_MIN_CHARS,
+                self.TTS_TRANSLATION_SOFT_TARGET_CHARS,
+                self.TTS_TRANSLATION_SOFT_MAX_CHARS,
+            )
+        return (self.TTS_SOFT_MIN_CHARS, self.TTS_SOFT_TARGET_CHARS, self.TTS_SOFT_MAX_CHARS)
+
+    def _find_soft_sentence_break(self, text: str) -> int:
+        cleaned = text.strip()
+        if not cleaned:
+            return -1
+        soft_min, soft_target, soft_max = self._tts_soft_thresholds(cleaned)
+        content_len = len(cleaned)
+        if content_len < soft_min:
+            return -1
+
+        priorities = ["，", "、"] if content_len < soft_target else ["，", "、", "：", ":"]
+        candidates = [(index, char) for index, char in enumerate(text) if char in priorities or char == " "]
+        for priority in priorities:
+            for index, char in reversed(candidates):
+                if char != priority:
+                    continue
+                if len(text[:index].strip()) >= soft_min:
+                    return index + 1
+        if content_len >= soft_target:
+            for index, char in reversed(candidates):
+                if char == " " and len(text[:index].strip()) >= soft_min:
+                    return index + 1
+        if content_len >= soft_max:
+            return soft_max
+        return -1
+
+    def _next_tts_break(self, text: str) -> int:
+        hard_break = self._find_sentence_break(text)
+        if hard_break >= 0:
+            return hard_break
+        return self._find_soft_sentence_break(text)
+
     def _extract_tts_segments(self, flush: bool = False) -> list[str]:
         segments: list[str] = []
         while True:
-            cut_index = self._find_sentence_break(self._tts_pending_buffer)
+            cut_index = self._next_tts_break(self._tts_pending_buffer)
             if cut_index < 0:
                 break
             segment = self._tts_pending_buffer[:cut_index].strip()
@@ -706,6 +775,9 @@ class ChatWindow(QWidget):
         return segments
 
     def _enqueue_tts_segment(self, text: str) -> None:
+        text = self._clean_tts_text(text)
+        if not text:
+            return
         segment_id = self._next_segment_id
         self._next_segment_id += 1
         if not self._tts_text_matches_output_lang(text):
@@ -753,9 +825,33 @@ class ChatWindow(QWidget):
             self._active_translation_workers.remove(worker)
         worker.deleteLater()
 
+    def _start_tts_reference_prepare(self) -> None:
+        if self._tts_adapter is None or self._tts_prepare_worker is not None:
+            return
+        needs_prepare = getattr(self._tts_adapter, "needs_reference_prepare", None)
+        if needs_prepare is None or not needs_prepare():
+            return
+        self._tts_prepare_worker = TTSReferencePrepareWorker(self._tts_adapter)
+        self._tts_prepare_worker.result_ready.connect(
+            self._on_tts_reference_prepare_result,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._tts_prepare_worker.finished.connect(self._on_tts_reference_prepare_finished)
+        self._tts_prepare_worker.start()
+
+    def _on_tts_reference_prepare_result(self, prepared: bool | None) -> None:
+        if prepared is False:
+            print("[TTS] reference prepare failed, adapter will fall back to inline mode")
+
+    def _on_tts_reference_prepare_finished(self) -> None:
+        if self._tts_prepare_worker is not None:
+            self._tts_prepare_worker.deleteLater()
+            self._tts_prepare_worker = None
+
     def _begin_new_tts_turn(self) -> None:
         self._current_utterance_id += 1
         self._streamed_assistant_text = ""
+        self._tts_committed_text = ""
         self._tts_pending_buffer = ""
         self._next_segment_id = 0
         self._next_play_id = 0
@@ -901,20 +997,22 @@ class ChatWindow(QWidget):
             self._set_speaker_name(self._char_name)
         self._set_dialog_text(result.clean_text)
         if self._tts_adapter is not None:
-            delta = result.clean_text
-            if result.clean_text.startswith(self._streamed_assistant_text):
-                delta = result.clean_text[len(self._streamed_assistant_text):]
             self._streamed_assistant_text = result.clean_text
-            if delta:
-                self._tts_pending_buffer += delta
-                for segment in self._extract_tts_segments():
-                    self._enqueue_tts_segment(segment)
+            current_text = result.clean_text
+            if current_text.startswith(self._tts_committed_text):
+                self._tts_pending_buffer = current_text[len(self._tts_committed_text):]
+            else:
+                self._tts_pending_buffer = current_text
+            for segment in self._extract_tts_segments():
+                self._tts_committed_text += segment
+                self._enqueue_tts_segment(segment)
         if result.emotion:
             self._sprite_mgr.set_emotion(result.emotion)
 
     def _on_llm_done(self):
         if self._tts_adapter is not None:
             for segment in self._extract_tts_segments(flush=True):
+                self._tts_committed_text += segment
                 self._enqueue_tts_segment(segment)
         self._worker = None
 
@@ -930,6 +1028,8 @@ class ChatWindow(QWidget):
     def closeEvent(self, event):
         if self._proactive_scheduler is not None:
             self._proactive_scheduler.stop()
+        if self._tts_prepare_worker is not None:
+            self._tts_prepare_worker.wait(100)
         self._pending_audio_queue.clear()
         if self._audio_player is not None:
             self._is_audio_playing = False

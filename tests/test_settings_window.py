@@ -82,6 +82,25 @@ def test_api_page_tts_language_combos_have_presets_and_remain_editable():
     assert page._tts_output_lang.isEditable()
     assert prompt_items == ["zh", "ja", "en", "ko", "yue"]
     assert output_items == ["zh", "ja", "en", "ko", "yue"]
+    assert page._tts_prompt_lang_popup_btn.text() == "▼"
+    assert page._tts_output_lang_popup_btn.text() == "▼"
+    assert "QPushButton#comboPopupBtn" in api_page_module.FORM_STYLE
+
+
+def test_api_page_tts_reference_mode_apply_and_reset():
+    _app()
+    config = APIConfig()
+    page = APIPage(config)
+
+    assert page._tts_reference_mode.currentData() == "auto"
+
+    page._tts_reference_mode.setCurrentIndex(2)
+    page.apply()
+    assert config.tts.reference_mode == "session_preload"
+
+    config.tts.reference_mode = "server_managed"
+    page.reset()
+    assert page._tts_reference_mode.currentData() == "server_managed"
 
 
 def test_api_page_tts_language_and_ref_audio_apply_and_reset():
