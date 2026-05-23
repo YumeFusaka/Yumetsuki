@@ -149,6 +149,29 @@ def test_agent_manager_tool_mode_disables_followup_llm_tools():
     assert "已打开浏览器" in llm.calls[0]["extra_context"]
 
 
+def test_agent_manager_marks_tool_success_in_followup_context():
+    llm = FakeLLMManager("[emotion:开心]已经打开了")
+    manager = AgentManager(
+        llm_manager=llm,
+        planner=FakePlanner(FakePlan(
+            mode="tool",
+            goal="open browser",
+            tool_name="system_control__open_browser",
+            arguments={},
+        )),
+        executor=FakeExecutor("已打开浏览器"),
+        memory_store=FakeMemoryStore(),
+        tool_registry=FakeToolRegistry(),
+        user_id="u1",
+    )
+
+    list(manager.chat_stream("打开浏览器"))
+
+    extra_context = llm.calls[0]["extra_context"]
+    assert "工具调用已成功执行" in extra_context
+    assert "不要再说自己做不到" in extra_context
+
+
 def test_agent_manager_does_not_block_on_add_conversation():
     memory_store = SlowMemoryStore()
     manager = AgentManager(

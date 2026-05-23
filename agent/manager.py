@@ -102,7 +102,11 @@ class AgentManager:
         else:
             self._event_bus.publish(AgentEvents.TOOL_SKIPPED, {"reason": "chat mode"})
 
-        extra_context = self._build_extra_context(memories, tool_result)
+        extra_context = self._build_extra_context(
+            memories,
+            tool_result,
+            tool_executed=bool(tool_calls),
+        )
 
         self._event_bus.publish(AgentEvents.LLM_STARTED, {})
         final_result: ProcessedText | None = None
@@ -185,12 +189,25 @@ class AgentManager:
     def set_memory_store(self, memory_store) -> None:
         self._memory_store = memory_store
 
-    def _build_extra_context(self, memories: list[str], tool_result: str) -> str:
+    def _build_extra_context(
+        self,
+        memories: list[str],
+        tool_result: str,
+        tool_executed: bool = False,
+    ) -> str:
         sections: list[str] = []
         if memories:
             memory_lines = "\n".join(f"- {memory}" for memory in memories)
             sections.append(f"相关记忆:\n{memory_lines}")
-        if tool_result:
+        if tool_executed and tool_result:
+            sections.append(
+                "工具调用已成功执行。\n"
+                "你刚刚已经代表用户完成了实际操作。"
+                "回答时要基于下面的工具结果直接确认完成情况，"
+                "不要再说自己做不到、不能操作、只能聊天。"
+            )
+            sections.append(f"工具结果:\n{tool_result}")
+        elif tool_result:
             sections.append(f"工具结果:\n{tool_result}")
         return "\n\n".join(sections)
 
