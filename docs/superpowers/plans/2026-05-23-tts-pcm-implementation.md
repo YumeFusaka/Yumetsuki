@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python, PySide6 QtMultimedia (`QMediaPlayer`, `QAudioSink`, `QIODevice`), requests, pytest
 
+**Compatibility Guardrail:** 原版 GPT-SoVITS 兼容优先。所有 `session_id`、PCM 流式和结构化错误等能力都必须是显式扩展；未携带扩展字段的请求必须继续保持原版 `wav` / 非流式 / 显式参考字段行为。
+
 ---
 
 ## File Structure
@@ -900,6 +902,7 @@ git commit -m "feat: add streamed pcm playback flow"
 - docs/README.md 必须更新“当前进度”里的 TTS 能力概述
 - docs/architecture.md 必须补充 tts/types.py、ui/chat/audio_backends.py 和双播放后端主流程
 - docs/development.md 必须把 audio_mode、session_id、PCM 播放后端测试加入 TTS 回归项
+- 所有文档必须明确“原版兼容优先、扩展能力显式触发”，不得写成为了桌宠端而改写原版默认行为
 ```
 
 - [ ] **Step 2: Run the verification commands before editing docs**

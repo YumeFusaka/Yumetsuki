@@ -24,6 +24,7 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第三阶段已完成。
 - `data/config/api.yaml` 和 `data/config/memory.yaml` 默认视为本地敏感配置
 - 优先沿用现有 UI 风格和提交信息格式
 - 当前不引入 LangChain / LangGraph，继续走自定义架构
+- 原版兼容优先：涉及第三方服务、协议或接口时，必须先保证原版行为与默认语义不被破坏；对魔改或桌宠端的支持只能通过显式扩展实现，不能靠改写原版默认值、原版必填项或原版返回格式达成
 - 完成的功能同步更新文档：每次提交的改动必须同步更新 CLAUDE.md 和 docs/ 目录中的相关文档；已完成的 specs 和 plan 文件应及时删除或更新
 - 所有文档必须使用中文
 - 每个插件必须在 `docs/` 下有对应的说明文档（如 `docs/plugin-system-control.md`）
