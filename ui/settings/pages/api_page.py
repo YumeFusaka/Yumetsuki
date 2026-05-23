@@ -96,6 +96,11 @@ QPushButton#comboPopupBtn:hover {
 
 class APIPage(QWidget):
     TTS_LANGUAGE_OPTIONS = ["zh", "ja", "en", "ko", "yue"]
+    TTS_AUDIO_MODE_OPTIONS = [
+        ("自动（推荐）", "auto"),
+        ("PCM流式（低延迟）", "pcm_stream"),
+        ("WAV（兼容/调试）", "wav"),
+    ]
     TTS_REFERENCE_MODE_OPTIONS = [
         ("自动（推荐）", "auto"),
         ("每次请求携带参考", "inline"),
@@ -190,6 +195,13 @@ class APIPage(QWidget):
 
         self._tts_url = QLineEdit(config.tts.api_url)
         tts_form.addRow("API URL:", self._tts_url)
+
+        self._tts_audio_mode = QComboBox()
+        for label, value in self.TTS_AUDIO_MODE_OPTIONS:
+            self._tts_audio_mode.addItem(label, value)
+        self._set_audio_mode(config.tts.audio_mode)
+        self._tts_audio_mode.setToolTip("自动模式优先尝试 PCM 流式，失败后在当前聊天会话回退为 WAV。")
+        tts_form.addRow("音频模式:", self._tts_audio_mode)
 
         ref_audio_row = QWidget()
         ref_audio_layout = QHBoxLayout(ref_audio_row)
@@ -287,6 +299,12 @@ class APIPage(QWidget):
             index = 0
         self._tts_reference_mode.setCurrentIndex(index)
 
+    def _set_audio_mode(self, audio_mode: str) -> None:
+        index = self._tts_audio_mode.findData(audio_mode or "auto")
+        if index < 0:
+            index = 0
+        self._tts_audio_mode.setCurrentIndex(index)
+
     def apply(self) -> None:
         self._config.llm.provider = self._provider.currentText()
         self._config.llm.model = self._model.text()
@@ -296,6 +314,7 @@ class APIPage(QWidget):
         self._config.llm.max_tokens = self._tok_slider.value()
         self._config.tts.engine = self._tts_engine.currentText()
         self._config.tts.api_url = self._tts_url.text()
+        self._config.tts.audio_mode = self._tts_audio_mode.currentData()
         self._config.tts.ref_audio_path = self._tts_ref_audio.text()
         self._config.tts.reference_mode = self._tts_reference_mode.currentData()
         self._config.tts.prompt_lang = self._tts_prompt_lang.currentText()
@@ -315,6 +334,7 @@ class APIPage(QWidget):
         self._tok_spin.setValue(self._config.llm.max_tokens)
         self._tts_engine.setCurrentText(self._config.tts.engine)
         self._tts_url.setText(self._config.tts.api_url)
+        self._set_audio_mode(self._config.tts.audio_mode)
         self._tts_ref_audio.setText(self._config.tts.ref_audio_path)
         self._set_reference_mode(self._config.tts.reference_mode)
         self._tts_prompt_lang.setCurrentText(self._config.tts.prompt_lang)

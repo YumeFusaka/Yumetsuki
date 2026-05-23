@@ -47,7 +47,9 @@ yumetsuki/
 - `ui/settings/pages/plugin_page.py`
   插件与 MCP 管理页面
 - `ui/chat/window.py`
-  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局、句级增量 TTS）
+  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机）
+- `ui/chat/audio_backends.py`
+  TTS 播放后端：`WavPlaybackBackend` 负责完整 WAV 播放，`PcmStreamPlaybackBackend` 负责 PCM 边收边播
 - `ui/chat/sprite.py`
   立绘加载、缩放、情绪切换
 
@@ -83,11 +85,14 @@ yumetsuki/
 负责语音能力适配。
 
 - `tts/adapter.py`
-  TTS 适配器抽象
+  TTS 适配器抽象，统一暴露 `stream_synthesize()` 流式事件接口，并保留 `synthesize()` 兼容包装
+- `tts/types.py`
+  TTS 流式事件与音频格式模型（`TTSStreamEvent`、`TTSAudioFormat`）
 - `tts/adapters/gptsovits.py`
   GPT-SoVITS HTTP 适配器
-  提供 HTTP 合成请求与基础失败日志
+  提供 HTTP 合成请求、流式事件输出与基础失败日志
   会把基础地址规范化到 `/tts`，支持 `reference_mode` 参考策略：逐次携带、会话预热、自动回退或完全由服务端托管；可在启动聊天后异步通过 `GET /set_refer_audio?refer_audio_path=...` 预热参考，并在需要时只向 `/tts` 发送正文与输出语言；若 `auto` 模式探测到目标服务端仍要求逐次携带参考，会在当前进程内缓存该能力判断，避免重复首句试错
+  同时支持 `audio_mode=auto/pcm_stream/wav`：在显式扩展路径下可透传 `session_id`、`prompt_lang`、`prompt_text`、请求 PCM chunk stream，并在当前聊天会话内按需锁定 WAV 回退；无扩展字段请求继续保持原版默认行为
 
 ### `core/`
 
@@ -154,8 +159,14 @@ yumetsuki/
 → 若句子与目标输出语言不一致，则逐句调用 LLM 翻译
 → 翻译前会对拟声词、语气词、拖长音、重复音节做音感保护标注，提示模型优先保留发音感觉与节奏
 → 翻译结果进入 GPT-SoVITS 合成
-→ Qt 多媒体按句序播放音频
+→ GPT-SoVITS 依据 `audio_mode` 返回完整 WAV 或 PCM chunk stream
+→ ChatWindow 按句段顺序驱动 `WavPlaybackBackend` 或 `PcmStreamPlaybackBackend`
+→ Qt 多媒体按句序播放音频；PCM 在首个可播 chunk 到达后尽快起播
 ```
+
+已知边界：
+
+- 当桌宠端已经正确传递 `session_id`、`prompt_lang`、`prompt_text` 后，服务端 warmup 内部语言选择错误、服务端内部切句导致的 `、。` 之类异常，不归因于本仓库当前桌宠端实现
 
 ## 工具系统
 
@@ -264,6 +275,8 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - Agent 日志混合时间线
 - 聊天窗长文本滚动与整体缩放
 - 句级增量 TTS 播报（GPT-SoVITS，支持参考预热与软切分）
+- PCM 流式低延迟播放（`audio_mode=pcm_stream`）
+- `auto` 模式下的会话级 WAV 回退
 - 输出语言强约束与句级翻译播报（拟声词 / 语气词优先保留音感）
 
 尚未实现：

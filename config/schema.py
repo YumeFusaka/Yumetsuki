@@ -14,6 +14,7 @@ class LLMConfig(BaseModel):
 class TTSConfig(BaseModel):
     engine: str = "none"
     api_url: str = "http://127.0.0.1:9880"
+    audio_mode: str = "auto"
     ref_audio_path: str = ""
     reference_mode: str = "auto"
     prompt_lang: str = "zh"

@@ -103,6 +103,33 @@ def test_api_page_tts_reference_mode_apply_and_reset():
     assert page._tts_reference_mode.currentData() == "server_managed"
 
 
+def test_api_page_tts_audio_mode_apply_and_reset():
+    _app()
+    config = APIConfig()
+    page = APIPage(config)
+
+    assert page._tts_audio_mode.currentData() == "auto"
+
+    page._tts_audio_mode.setCurrentIndex(1)
+    page.apply()
+    assert config.tts.audio_mode == "pcm_stream"
+
+    config.tts.audio_mode = "wav"
+    page.reset()
+    assert page._tts_audio_mode.currentData() == "wav"
+
+
+def test_api_page_tts_audio_mode_has_expected_labels():
+    _app()
+    page = APIPage(APIConfig())
+
+    items = [page._tts_audio_mode.itemText(i) for i in range(page._tts_audio_mode.count())]
+    values = [page._tts_audio_mode.itemData(i) for i in range(page._tts_audio_mode.count())]
+
+    assert items == ["自动（推荐）", "PCM流式（低延迟）", "WAV（兼容/调试）"]
+    assert values == ["auto", "pcm_stream", "wav"]
+
+
 def test_api_page_tts_language_and_ref_audio_apply_and_reset():
     _app()
     config = APIConfig()

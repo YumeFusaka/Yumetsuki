@@ -16,6 +16,7 @@
 - `data/config/api.yaml`
   API 配置
   含 key，不应提交
+  其中 TTS 的 `audio_mode`、`ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 控制运行态音频链路与参考策略
   其中 TTS 的 `ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 可能包含本地语音素材路径或私有参考文本，也按本地敏感配置处理
 - `data/config/system_config.yaml`
   系统配置
@@ -69,19 +70,33 @@
   - 必要时 Qt offscreen 实例化
   - 聊天窗缩放 / 滚动类调整优先补回归测试
 - TTS 相关改动优先覆盖：
+  - `audio_mode` 持久化与设置页 apply/reset
   - 原版 GPT-SoVITS 无 `session_id` 请求时的旧行为兼容
   - 新增扩展字段时不得改变原版 `wav` / 非流式默认路径
   - `SettingsWindow -> ChatWindow` 配置透传
   - `reference_mode` 持久化与 GPT-SoVITS 预热 / 回退策略
   - `GET /set_refer_audio?refer_audio_path=...` 调用方式与错误回退识别
+  - `session_id` 预热扩展路径下 `prompt_lang` / `prompt_text` 的透传，以及缺失扩展参数时退回原版路径
+  - `session_id` 对 `/set_refer_audio` 与 `/tts` 的透传
   - `auto` 模式的进程内能力探测缓存，避免同一服务端在单次运行里重复首句试错
+  - `audio_mode=auto/pcm_stream/wav` 的请求参数映射与自动 WAV 回退
   - 句级切分边界（`。！？；` / 换行）
   - 长句软切分阈值与翻译模式更保守的分段策略
   - 情绪标签不得进入最终 TTS 文本
   - `prompt_lang` / `output_lang` 透传与语言别名兼容
   - 逐句翻译、旧轮失效、失败跳过与顺序播放
+  - PCM 首个 chunk 到达即播、句段有序播放、失败后会话级 WAV 回退
+  - `ui/chat/audio_backends.py` 中 WAV / PCM 播放后端的无真实设备测试
   - 拟声词、语气词、拖长音、重复音节在翻译时优先保留音感，不被语义意译破坏
   - 避免依赖真实 GPT-SoVITS 服务或真实音频设备
+
+### TTS 归因边界
+
+- 若桌宠端已正确传递 `session_id`、`prompt_lang`、`prompt_text`，则服务端 warmup 内部生成错误语言文本、或服务端内部切句产出 `、。` 等异常，应优先归因服务端。
+- 桌宠端侧排查重点仍是：
+  - 是否误把非目标语言文本直接送入 TTS
+  - 是否在本地切句阶段提前产出异常分段
+  - 是否在顺序播放状态机中额外引入等待
 
 ## 页面保存语义
 
@@ -115,3 +130,4 @@
 8. 句级增量 TTS 播报接入（GPT-SoVITS）
 9. 输出语言强约束与句级翻译播报
 10. TTS 参考模式、会话预热与长句软切分优化
+11. TTS `audio_mode`、PCM 流式播放与会话级 WAV 回退

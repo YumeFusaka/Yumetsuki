@@ -2,6 +2,7 @@ from pathlib import Path
 import getpass
 import re
 import unicodedata
+import uuid
 from html import escape
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QPushButton, QMenu,
@@ -19,6 +20,8 @@ from llm.adapter import LLMStreamChunk
 from config.schema import LLMConfig, TTSConfig
 from core.character import load_character, build_system_prompt
 from tts.adapters.gptsovits import GPTSoVITSAdapter
+from tts.types import TTSAudioFormat, TTSStreamEvent
+from ui.chat.audio_backends import PcmStreamPlaybackBackend, WavPlaybackBackend
 
 
 SENTENCE_ENDINGS = "。！？；\n"
@@ -40,7 +43,7 @@ class LLMWorker(QThread):
 
 
 class TTSWorker(QThread):
-    result_ready = Signal(int, int, object)
+    event_ready = Signal(int, int, object)
 
     def __init__(self, adapter, utterance_id: int, segment_id: int, text: str):
         super().__init__()
@@ -50,10 +53,10 @@ class TTSWorker(QThread):
         self._text = text
 
     def run(self):
-        audio = None
-        if self._adapter is not None:
-            audio = self._adapter.synthesize(self._text)
-        self.result_ready.emit(self._utterance_id, self._segment_id, audio)
+        if self._adapter is None:
+            return
+        for event in self._adapter.stream_synthesize(self._text):
+            self.event_ready.emit(self._utterance_id, self._segment_id, event)
 
 
 class TTSTranslationWorker(QThread):
@@ -212,7 +215,8 @@ class ChatWindow(QWidget):
         self._char_dir = character_dir
         self._settings_window_factory = settings_window_factory
         self._settings_window = None
-        self._tts_adapter = self._create_tts_adapter(tts_config)
+        self._tts_session_id = uuid.uuid4().hex
+        self._tts_adapter = self._create_tts_adapter(tts_config, self._tts_session_id)
         self._tts_output_lang = self._normalize_tts_lang(tts_config.output_lang if tts_config else "")
         self._streamed_assistant_text = ""
         self._tts_committed_text = ""
@@ -221,6 +225,10 @@ class ChatWindow(QWidget):
         self._next_segment_id = 0
         self._next_play_id = 0
         self._segment_results: dict[tuple[int, int], bytes] = {}
+        self._segment_states: dict[tuple[int, int], str] = {}
+        self._segment_events: dict[tuple[int, int], list[TTSStreamEvent]] = {}
+        self._segment_backends: dict[tuple[int, int], object] = {}
+        self._active_segment_key: tuple[int, int] | None = None
         self._active_tts_workers = []
         self._active_translation_workers = []
         self._tts_prepare_worker = None
@@ -598,11 +606,11 @@ class ChatWindow(QWidget):
         self._settings_window = None
 
     @staticmethod
-    def _create_tts_adapter(tts_config: TTSConfig | None):
+    def _create_tts_adapter(tts_config: TTSConfig | None, session_id: str | None = None):
         if tts_config is None:
             return None
         if tts_config.engine == "gptsovits":
-            return GPTSoVITSAdapter(tts_config)
+            return GPTSoVITSAdapter(tts_config, session_id=session_id)
         return None
 
     @staticmethod
@@ -861,7 +869,7 @@ class ChatWindow(QWidget):
         if self._tts_adapter is None:
             return
         worker = TTSWorker(self._tts_adapter, utterance_id, segment_id, text)
-        worker.result_ready.connect(self._handle_tts_result, Qt.ConnectionType.QueuedConnection)
+        worker.event_ready.connect(self._handle_tts_stream_event, Qt.ConnectionType.QueuedConnection)
         worker.finished.connect(lambda: self._on_tts_worker_finished(worker))
         self._active_tts_workers.append(worker)
         worker.start()
@@ -923,6 +931,10 @@ class ChatWindow(QWidget):
         self._next_segment_id = 0
         self._next_play_id = 0
         self._segment_results.clear()
+        self._segment_states.clear()
+        self._segment_events.clear()
+        self._stop_all_segment_backends()
+        self._active_segment_key = None
         self._pending_audio_queue.clear()
         if self._audio_player is not None:
             self._is_audio_playing = False
@@ -939,6 +951,19 @@ class ChatWindow(QWidget):
         if audio is None:
             print(f"[TTS] segment {segment_id} synthesis failed")
         self._complete_tts_segment(utterance_id, segment_id, audio)
+
+    def _handle_tts_stream_event(
+        self,
+        utterance_id: int,
+        segment_id: int,
+        event: TTSStreamEvent,
+    ) -> None:
+        if utterance_id != self._current_utterance_id:
+            return
+        key = (utterance_id, segment_id)
+        self._segment_events.setdefault(key, []).append(event)
+        self._segment_states.setdefault(key, "pending")
+        self._advance_ready_segments()
 
     def _handle_translation_result(self, utterance_id: int, segment_id: int, translated_text: str | None) -> None:
         if utterance_id != self._current_utterance_id:
@@ -967,6 +992,97 @@ class ChatWindow(QWidget):
         except Exception as exc:
             print(f"[TTS] translation request failed: {exc}")
             return None
+
+    def _advance_ready_segments(self) -> None:
+        while True:
+            if self._active_segment_key is None:
+                key = (self._current_utterance_id, self._next_play_id)
+                if key not in self._segment_states and key not in self._segment_events:
+                    return
+                self._active_segment_key = key
+            key = self._active_segment_key
+            events = self._segment_events.get(key)
+            if not events:
+                return
+            event = events.pop(0)
+            if event.kind == "start" and event.format is not None:
+                self._start_segment_backend(key, event.format)
+                self._segment_states[key] = "streaming"
+                continue
+            if event.kind == "chunk" and event.data is not None:
+                self._append_segment_chunk(key, event.data)
+                continue
+            if event.kind == "end":
+                self._segment_states[key] = "ended"
+                self._finish_segment_backend(key)
+                return
+            if event.kind == "error":
+                self._fail_segment(key, event.message)
+                continue
+
+    def _start_segment_backend(self, key: tuple[int, int], audio_format: TTSAudioFormat) -> None:
+        self._stop_segment_backend(key)
+        if audio_format.transport == "pcm_stream":
+            backend = PcmStreamPlaybackBackend(self)
+        else:
+            backend = WavPlaybackBackend(self)
+        backend.playback_finished.connect(
+            lambda key=key: self._on_segment_playback_finished(key),
+            Qt.ConnectionType.QueuedConnection,
+        )
+        backend.start_stream(audio_format)
+        self._segment_backends[key] = backend
+
+    def _append_segment_chunk(self, key: tuple[int, int], data: bytes) -> None:
+        backend = self._segment_backends.get(key)
+        if backend is None:
+            return
+        backend.append_chunk(data)
+
+    def _finish_segment_backend(self, key: tuple[int, int]) -> None:
+        backend = self._segment_backends.get(key)
+        if backend is None:
+            self._on_segment_playback_finished(key)
+            return
+        backend.finish_stream()
+
+    def _on_segment_playback_finished(self, key: tuple[int, int]) -> None:
+        if key[0] != self._current_utterance_id:
+            return
+        self._segment_states[key] = "played"
+        self._stop_segment_backend(key)
+        if self._active_segment_key == key:
+            self._next_play_id += 1
+            self._active_segment_key = None
+        self._advance_ready_segments()
+
+    def _fail_segment(self, key: tuple[int, int], message: str) -> None:
+        backend = self._segment_backends.get(key)
+        has_started_audio = False
+        if backend is not None and hasattr(backend, "has_started_playback"):
+            has_started_audio = bool(backend.has_started_playback())
+        if not has_started_audio and self._tts_adapter is not None and hasattr(self._tts_adapter, "force_session_audio_mode"):
+            self._tts_adapter.force_session_audio_mode("wav")
+        print(f"[TTS] segment {key[1]} failed: {message}")
+        self._segment_states[key] = "failed"
+        self._stop_segment_backend(key)
+        if self._active_segment_key == key or key[1] == self._next_play_id:
+            self._next_play_id += 1
+            self._active_segment_key = None
+        self._advance_ready_segments()
+
+    def _stop_segment_backend(self, key: tuple[int, int]) -> None:
+        backend = self._segment_backends.pop(key, None)
+        if backend is None:
+            return
+        if hasattr(backend, "stop"):
+            backend.stop()
+        if hasattr(backend, "deleteLater"):
+            backend.deleteLater()
+
+    def _stop_all_segment_backends(self) -> None:
+        for key in list(self._segment_backends.keys()):
+            self._stop_segment_backend(key)
 
     def _drain_ready_audio(self) -> None:
         while True:
@@ -1081,6 +1197,7 @@ class ChatWindow(QWidget):
             self._proactive_scheduler.stop()
         if self._tts_prepare_worker is not None:
             self._tts_prepare_worker.wait(100)
+        self._stop_all_segment_backends()
         self._pending_audio_queue.clear()
         if self._audio_player is not None:
             self._is_audio_playing = False

@@ -109,6 +109,11 @@
 - `session_id`、PCM 流式、结构化错误与元数据头属于扩展能力，不属于 Yumetsuki 当前的无条件基础依赖。
 - 服务端若支持会话能力，只能把 `session_id` 作为可选扩展键，不得把它提升为原版路径前置条件。
 
+### 当前问题归因边界
+
+- 当 Yumetsuki 已经在显式扩展路径下正确传递 `session_id`、`prompt_lang`、`prompt_text` 后，服务端 warmup 内部生成何种探测文本、以及该探测文本是否与 `prompt_lang` 对齐，属于服务端责任。
+- 当服务端日志或实际输出出现 `、。` 之类由服务端内部切句、补句号或 warmup 产物带来的异常时，不应把该异常反向归因到 Yumetsuki 当前桌宠端切句逻辑，除非客户端日志已经证明桌宠端本地先产出了相同异常分段。
+
 ## 服务端建议跟进方式（原版路径 / 扩展路径）
 
 ### 原版路径
@@ -132,6 +137,7 @@
 - 请求体、查询参数或请求头中必须出现至少一个已文档化的显式扩展字段或显式扩展协商项，服务端才允许进入扩展路径。
 - `session_id` 明确属于可触发扩展路径的显式扩展字段。
 - 在 `GET /set_refer_audio?refer_audio_path=...` 上显式携带已文档化的 `session_id`，仅允许触发“会话预热扩展”；不得因此改变 `/tts` 原版默认语义。
+- 若服务端把 `prompt_lang`、`prompt_text` 也文档化为该会话预热扩展的必填伴随字段，客户端仅允许在显式扩展路径下与 `session_id` 一起携带；缺失这些扩展字段时，客户端应退回原版预热或逐次显式参考字段路径。
 - 若服务端定义了其他扩展协商项，例如扩展请求头或扩展字段，必须在服务端文档中明确写出“该字段仅用于扩展路径”，否则不得作为触发条件。
 - 未知字段、未文档化字段、仅出现原版字段、仅出现内部调试字段时，服务端不得自动进入扩展路径。
 - 单独出现 `ref_audio_path`、`prompt_lang`、`prompt_text` 或原版 `streaming_mode` 时，服务端不得据此判定客户端要求桌宠端专用扩展。
@@ -172,6 +178,10 @@ GET /set_refer_audio?refer_audio_path=ref.wav&session_id=sess-123
 ```
 
 ```http
+GET /set_refer_audio?refer_audio_path=ref.wav&session_id=sess-123&prompt_lang=zh&prompt_text=%E7%A4%BA%E4%BE%8B
+```
+
+```http
 POST /tts
 Content-Type: application/json
 
@@ -185,6 +195,7 @@ Content-Type: application/json
 判定说明：
 
 - `session_id` 是已文档化的显式扩展字段，因此服务端允许进入会话化扩展路径。
+- 若服务端要求 `prompt_lang`、`prompt_text` 作为该扩展路径的伴随字段，客户端应在该扩展请求中一并显式携带；未携带时，客户端不应把失败误判为原版路径不可用。
 - 若 `session_id` 对应的参考信息尚未准备好，服务端必须保持原版基础错误语义，并且仅允许在此基础上附加扩展错误字段。
 - 若请求只携带未知字段，或者只携带 `prompt_lang` 等原版字段而没有任何显式扩展字段，服务端不得按本示例进入扩展路径。
 

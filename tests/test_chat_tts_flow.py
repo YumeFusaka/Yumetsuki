@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QApplication
 
 from config.schema import LLMConfig, TTSConfig
 from llm.text_processor import ProcessedText
+from tts.types import TTSAudioFormat, TTSStreamEvent
 from ui.chat.window import ChatWindow
 from ui.settings.window import SettingsWindow
 
@@ -154,6 +155,70 @@ def test_new_user_turn_invalidates_old_tts_results(chat_window):
     chat_window._handle_tts_result(new_id, 0, b"new")
 
     assert chat_window._played_audio == [b"new"]
+
+
+def test_handle_tts_stream_event_starts_pcm_backend_on_first_chunk(chat_window, monkeypatch):
+    starts = []
+    chunks = []
+    monkeypatch.setattr(
+        chat_window,
+        "_start_segment_backend",
+        lambda key, audio_format: starts.append((key, audio_format.transport)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        chat_window,
+        "_append_segment_chunk",
+        lambda key, data: chunks.append((key, data)),
+        raising=False,
+    )
+
+    key = (chat_window._current_utterance_id, 0)
+    chat_window._handle_tts_stream_event(
+        key[0],
+        key[1],
+        TTSStreamEvent(
+            kind="start",
+            format=TTSAudioFormat(transport="pcm_stream", sample_rate=32000, channels=1, sample_width=2),
+        ),
+    )
+    chat_window._handle_tts_stream_event(key[0], key[1], TTSStreamEvent(kind="chunk", data=b"\x00\x01"))
+
+    assert starts == [(key, "pcm_stream")]
+    assert chunks == [(key, b"\x00\x01")]
+
+
+def test_next_segment_waits_until_current_segment_finishes(chat_window):
+    key0 = (chat_window._current_utterance_id, 0)
+    key1 = (chat_window._current_utterance_id, 1)
+
+    chat_window._segment_states[key0] = "streaming"
+    chat_window._segment_states[key1] = "pending"
+    chat_window._segment_events[key1] = [TTSStreamEvent(kind="chunk", data=b"later")]
+
+    chat_window._advance_ready_segments()
+
+    assert chat_window._active_segment_key == key0
+
+
+def test_pcm_failure_before_audio_starts_forces_session_wav(chat_window):
+    adapter = chat_window._tts_adapter
+    key = (chat_window._current_utterance_id, 0)
+
+    chat_window._handle_tts_stream_event(key[0], key[1], TTSStreamEvent(kind="error", message="first chunk timeout"))
+
+    assert adapter.get_session_audio_mode() == "wav"
+
+
+def test_begin_new_tts_turn_clears_segment_stream_state(chat_window):
+    key = (chat_window._current_utterance_id, 0)
+    chat_window._segment_states[key] = "streaming"
+    chat_window._segment_events[key] = [TTSStreamEvent(kind="chunk", data=b"a")]
+
+    chat_window._begin_new_tts_turn()
+
+    assert chat_window._segment_states == {}
+    assert chat_window._segment_events == {}
 
 
 def test_sentence_segment_is_sent_to_tts_worker(chat_window, monkeypatch):

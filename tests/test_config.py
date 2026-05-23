@@ -61,6 +61,7 @@ def test_save_and_reload_extended_tts_config(tmp_path):
     mgr = ConfigManager(config_dir=tmp_path)
     mgr.api.tts.engine = "gptsovits"
     mgr.api.tts.api_url = "http://127.0.0.1:9880"
+    mgr.api.tts.audio_mode = "pcm_stream"
     mgr.api.tts.ref_audio_path = "data/audio/ref.wav"
     mgr.api.tts.reference_mode = "session_preload"
     mgr.api.tts.prompt_lang = "zh"
@@ -71,6 +72,7 @@ def test_save_and_reload_extended_tts_config(tmp_path):
     mgr2 = ConfigManager(config_dir=tmp_path)
     assert mgr2.api.tts.engine == "gptsovits"
     assert mgr2.api.tts.api_url == "http://127.0.0.1:9880"
+    assert mgr2.api.tts.audio_mode == "pcm_stream"
     assert mgr2.api.tts.ref_audio_path == "data/audio/ref.wav"
     assert mgr2.api.tts.reference_mode == "session_preload"
     assert mgr2.api.tts.prompt_lang == "zh"
