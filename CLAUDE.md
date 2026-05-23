@@ -57,3 +57,4 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第三阶段已完成。
 - [UI 规范](./docs/ui-guidelines.md)
 - [插件与 MCP](./docs/plugin-mcp.md)
 - [开发流程](./docs/development.md)
+- [服务端 TTS 对接规范](./docs/service-tts-compatibility.md)
