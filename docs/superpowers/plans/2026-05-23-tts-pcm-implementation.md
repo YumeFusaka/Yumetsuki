@@ -10,6 +10,8 @@
 
 **Compatibility Guardrail:** 原版 GPT-SoVITS 兼容优先。所有 `session_id`、PCM 流式和结构化错误等能力都必须是显式扩展；未携带扩展字段的请求必须继续保持原版 `wav` / 非流式 / 显式参考字段行为。
 
+**Historical Note:** 本计划形成于服务端正式兼容规范独立收口之前。凡涉及 `session_id`、PCM 流式或自动回退的实现片段，都必须服从 [docs/service-tts-compatibility.md](../../service-tts-compatibility.md)：优先适配原版接口，桌宠端差异只能通过参数、设置项和已文档化显式扩展协商接入，不得把新逻辑主线默认化。
+
 ---
 
 ## File Structure
@@ -285,6 +287,8 @@ git commit -m "feat: add tts stream event abstractions"
 - Modify: `tts/adapters/gptsovits.py`
 - Modify: `tests/test_tts_adapter.py`
 
+> 说明：本任务中的 `session_id`、PCM 流式与自动回退示例，仅适用于目标服务端已经显式声明支持对应扩展的情况。若目标服务端未声明支持该扩展，则实现必须优先保留原版显式参考字段路径。
+
 - [ ] **Step 1: Write the failing adapter tests for mode mapping, session reuse, and fallback**
 
 ```python
@@ -390,6 +394,38 @@ def test_gptsovits_auto_mode_retries_as_wav_and_locks_session(monkeypatch):
     assert calls[0]["media_type"] == "raw"
     assert calls[1]["media_type"] == "wav"
     assert adapter.get_session_audio_mode() == "wav"
+
+
+def test_gptsovits_without_session_extension_keeps_original_reference_flow(monkeypatch):
+    captured = {}
+
+    class _FakeResponse:
+        status_code = 200
+        content = b"wav-bytes"
+        headers = {}
+
+        def iter_content(self, chunk_size=None):
+            return iter(())
+
+    class _FakeSession:
+        def get(self, *args, **kwargs):
+            raise AssertionError("not used")
+
+        def post(self, url, json=None, timeout=None, stream=None):
+            captured["json"] = json
+            captured["stream"] = stream
+            return _FakeResponse()
+
+    monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: _FakeSession())
+    adapter = GPTSoVITSAdapter(
+        TTSConfig(engine="gptsovits", api_url="http://fake:9880", audio_mode="wav", ref_audio_path="ref.wav"),
+    )
+
+    assert adapter.synthesize("hello") == b"wav-bytes"
+    assert "session_id" not in captured["json"]
+    assert captured["json"]["media_type"] == "wav"
+    assert captured["json"]["streaming_mode"] == 0
+    assert captured["stream"] is False
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -426,19 +462,23 @@ class GPTSoVITSAdapter(TTSAdapter):
     def force_session_audio_mode(self, audio_mode: str) -> None:
         self._session_audio_mode_override = self._normalize_audio_mode(audio_mode)
 
+    def _supports_session_extension(self) -> bool:
+        return bool(self._session_id)
+
     def _effective_audio_mode(self) -> str:
         if self._session_audio_mode_override:
             return self._session_audio_mode_override
         if self._audio_mode == self.AUDIO_MODE_AUTO:
-            return self.AUDIO_MODE_PCM_STREAM
+            return self.AUDIO_MODE_PCM_STREAM if self._supports_session_extension() else self.AUDIO_MODE_WAV
         return self._audio_mode
 
     def _build_audio_payload(self, text: str, include_reference: bool, audio_mode: str) -> dict[str, object]:
         payload: dict[str, object] = {
             "text": text,
             "text_lang": self._output_lang,
-            "session_id": self._session_id,
         }
+        if self._supports_session_extension():
+            payload["session_id"] = self._session_id
         if audio_mode == self.AUDIO_MODE_PCM_STREAM:
             payload.update({
                 "media_type": "raw",
@@ -795,6 +835,7 @@ class ChatWindow(QWidget):
         agent_config=None,
         tts_config: TTSConfig | None = None,
     ):
+        # `session_id` 只是显式扩展能力的运行态，不得被视为默认主线前置条件。
         self._tts_session_id = uuid.uuid4().hex
         self._segment_states: dict[tuple[int, int], str] = {}
         self._segment_events: dict[tuple[int, int], list[TTSStreamEvent]] = {}
@@ -903,6 +944,7 @@ git commit -m "feat: add streamed pcm playback flow"
 - docs/architecture.md 必须补充 tts/types.py、ui/chat/audio_backends.py 和双播放后端主流程
 - docs/development.md 必须把 audio_mode、session_id、PCM 播放后端测试加入 TTS 回归项
 - 所有文档必须明确“原版兼容优先、扩展能力显式触发”，不得写成为了桌宠端而改写原版默认行为
+- 若保留历史示例，必须明确它们受 `docs/service-tts-compatibility.md` 约束，不能被理解成新的默认逻辑主线
 ```
 
 - [ ] **Step 2: Run the verification commands before editing docs**
