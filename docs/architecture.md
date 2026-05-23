@@ -84,6 +84,13 @@ yumetsuki/
 
 负责语音能力适配。
 
+当前结构分为两层：
+
+- 桌宠端通用 TTS 能力层
+  负责模式边界、流式事件抽象、PCM/WAV 播放后端、句段顺序播放与回退策略
+- 服务端协议适配层
+  负责把上述通用能力映射到具体 TTS 框架；当前已落地的是 `GPTSoVITSAdapter`
+
 - `tts/adapter.py`
   TTS 适配器抽象，统一暴露 `stream_synthesize()` 流式事件接口，并保留 `synthesize()` 兼容包装
 - `tts/types.py`
