@@ -95,18 +95,22 @@ class LogService:
 
     def flush(self) -> None:
         pending = self._pending
+        for index, event in enumerate(pending):
+            try:
+                folder = "system" if event.channel == LogChannel.SYSTEM else "conversation"
+                filename = (
+                    f"{event.timestamp:%Y-%m-%d}.jsonl"
+                    if event.channel == LogChannel.SYSTEM
+                    else f"{event.session_id}.jsonl"
+                )
+                path = self._root / folder / filename
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with path.open("a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(event.to_json_dict(), ensure_ascii=False) + "\n")
+            except Exception:
+                self._pending = pending[index:]
+                raise
         self._pending = []
-        for event in pending:
-            folder = "system" if event.channel == LogChannel.SYSTEM else "conversation"
-            filename = (
-                f"{event.timestamp:%Y-%m-%d}.jsonl"
-                if event.channel == LogChannel.SYSTEM
-                else f"{event.session_id}.jsonl"
-            )
-            path = self._root / folder / filename
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(event.to_json_dict(), ensure_ascii=False) + "\n")
         self._last_flush_monotonic = time.monotonic()
 
     def _flush_if_due(self) -> None:

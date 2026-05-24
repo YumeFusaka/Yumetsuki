@@ -1,14 +1,10 @@
 from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 from core.log_service import LogService
 from core.log_types import LogChannel, LogEvent, LogLevel
-
-
-class NoFrontPopList(list):
-    def pop(self, index=-1):
-        if index == 0:
-            raise AssertionError("flush should not drain pending events with pop(0)")
-        return super().pop(index)
 
 
 def test_log_service_writes_system_events_to_daily_jsonl(tmp_path):
@@ -189,20 +185,31 @@ def test_list_conversation_sessions_applies_limit_after_sorting(tmp_path):
     assert [session["session_id"] for session in sessions] == ["session-3", "session-2"]
 
 
-def test_log_service_flushes_pending_events_without_front_pop(tmp_path):
+def test_log_service_keeps_unwritten_pending_events_when_flush_fails(tmp_path, monkeypatch):
     service = LogService(log_root=tmp_path, system_flush_interval_ms=999999)
     service.record_system("chat.tts", "tts.segment_enqueued", "first", {"segment_id": 1}, session_id="s1")
     service.record_system("chat.tts", "tts.segment_played", "second", {"segment_id": 2}, session_id="s1")
-    service._pending = NoFrontPopList(service._pending)
+    original_open = Path.open
+    open_calls = 0
 
-    service.flush()
+    def failing_open(path, *args, **kwargs):
+        nonlocal open_calls
+        open_calls += 1
+        if open_calls == 2:
+            raise OSError("simulated write failure")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", failing_open)
+
+    with pytest.raises(OSError, match="simulated write failure"):
+        service.flush()
 
     log_file = tmp_path / "system" / f"{datetime.now():%Y-%m-%d}.jsonl"
     lines = log_file.read_text(encoding="utf-8").splitlines()
-    assert len(lines) == 2
+    assert len(lines) == 1
     assert '"summary": "first"' in lines[0]
-    assert '"summary": "second"' in lines[1]
-    assert service._pending == []
+    assert len(service._pending) == 1
+    assert service._pending[0].summary == "second"
 
 
 def test_list_sources_returns_sorted_unique_sources(tmp_path):
