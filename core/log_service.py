@@ -62,6 +62,29 @@ class LogService:
             events = [event for event in events if event.session_id == session_id]
         return [event.to_json_dict() for event in events]
 
+    def list_sources(self, channel=None) -> list[str]:
+        events = self.query_events(channel=channel)
+        return sorted({str(event.get("source", "")) for event in events if event.get("source")})
+
+    def list_conversation_sessions(self, limit: int = 20) -> list[dict]:
+        grouped: dict[str, dict] = {}
+        for event in self.query_events(channel=LogChannel.CONVERSATION):
+            session_id = event.get("session_id")
+            if not session_id:
+                continue
+            current = grouped.get(session_id)
+            if current is None or event.get("timestamp", "") > current.get("last_timestamp", ""):
+                text = (event.get("details") or {}).get("text") or event.get("summary", "")
+                grouped[session_id] = {
+                    "session_id": session_id,
+                    "last_timestamp": event.get("timestamp", ""),
+                    "preview": str(text)[:24],
+                }
+        sessions = sorted(grouped.values(), key=lambda item: item["last_timestamp"], reverse=True)
+        for item in sessions:
+            item["label"] = f'{item["last_timestamp"][11:16]}  {item["preview"]}'
+        return sessions[:limit]
+
     def export_events(self, path: Path | str, channel=None, source=None, session_id=None) -> None:
         export_path = Path(path)
         export_path.parent.mkdir(parents=True, exist_ok=True)
