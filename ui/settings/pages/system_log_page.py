@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from html import escape as html_escape
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -18,6 +17,20 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
 )
+
+
+SOURCE_GROUPS = {
+    "全部": [],
+    "记忆": ["session.manager", "memory.mem0"],
+    "LLM": ["llm.manager"],
+    "切句": ["chat.segmenter"],
+    "TTS": ["chat.tts", "tts.gptsovits"],
+    "工具": ["tool.registry"],
+    "UI": ["chat.window", "ui.event_bridge"],
+    "Agent": ["agent.manager"],
+}
+
+SCROLL_BOTTOM_THRESHOLD = 24
 
 
 PAGE_STYLE = """
@@ -141,10 +154,16 @@ class SystemLogPage(QWidget):
         layout.addWidget(desc)
 
         controls = QHBoxLayout()
-        self._source_filter = QLineEdit()
-        self._source_filter.setPlaceholderText("来源筛选，例如 chat.tts / tool.registry")
-        self._source_filter.editingFinished.connect(self._refresh_view)
+        self._source_group_filter = QComboBox()
+        for group_name in SOURCE_GROUPS:
+            self._source_group_filter.addItem(group_name, group_name)
+        self._source_group_filter.currentIndexChanged.connect(self._on_source_group_changed)
+        controls.addWidget(self._source_group_filter)
+
+        self._source_filter = QComboBox()
+        self._source_filter.currentIndexChanged.connect(self._refresh_view)
         controls.addWidget(self._source_filter, 1)
+        self._rebuild_source_filter_options()
 
         self._level_filter = QComboBox()
         self._level_filter.addItem("全部级别", "")
@@ -162,6 +181,12 @@ class SystemLogPage(QWidget):
         self._current_session_only = QCheckBox("仅当前会话")
         self._current_session_only.stateChanged.connect(lambda *_: self._refresh_view())
         controls.addWidget(self._current_session_only)
+
+        self._view_mode = QComboBox()
+        self._view_mode.addItem("结构化列表", "list")
+        self._view_mode.addItem("连续文本", "text")
+        self._view_mode.currentIndexChanged.connect(self._refresh_view)
+        controls.addWidget(self._view_mode)
 
         refresh_btn = QPushButton("刷新")
         refresh_btn.clicked.connect(self._refresh_view)
@@ -184,6 +209,12 @@ class SystemLogPage(QWidget):
         self._event_list.currentRowChanged.connect(self._on_event_selected)
         layout.addWidget(self._event_list, 7)
 
+        self._continuous_text = QTextEdit()
+        self._continuous_text.setReadOnly(True)
+        self._continuous_text.setPlaceholderText("连续文本视图会在此展示筛选后的日志。")
+        self._continuous_text.hide()
+        layout.addWidget(self._continuous_text, 7)
+
         self._detail_text = QTextEdit()
         self._detail_text.setReadOnly(True)
         self._detail_text.setPlaceholderText("选择或刷新日志后可在此查看完整 JSON 详情。")
@@ -201,6 +232,9 @@ class SystemLogPage(QWidget):
         self._refresh_timer.start()
 
     def _set_selected_event(self, event: dict | None) -> None:
+        if self._event_key(event) == self._event_key(self._selected_event):
+            self._selected_event = event
+            return
         self._selected_event = event
         if event is None:
             self._detail_text.clear()
@@ -219,15 +253,37 @@ class SystemLogPage(QWidget):
         if clipboard is not None:
             clipboard.setText(text)
 
+    def _on_source_group_changed(self) -> None:
+        self._rebuild_source_filter_options()
+        self._refresh_view()
+
+    def _rebuild_source_filter_options(self) -> None:
+        group_name = self._source_group_filter.currentData() or "全部"
+        current_source = self._source_filter.currentData()
+        sources = SOURCE_GROUPS.get(group_name, [])
+        self._source_filter.blockSignals(True)
+        self._source_filter.clear()
+        self._source_filter.addItem("全部", "")
+        for source in sources:
+            self._source_filter.addItem(source, source)
+        if current_source:
+            index = self._source_filter.findData(current_source)
+            if index >= 0:
+                self._source_filter.setCurrentIndex(index)
+        self._source_filter.blockSignals(False)
+
     def _refresh_view(self) -> None:
-        source = self._source_filter.text().strip() or None
         session_id = self._current_session_id if self._current_session_only.isChecked() else None
         selected_key = self._event_key(self._selected_event) if self._selected_event is not None else None
-        events = self._log_service.query_events(source=source, session_id=session_id)
+        list_scroll = self._capture_scroll_state(self._event_list)
+        continuous_scroll = self._capture_scroll_state(self._continuous_text)
+        events = self._log_service.query_events(source=None, session_id=session_id)
         events = self._filter_events(events)
+        self._apply_view_mode()
         self._event_list.clear()
         if not events:
             self._empty_label.show()
+            self._continuous_text.clear()
             self._set_selected_event(None)
             return
         self._empty_label.hide()
@@ -235,13 +291,17 @@ class SystemLogPage(QWidget):
             item = QListWidgetItem(self._render_event_line_text(event))
             item.setData(256, event)
             self._event_list.addItem(item)
+        self._continuous_text.setPlainText(self._render_continuous_text(events))
+        self._restore_scroll_state(self._continuous_text, continuous_scroll)
         if selected_key is not None:
             for index in range(self._event_list.count()):
                 item = self._event_list.item(index)
                 event = item.data(256)
                 if self._event_key(event) == selected_key:
                     self._event_list.setCurrentRow(index)
+                    self._restore_scroll_state(self._event_list, list_scroll)
                     return
+        self._restore_scroll_state(self._event_list, list_scroll)
         self._set_selected_event(None)
 
     def _choose_export_path(self) -> Path | None:
@@ -257,7 +317,7 @@ class SystemLogPage(QWidget):
         path = self._choose_export_path()
         if path is None:
             return
-        source = self._source_filter.text().strip() or None
+        source = self._selected_source()
         session_id = self._current_session_id if self._current_session_only.isChecked() else None
         self._log_service.export_events(path, source=source, session_id=session_id)
 
@@ -278,8 +338,14 @@ class SystemLogPage(QWidget):
     def _filter_events(self, events: list[dict]) -> list[dict]:
         level = self._level_filter.currentData()
         keyword = self._keyword_filter.text().strip().lower()
-        source = self._source_filter.text().strip().lower()
+        group_sources = set(self._selected_group_sources())
+        source = (self._selected_source() or "").lower()
         filtered = events
+        if group_sources:
+            filtered = [
+                event for event in filtered
+                if str(event.get("source", "")) in group_sources
+            ]
         if source:
             filtered = [
                 event for event in filtered
@@ -293,6 +359,20 @@ class SystemLogPage(QWidget):
                 if keyword in json.dumps(event, ensure_ascii=False).lower()
             ]
         return filtered
+
+    def _selected_group_sources(self) -> list[str]:
+        return list(SOURCE_GROUPS.get(self._source_group_filter.currentData() or "全部", []))
+
+    def _selected_source(self) -> str | None:
+        return self._source_filter.currentData() or None
+
+    def _apply_view_mode(self) -> None:
+        is_text_mode = self._view_mode.currentData() == "text"
+        self._event_list.setHidden(is_text_mode)
+        self._continuous_text.setHidden(not is_text_mode)
+
+    def _render_continuous_text(self, events: list[dict]) -> str:
+        return "\n\n".join(self._render_event_line_text(event) for event in events)
 
     def _render_event_line_text(self, event: dict) -> str:
         timestamp = event.get("timestamp", "")[11:23]
@@ -331,3 +411,19 @@ class SystemLogPage(QWidget):
             event.get("event_type"),
             event.get("summary"),
         )
+
+    @staticmethod
+    def _capture_scroll_state(widget) -> tuple[bool, int]:
+        scrollbar = widget.verticalScrollBar()
+        distance_to_bottom = scrollbar.maximum() - scrollbar.value()
+        is_near_bottom = distance_to_bottom <= SCROLL_BOTTOM_THRESHOLD
+        return is_near_bottom, scrollbar.value()
+
+    @staticmethod
+    def _restore_scroll_state(widget, state: tuple[bool, int]) -> None:
+        is_near_bottom, previous_value = state
+        scrollbar = widget.verticalScrollBar()
+        if is_near_bottom:
+            scrollbar.setValue(scrollbar.maximum())
+            return
+        scrollbar.setValue(min(previous_value, scrollbar.maximum()))

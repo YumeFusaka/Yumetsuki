@@ -60,7 +60,7 @@ def test_system_log_page_refreshes_filtered_events():
     class _Service:
         def query_events(self, **kwargs):
             assert kwargs.get("channel") is None
-            assert kwargs["source"] == "chat.tts"
+            assert kwargs["source"] is None
             return [
                 {
                     "timestamp": "2026-05-24T10:25:39.573",
@@ -83,7 +83,8 @@ def test_system_log_page_refreshes_filtered_events():
             ]
 
     page = SystemLogPage(_Service())
-    page._source_filter.setText("chat.tts")
+    page._source_group_filter.setCurrentText("TTS")
+    page._source_filter.setCurrentText("chat.tts")
     page._refresh_view()
 
     assert page._event_list.count() == 1
@@ -195,7 +196,8 @@ def test_system_log_page_exports_filtered_events(monkeypatch, tmp_path):
     captured = {}
     page = SystemLogPage(_Service())
     monkeypatch.setattr(page, "_choose_export_path", lambda: tmp_path / "system-export.jsonl", raising=False)
-    page._source_filter.setText("tool.registry")
+    page._source_group_filter.setCurrentText("工具")
+    page._source_filter.setCurrentText("tool.registry")
 
     page._export_current_view()
 
@@ -229,3 +231,218 @@ def test_system_log_page_styles_combo_and_checkbox_like_theme():
     assert "QComboBox::drop-down" in page.styleSheet()
     assert "QCheckBox::indicator" in page.styleSheet()
     assert "background: transparent" in page.styleSheet()
+
+
+def test_system_log_page_filters_sources_by_group_and_specific_source():
+    _app()
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            assert kwargs["source"] is None
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "session.manager",
+                    "session_id": "session-1",
+                    "event_type": "memory.loaded",
+                    "summary": "加载记忆",
+                    "details": {"text": "memory"},
+                },
+                {
+                    "timestamp": "2026-05-24T10:25:40.221",
+                    "level": "info",
+                    "source": "llm.manager",
+                    "session_id": "session-1",
+                    "event_type": "llm.stream_started",
+                    "summary": "开始生成回复",
+                    "details": {},
+                },
+                {
+                    "timestamp": "2026-05-24T10:25:41.000",
+                    "level": "info",
+                    "source": "memory.mem0",
+                    "session_id": "session-1",
+                    "event_type": "memory.saved",
+                    "summary": "写入 mem0",
+                    "details": {},
+                },
+            ]
+
+    page = SystemLogPage(_Service())
+    assert [page._source_group_filter.itemText(i) for i in range(page._source_group_filter.count())] == [
+        "全部",
+        "记忆",
+        "LLM",
+        "切句",
+        "TTS",
+        "工具",
+        "UI",
+        "Agent",
+    ]
+
+    page._source_group_filter.setCurrentText("记忆")
+    assert [page._source_filter.itemText(i) for i in range(page._source_filter.count())] == [
+        "全部",
+        "session.manager",
+        "memory.mem0",
+    ]
+
+    page._refresh_view()
+    assert page._event_list.count() == 2
+
+    page._source_filter.setCurrentText("memory.mem0")
+    page._refresh_view()
+
+    assert page._event_list.count() == 1
+    assert "写入 mem0" in page._event_list.item(0).text()
+
+
+def test_system_log_page_continuous_text_view_renders_filtered_plain_text():
+    _app()
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "chat.tts",
+                    "session_id": "session-1",
+                    "event_type": "tts.segment_enqueued",
+                    "summary": "segment enqueued",
+                    "details": {"text": "第一句"},
+                },
+                {
+                    "timestamp": "2026-05-24T10:25:40.221",
+                    "level": "info",
+                    "source": "llm.manager",
+                    "session_id": "session-1",
+                    "event_type": "llm.stream_started",
+                    "summary": "开始生成回复",
+                    "details": {"text": "不应出现"},
+                },
+            ]
+
+    page = SystemLogPage(_Service())
+    page._source_group_filter.setCurrentText("TTS")
+    page._view_mode.setCurrentText("连续文本")
+    page._refresh_view()
+
+    assert page._event_list.isHidden()
+    assert not page._continuous_text.isHidden()
+    assert page._continuous_text.isReadOnly()
+    assert page._continuous_text.toPlainText().strip()
+    assert "segment enqueued" in page._continuous_text.toPlainText()
+    assert "第一句" in page._continuous_text.toPlainText()
+    assert "llm.manager" not in page._continuous_text.toPlainText()
+    assert page._continuous_text.toHtml() != page._continuous_text.toPlainText()
+
+
+def test_system_log_page_refresh_preserves_detail_scroll_when_selected_event_is_unchanged():
+    _app()
+
+    repeated_text = "\n".join(f"line {i}" for i in range(200))
+    event = {
+        "id": "same-event",
+        "timestamp": "2026-05-24T10:25:39.573",
+        "level": "info",
+        "source": "agent.manager",
+        "session_id": "session-1",
+        "event_type": "conversation.user_input",
+        "summary": "用户输入",
+        "details": {"text": repeated_text},
+    }
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            return [event]
+
+    page = SystemLogPage(_Service())
+    page._refresh_view()
+    page._event_list.setCurrentRow(0)
+    detail_bar = page._detail_text.verticalScrollBar()
+    detail_bar.setValue(max(1, detail_bar.maximum() // 2))
+    previous_value = detail_bar.value()
+    previous_text = page._detail_text.toPlainText()
+
+    page._refresh_view()
+
+    assert page._detail_text.toPlainText() == previous_text
+    assert detail_bar.value() == previous_value
+
+
+def test_system_log_page_continuous_text_only_autoscrolls_when_near_bottom():
+    _app()
+
+    base_events = [
+        {
+            "id": f"event-{i}",
+            "timestamp": f"2026-05-24T10:25:{i:02d}.000",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "conversation.user_input",
+            "summary": f"用户输入 {i}",
+            "details": {"text": f"text {i}"},
+        }
+        for i in range(40)
+    ]
+
+    class _Service:
+        log_root = "."
+
+        def __init__(self):
+            self.events = list(base_events)
+
+        def query_events(self, **kwargs):
+            return list(self.events)
+
+    service = _Service()
+    page = SystemLogPage(service)
+    page.resize(640, 320)
+    page._view_mode.setCurrentText("连续文本")
+    page._refresh_view()
+
+    bar = page._continuous_text.verticalScrollBar()
+    bar.setValue(max(0, bar.maximum() // 2))
+    preserved_value = bar.value()
+
+    service.events.append(
+        {
+            "id": "event-40",
+            "timestamp": "2026-05-24T10:26:40.000",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "conversation.user_input",
+            "summary": "用户输入 40",
+            "details": {"text": "text 40"},
+        }
+    )
+    page._refresh_view()
+
+    assert bar.value() == preserved_value
+
+    bar.setValue(bar.maximum())
+    service.events.append(
+        {
+            "id": "event-41",
+            "timestamp": "2026-05-24T10:26:41.000",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "conversation.user_input",
+            "summary": "用户输入 41",
+            "details": {"text": "text 41"},
+        }
+    )
+    page._refresh_view()
+
+    assert bar.value() == bar.maximum()
