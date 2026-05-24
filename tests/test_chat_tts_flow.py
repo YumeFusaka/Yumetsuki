@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication
 from config.schema import LLMConfig, TTSConfig
 from llm.text_processor import ProcessedText
 from tts.types import TTSAudioFormat, TTSStreamEvent
+from ui.chat.tts_pipeline import TTSSegmentStatus
 from ui.chat.window import ChatWindow
 from ui.settings.window import SettingsWindow
 
@@ -135,6 +136,15 @@ def test_done_flushes_tail_without_terminal_punctuation(chat_window):
     assert chat_window._queued_texts == ["没有句号的尾巴"]
 
 
+def test_prefix_mismatch_does_not_reenqueue_already_committed_tts_prefix(chat_window):
+    chat_window._on_chunk(ProcessedText(clean_text="第一句。第二句", emotion=None))
+    assert chat_window._queued_texts == ["第一句。"]
+
+    chat_window._on_chunk(ProcessedText(clean_text="第一句，第二句。第三句。", emotion=None))
+
+    assert chat_window._queued_texts == ["第一句。", "第二句。", "第三句。"]
+
+
 def test_segment_results_play_in_segment_order(chat_window):
     chat_window._current_utterance_id = 1
     chat_window._next_play_id = 0
@@ -186,6 +196,31 @@ def test_handle_tts_stream_event_starts_pcm_backend_on_first_chunk(chat_window, 
 
     assert starts == [(key, "pcm_stream")]
     assert chunks == [(key, b"\x00\x01")]
+
+
+def test_wav_stream_event_uses_shared_audio_player_path(chat_window, monkeypatch):
+    starts = []
+    monkeypatch.setattr(
+        chat_window,
+        "_start_segment_backend",
+        lambda key, audio_format: starts.append((key, audio_format.transport)),
+        raising=False,
+    )
+
+    key = (chat_window._current_utterance_id, 0)
+    chat_window._handle_tts_stream_event(
+        key[0],
+        key[1],
+        TTSStreamEvent(
+            kind="start",
+            format=TTSAudioFormat(transport="wav", sample_rate=0, channels=0, sample_width=0),
+        ),
+    )
+    chat_window._handle_tts_stream_event(key[0], key[1], TTSStreamEvent(kind="chunk", data=b"wav-bytes"))
+    chat_window._handle_tts_stream_event(key[0], key[1], TTSStreamEvent(kind="end"))
+
+    assert starts == []
+    assert chat_window._played_audio == [b"wav-bytes"]
 
 
 def test_next_segment_waits_until_current_segment_finishes(chat_window):
@@ -343,6 +378,21 @@ def test_tts_enqueue_queues_synthesis_when_worker_limit_is_reached(chat_window, 
         (chat_window._current_utterance_id, 0, "你好。")
     ]
     assert chat_window._started_segments == []
+
+
+def test_tts_enqueue_marks_segment_skipped_when_queue_limit_is_exceeded(chat_window, monkeypatch):
+    chat_window._tts_pipeline._queue_limit = 1
+    monkeypatch.setattr(
+        chat_window,
+        "_enqueue_tts_segment",
+        ChatWindow._enqueue_tts_segment.__get__(chat_window, ChatWindow),
+    )
+
+    chat_window._enqueue_tts_segment("第一句。")
+    chat_window._enqueue_tts_segment("第二句。")
+
+    key = (chat_window._current_utterance_id, 1)
+    assert chat_window._tts_pipeline.segments[key].status == TTSSegmentStatus.SKIPPED
 
 
 def test_translation_result_starts_tts_for_original_segment(chat_window):

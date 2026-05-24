@@ -919,3 +919,29 @@ def test_gptsovits_pcm_stream_timeout_yields_error_event_instead_of_raising(monk
     events = list(adapter.stream_synthesize("hello"))
     assert [event.kind for event in events] == ["start", "error"]
     assert "timed out" in events[-1].message.lower()
+
+
+def test_pcm_stream_total_timeout_yields_error_event(monkeypatch):
+    class _FakeResponse:
+        status_code = 200
+        headers = {
+            "X-Audio-Sample-Rate": "32000",
+            "X-Audio-Channels": "1",
+            "X-Audio-Sample-Width": "2",
+        }
+
+        def iter_content(self, chunk_size=None):
+            yield b"\x00\x01"
+            raise TimeoutError("segment total timeout")
+
+    class _FakeSession:
+        def post(self, *args, **kwargs):
+            return _FakeResponse()
+
+    monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: _FakeSession())
+    adapter = GPTSoVITSAdapter(TTSConfig(engine="gptsovits", api_url="http://fake:9880", audio_mode="pcm_stream"))
+
+    events = list(adapter.stream_synthesize("hello"))
+
+    assert [event.kind for event in events] == ["start", "chunk", "error"]
+    assert events[-1].kind == "error"

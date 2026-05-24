@@ -1,6 +1,10 @@
-# Phase 4 后半段收口 Implementation Plan
+# Phase 4 后半段收口 Implementation Plan（已完成）
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> 状态：已完成。当前文件保留为实施记录与验收对照。
+
+> 完成依据：Phase 4 聚焦回归通过，`python -m pytest tests/ -q` 全量 238 项测试通过，关键模块 `py_compile` 语法检查通过。
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 在不回退已完成 Phase 4 前半段实现的前提下，把 EventBus 线程治理、TTS 有界流水线、以及 Phase 4 文档与验证收口到可对照 spec 验收的状态。
 
@@ -70,7 +74,7 @@
 - Modify: `tests/test_config_agent.py`
 - Modify: `tests/test_event_bus.py`
 
-- [ ] **Step 1: 先写失败测试，锁定 EventBus 运行时配置必须进入配置层**
+- [x] **Step 1: 先写失败测试，锁定 EventBus 运行时配置必须进入配置层**
 
 ```python
 from config.schema import AgentConfig
@@ -85,7 +89,7 @@ def test_agent_config_exposes_event_bus_runtime_settings():
     assert hasattr(cfg.event_bus_runtime, "ui_dispatch_throttle_ms")
 ```
 
-- [ ] **Step 2: 运行测试，确认当前失败**
+- [x] **Step 2: 运行测试，确认当前失败**
 
 运行：
 
@@ -95,7 +99,7 @@ def test_agent_config_exposes_event_bus_runtime_settings():
 
 - 失败，因为 `AgentConfig` 还没有 `event_bus_runtime`。
 
-- [ ] **Step 3: 写失败测试，锁定主线程桥的批量日志刷新行为**
+- [x] **Step 3: 写失败测试，锁定主线程桥的批量日志刷新行为**
 
 ```python
 from core.ui_event_bridge import UIEventBridge
@@ -113,7 +117,7 @@ def test_ui_event_bridge_flushes_log_batch_in_order(qtbot):
     assert received == ["a", "b"]
 ```
 
-- [ ] **Step 4: 运行测试，确认当前失败**
+- [x] **Step 4: 运行测试，确认当前失败**
 
 运行：
 
@@ -123,7 +127,7 @@ def test_ui_event_bridge_flushes_log_batch_in_order(qtbot):
 
 - 失败，因为 `core.ui_event_bridge` 尚不存在。
 
-- [ ] **Step 5: 写最小实现，先把配置和桥原语建起来**
+- [x] **Step 5: 写最小实现，先把配置和桥原语建起来**
 
 ```python
 # config/schema.py
@@ -175,7 +179,7 @@ class UIEventBridge(QObject):
         self.log_batch_ready.emit(batch)
 ```
 
-- [ ] **Step 6: 运行定向测试，确认通过**
+- [x] **Step 6: 运行定向测试，确认通过**
 
 运行：
 
@@ -187,7 +191,7 @@ class UIEventBridge(QObject):
 
 - 通过。
 
-- [ ] **Step 7: 提交这一小步**
+- [x] **Step 7: 提交这一小步**
 
 ```bash
 git add config/schema.py core/ui_event_bridge.py tests/test_config_agent.py tests/test_event_bus.py
@@ -204,7 +208,7 @@ git commit -m "feat(core): add event bus runtime bridge primitives"
 - Create: `tests/test_agent_page_events.py`
 - Modify: `tests/test_agent_log_events.py`
 
-- [ ] **Step 1: 先写失败测试，锁定 AgentPage 关闭时必须退订**
+- [x] **Step 1: 先写失败测试，锁定 AgentPage 关闭时必须退订**
 
 ```python
 from core.event_bus import EventBus
@@ -223,7 +227,7 @@ def test_agent_page_teardown_unsubscribes_all_handlers(qtbot):
     assert all(not handlers for handlers in bus._handlers.values())
 ```
 
-- [ ] **Step 2: 运行测试，确认当前失败**
+- [x] **Step 2: 运行测试，确认当前失败**
 
 运行：
 
@@ -233,7 +237,7 @@ def test_agent_page_teardown_unsubscribes_all_handlers(qtbot):
 
 - 失败，因为 `AgentPage` 还没有 `_teardown_event_subscription()`，也没有注入式 `event_bus_instance`。
 
-- [ ] **Step 3: 再写失败测试，锁定日志通过桥批量刷入 UI**
+- [x] **Step 3: 再写失败测试，锁定日志通过桥批量刷入 UI**
 
 ```python
 from core.ui_event_bridge import UIEventBridge
@@ -249,7 +253,7 @@ def test_agent_page_appends_log_batch_from_bridge(qtbot):
     assert len(page._log_entries) == 2
 ```
 
-- [ ] **Step 4: 运行测试，确认当前失败**
+- [x] **Step 4: 运行测试，确认当前失败**
 
 运行：
 
@@ -259,7 +263,7 @@ def test_agent_page_appends_log_batch_from_bridge(qtbot):
 
 - 失败，因为页面目前只有单条 `_append_log()` 路径。
 
-- [ ] **Step 5: 写最小实现，把 UI 监听路径改到桥上**
+- [x] **Step 5: 写最小实现，把 UI 监听路径改到桥上**
 
 ```python
 # ui/settings/pages/agent_page.py（概念性结构）
@@ -295,7 +299,7 @@ class AgentPage(QWidget):
             self._append_log(text)
 ```
 
-- [ ] **Step 6: 运行定向测试，确认通过**
+- [x] **Step 6: 运行定向测试，确认通过**
 
 运行：
 
@@ -305,7 +309,7 @@ class AgentPage(QWidget):
 
 - 通过。
 
-- [ ] **Step 7: 补一个已有行为回归，确认 AgentManager 事件仍然可被普通 EventBus 订阅者消费**
+- [x] **Step 7: 补一个已有行为回归，确认 AgentManager 事件仍然可被普通 EventBus 订阅者消费**
 
 运行：
 
@@ -315,7 +319,7 @@ class AgentPage(QWidget):
 
 - 通过，说明 `AgentManager -> EventBus` 的普通发布路径没有被 UI bridge 破坏。
 
-- [ ] **Step 8: 提交这一小步**
+- [x] **Step 8: 提交这一小步**
 
 ```bash
 git add ui/settings/pages/agent_page.py core/event_bus.py tests/test_agent_page_events.py tests/test_agent_log_events.py
@@ -332,7 +336,7 @@ git commit -m "refactor(ui): bridge agent log events to main thread"
 - Modify: `ui/chat/window.py`
 - Modify: `tests/test_chat_tts_flow.py`
 
-- [ ] **Step 1: 先写失败测试，锁定句段状态流转**
+- [x] **Step 1: 先写失败测试，锁定句段状态流转**
 
 ```python
 from ui.chat.tts_pipeline import TTSPipelineController, TTSSegmentStatus
@@ -348,7 +352,7 @@ def test_pipeline_marks_segment_cancelled_when_new_turn_begins():
     assert pipeline.segments[(1, 0)].status == TTSSegmentStatus.CANCELLED
 ```
 
-- [ ] **Step 2: 运行测试，确认当前失败**
+- [x] **Step 2: 运行测试，确认当前失败**
 
 运行：
 
@@ -358,7 +362,7 @@ def test_pipeline_marks_segment_cancelled_when_new_turn_begins():
 
 - 失败，因为 `ui.chat.tts_pipeline` 尚不存在。
 
-- [ ] **Step 3: 再写失败测试，锁定总超时会把句段推进到 timed_out**
+- [x] **Step 3: 再写失败测试，锁定总超时会把句段推进到 timed_out**
 
 ```python
 def test_pipeline_marks_segment_timed_out_after_total_timeout():
@@ -372,7 +376,7 @@ def test_pipeline_marks_segment_timed_out_after_total_timeout():
     assert pipeline.segments[(1, 0)].status == TTSSegmentStatus.TIMED_OUT
 ```
 
-- [ ] **Step 4: 运行测试，确认当前失败**
+- [x] **Step 4: 运行测试，确认当前失败**
 
 运行：
 
@@ -382,7 +386,7 @@ def test_pipeline_marks_segment_timed_out_after_total_timeout():
 
 - 失败，因为总超时模型还不存在。
 
-- [ ] **Step 5: 写最小状态模型实现**
+- [x] **Step 5: 写最小状态模型实现**
 
 ```python
 # ui/chat/tts_pipeline.py
@@ -444,7 +448,7 @@ class TTSPipelineController:
         return timed_out
 ```
 
-- [ ] **Step 6: 运行定向测试，确认通过**
+- [x] **Step 6: 运行定向测试，确认通过**
 
 运行：
 
@@ -454,7 +458,7 @@ class TTSPipelineController:
 
 - 通过。
 
-- [ ] **Step 7: 把 `ChatWindow` 的零散状态表逐步切到 pipeline**
+- [x] **Step 7: 把 `ChatWindow` 的零散状态表逐步切到 pipeline**
 
 ```python
 # ui/chat/window.py（概念性接线）
@@ -471,7 +475,7 @@ def _begin_new_tts_turn(self) -> None:
     ...
 ```
 
-- [ ] **Step 8: 运行 `ChatWindow` 聚焦测试，确认现有行为没被破坏**
+- [x] **Step 8: 运行 `ChatWindow` 聚焦测试，确认现有行为没被破坏**
 
 运行：
 
@@ -481,7 +485,7 @@ def _begin_new_tts_turn(self) -> None:
 
 - 通过。
 
-- [ ] **Step 9: 提交这一小步**
+- [x] **Step 9: 提交这一小步**
 
 ```bash
 git add ui/chat/tts_pipeline.py ui/chat/window.py tests/test_tts_pipeline.py tests/test_chat_tts_flow.py
@@ -498,7 +502,7 @@ git commit -m "refactor(tts): add explicit segment lifecycle controller"
 - Modify: `tests/test_tts_adapter.py`
 - Modify: `tests/test_chat_tts_flow.py`
 
-- [ ] **Step 1: 先写失败测试，锁定队列上限超出时要丢弃或跳过新增句段**
+- [x] **Step 1: 先写失败测试，锁定队列上限超出时要丢弃或跳过新增句段**
 
 ```python
 def test_tts_enqueue_marks_segment_skipped_when_queue_limit_is_exceeded(chat_window, monkeypatch):
@@ -516,7 +520,7 @@ def test_tts_enqueue_marks_segment_skipped_when_queue_limit_is_exceeded(chat_win
     assert chat_window._tts_pipeline.segments[key].status == "skipped"
 ```
 
-- [ ] **Step 2: 运行测试，确认当前失败**
+- [x] **Step 2: 运行测试，确认当前失败**
 
 运行：
 
@@ -526,7 +530,7 @@ def test_tts_enqueue_marks_segment_skipped_when_queue_limit_is_exceeded(chat_win
 
 - 失败，因为当前实现虽然有 worker 上限，但还没有总队列上限语义。
 
-- [ ] **Step 3: 再写失败测试，锁定适配器总超时后会发出 error/timed_out 语义**
+- [x] **Step 3: 再写失败测试，锁定适配器总超时后会发出 error/timed_out 语义**
 
 ```python
 def test_pcm_stream_total_timeout_yields_error_event(monkeypatch):
@@ -554,7 +558,7 @@ def test_pcm_stream_total_timeout_yields_error_event(monkeypatch):
     assert events[-1].kind == "error"
 ```
 
-- [ ] **Step 4: 运行测试，确认当前失败**
+- [x] **Step 4: 运行测试，确认当前失败**
 
 运行：
 
@@ -564,7 +568,7 @@ def test_pcm_stream_total_timeout_yields_error_event(monkeypatch):
 
 - 失败，因为当前总超时语义还没真正进入适配器 / pipeline 协作路径。
 
-- [ ] **Step 5: 写最小实现，把现有基础能力推进到 spec 语义**
+- [x] **Step 5: 写最小实现，把现有基础能力推进到 spec 语义**
 
 ```python
 # ui/chat/window.py（概念性规则）
@@ -594,7 +598,7 @@ def _yield_pcm_response(self, resp) -> Iterator[TTSStreamEvent]:
 - “总超时”应由 `ChatWindow` / `TTSPipelineController` 统一裁定，适配器只需要保证失败时稳定产出 `error` 事件；
 - WAV 回退仍然保持在 `auto` 模式与“首个音频未真正起播”的现有边界内。
 
-- [ ] **Step 6: 运行 TTS 聚焦回归**
+- [x] **Step 6: 运行 TTS 聚焦回归**
 
 运行：
 
@@ -606,7 +610,7 @@ def _yield_pcm_response(self, resp) -> Iterator[TTSStreamEvent]:
 
 - 通过。
 
-- [ ] **Step 7: 提交这一小步**
+- [x] **Step 7: 提交这一小步**
 
 ```bash
 git add tts/adapters/gptsovits.py ui/chat/window.py tests/test_tts_adapter.py tests/test_chat_tts_flow.py
@@ -629,7 +633,7 @@ git commit -m "feat(tts): close bounded pipeline timeout and queue semantics"
 - Test: `tests/test_tts_adapter.py`
 - Test: `tests/test_chat_tts_flow.py`
 
-- [ ] **Step 1: 运行后半段聚焦回归**
+- [x] **Step 1: 运行后半段聚焦回归**
 
 运行：
 
@@ -643,7 +647,7 @@ python -m pytest tests/test_tts_pipeline.py tests/test_tts_adapter.py tests/test
 
 - 全部通过。
 
-- [ ] **Step 2: 用 `py_compile` 做语法 sanity check**
+- [x] **Step 2: 用 `py_compile` 做语法 sanity check**
 
 运行：
 
@@ -655,7 +659,7 @@ python -m py_compile core/event_bus.py core/ui_event_bridge.py ui/settings/pages
 
 - 无输出，退出码 0。
 
-- [ ] **Step 3: 同步文档到真实实现状态**
+- [x] **Step 3: 同步文档到真实实现状态**
 
 ```markdown
 - `docs/README.md`
@@ -666,7 +670,7 @@ python -m py_compile core/event_bus.py core/ui_event_bridge.py ui/settings/pages
   写明 `event_bus_runtime` 配置项、TTS 队列 / 总超时语义，以及新增测试入口。
 ```
 
-- [ ] **Step 4: 运行最终聚焦回归，确认文档同步没有带来额外代码修改遗漏**
+- [x] **Step 4: 运行最终聚焦回归，确认文档同步没有带来额外代码修改遗漏**
 
 运行：
 
@@ -676,7 +680,7 @@ python -m py_compile core/event_bus.py core/ui_event_bridge.py ui/settings/pages
 
 - 通过。
 
-- [ ] **Step 5: 提交这一小步**
+- [x] **Step 5: 提交这一小步**
 
 ```bash
 git add docs/README.md docs/architecture.md docs/development.md tests/test_config_agent.py tests/test_event_bus.py tests/test_agent_page_events.py tests/test_agent_log_events.py tests/test_tts_pipeline.py tests/test_tts_adapter.py tests/test_chat_tts_flow.py
@@ -697,3 +701,4 @@ git commit -m "docs: sync phase 4 back-half closure"
   - 所有步骤都必须包含文件、测试命令和最小代码示例
 - 命名一致性检查：
   - `UIEventBridge`、`EventBusRuntimeConfig`、`TTSPipelineController`、`TTSSegmentStatus` 在全文中保持一致
+

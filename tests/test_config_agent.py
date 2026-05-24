@@ -35,6 +35,15 @@ def test_agent_config_exposes_tts_runtime_limits():
     assert hasattr(cfg.tts_runtime, "max_tts_workers")
 
 
+def test_agent_config_exposes_event_bus_runtime_settings():
+    cfg = AgentConfig()
+
+    assert hasattr(cfg, "event_bus_runtime")
+    assert hasattr(cfg.event_bus_runtime, "log_max_buffer")
+    assert hasattr(cfg.event_bus_runtime, "log_flush_interval_ms")
+    assert hasattr(cfg.event_bus_runtime, "ui_dispatch_throttle_ms")
+
+
 def test_agent_config_custom_values():
     cfg = AgentConfig(
         planner=PlannerConfig(complexity_threshold=120, extra_trigger_keywords=["分析", "总结"]),

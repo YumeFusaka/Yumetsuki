@@ -48,9 +48,11 @@ yumetsuki/
 - `ui/settings/pages/plugin_page.py`
   插件与 MCP 管理页面
 - `ui/chat/window.py`
-  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机）
+  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend）
 - `ui/chat/audio_backends.py`
-  TTS 播放后端：`WavPlaybackBackend` 负责完整 WAV 播放，`PcmStreamPlaybackBackend` 负责 PCM 边收边播
+  TTS 播放后端：`PcmStreamPlaybackBackend` 负责 PCM 边收边播；完整 WAV 在当前聊天窗主路径下由共享 `QMediaPlayer` 顺序播放
+- `ui/chat/tts_pipeline.py`
+  `TTSPipelineController` 负责句段状态、取消语义、队列上限与总超时判定
 - `ui/chat/sprite.py`
   立绘加载、缩放、情绪切换
 
@@ -60,7 +62,7 @@ yumetsuki/
 
 - `config/schema.py`
   Pydantic 配置模型
-  当前已包含 `SessionContextConfig` 与 `TTSRuntimeConfig`
+  当前已包含 `SessionContextConfig`、`TTSRuntimeConfig` 与 `EventBusRuntimeConfig`
 - `config/manager.py`
   YAML 读写，当前支持：
   - `api.yaml`
@@ -126,6 +128,8 @@ yumetsuki/
 - `core/event_bus.py`
   发布 / 订阅事件总线
   当前已具备加锁订阅、退订与发布时 handler 快照语义
+- `core/ui_event_bridge.py`
+  Qt 主线程桥；把后台线程发布的 UI 相关事件与日志批量回送到主线程消费
 - `core/character.py`
   角色目录加载
 - `core/plugin_host.py`
@@ -280,7 +284,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - `agent.reflection_complete` — 反思完成
 - `agent.multi_step_progress` — 多步推理进度
 
-设置中心「Agent」页面（多 Tab）订阅这些事件，日志页会把用户输入、角色回复、Thinking 预览和内部事件合并为一条时间线显示。
+设置中心「Agent」页面（多 Tab）通过 `UIEventBridge` 消费这些事件；日志页会把用户输入、角色回复、Thinking 预览和内部事件按批量刷新方式合并为一条时间线显示。
 
 ### 配置
 
@@ -292,6 +296,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - `ProactiveConfig` — 启用开关、闲置间隔、冷却时间、活跃时段、自定义事件列表
 - `SessionContextConfig` — recent turns、working facts、热上下文相关上限
 - `TTSRuntimeConfig` — PCM 读超时、单句超时候选、翻译 / 合成并发上限、队列上限
+- `EventBusRuntimeConfig` — 日志缓冲上限、批量刷新间隔、UI 分发节流参数
 
 ## 当前能力边界
 
@@ -310,6 +315,8 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - PCM 流式低延迟播放（`audio_mode=pcm_stream`）
 - `auto` 模式下的会话级 WAV 回退
 - 输出语言强约束与句级翻译播报（拟声词 / 语气词优先保留音感）
+- Agent 日志主线程桥接与批量刷新
+- TTS 句段生命周期治理（取消、队列上限、总超时）
 
 尚未实现：
 
@@ -321,7 +328,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 
 - [Phase 4-6 路线图设计](./superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md)
 
-其中对当前架构影响最大的下一阶段是 Phase 4，核心收敛方向如下：
+其中已经完成并对当前架构影响最大的近阶段收敛是 Phase 4，核心结果如下：
 
 - 新增 `SessionContext` 短期记忆层，位于 UI / Agent / 长期记忆之间
 - 把多轮连续性建立在“单会话工作记忆”之上，而不是仅依赖原始 `_history` 或长期记忆检索
@@ -342,9 +349,9 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - 首字热路径优先依赖 `SessionContext` 的短期上下文块，而不是先依赖深记忆检索
 - 长期记忆补充位于短期会话上下文之后
 
-后续仍待继续补完：
+后续演进重点：
 
-- TTS 固定流水线与取消语义
+- 日志工作台与结构化可观测性
 - UI 被动互动、STT、视觉与浏览器自由操控在后续阶段中的接入点
 
 ## 记忆系统

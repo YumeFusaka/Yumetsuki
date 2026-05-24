@@ -22,19 +22,21 @@
 - Phase 5 / 6 设计：
   - `docs/superpowers/specs/2026-05-24-phase-5-ui-stt-design.md`
   - `docs/superpowers/specs/2026-05-24-phase-6-browser-vision-ecosystem-design.md`
-- 当前 Phase 4 实施计划：
+- 已完成的 Phase 4 实施计划：
   - `docs/superpowers/plans/2026-05-24-session-context-hot-path-implementation.md`
   - `docs/superpowers/plans/2026-05-24-phase-4-core-chain-implementation.md`
   - `docs/superpowers/plans/2026-05-24-phase-4-back-half-closure-implementation.md`
+- 当前新增设计：
+  - `docs/superpowers/specs/2026-05-24-logging-workbench-design.md`
 - 当前优先级：
-  1. Phase 4：核心链路与会话能力
+  1. 日志工作台：对话日志 / 系统日志与结构化持久化
   2. Phase 5：桌宠体验与交互输入输出
   3. Phase 6：高级代理、插件生态与视觉
 
 说明：
 
-- 在 Phase 4 未完成前，不建议直接推进 STT、视觉或浏览器自由操控
-- 设计文档和实施计划应优先围绕 Phase 4 收敛
+- Phase 4 已完成，当前不再需要继续把所有设计与实施优先绑定到 Phase 4 收口
+- 日志工作台是后续 Phase 5 / 6 排障与可观测性的推荐前置项
 - Phase 4 中短期记忆由 `SessionContext` 负责，`mem0` 继续只做长期记忆
 - 文档默认使用中文撰写；代码标识、路径、命令、配置键名和 git commit message 可保留英文
 - 设计阶段中的关键数值（超时、并发数、窗口大小、预算上限等）默认应配置化，避免在 spec 中永久写死
@@ -90,6 +92,9 @@
   - `tts_runtime.max_translation_workers`
   - `tts_runtime.max_tts_workers`
   - `tts_runtime.tts_queue_limit`
+  - `event_bus_runtime.log_max_buffer`
+  - `event_bus_runtime.log_flush_interval_ms`
+  - `event_bus_runtime.ui_dispatch_throttle_ms`
 - 以下类型默认都应朝配置化方向演进：
   - 短期记忆窗口、衰减、摘要预算
   - TTS 超时、并发、回退、队列长度
@@ -151,6 +156,7 @@
 - `EventBus` 相关改动优先覆盖：
   - 发布时 handler 快照语义
   - 订阅 / 退订与发布并发下的基本安全性
+  - `UIEventBridge` 的主线程批量刷新与日志顺序
 - UI 变更至少保证：
   - 行为测试
   - `py_compile`
@@ -177,9 +183,21 @@
   - PCM 首个 chunk 到达即播、句段有序播放、失败后会话级 WAV 回退
   - PCM 流式请求必须使用有限读超时，不允许 `None` 式无限等待
   - 翻译 worker / 合成 worker 的并发上限与待处理队列推进
+  - `TTSPipelineController` 的取消语义、队列上限与总超时
+  - `wav` 句段应聚合完整字节后走共享播放器，不应为每句新建独立 `QMediaPlayer`
   - `ui/chat/audio_backends.py` 中 WAV / PCM 播放后端的无真实设备测试
   - 拟声词、语气词、拖长音、重复音节在翻译时优先保留音感，不被语义意译破坏
   - 避免依赖真实 GPT-SoVITS 服务或真实音频设备
+
+### 当前聚焦回归入口
+
+- Agent / EventBus：
+  - `python -m pytest tests/test_config_agent.py -q`
+  - `python -m pytest tests/test_event_bus.py tests/test_agent_page_events.py tests/test_agent_log_events.py -q`
+- TTS：
+  - `python -m pytest tests/test_tts_pipeline.py tests/test_tts_adapter.py tests/test_chat_tts_flow.py -q`
+- 语法检查：
+  - `python -m py_compile core/event_bus.py core/ui_event_bridge.py ui/settings/pages/agent_page.py ui/chat/tts_pipeline.py ui/chat/window.py tts/adapters/gptsovits.py`
 
 ### TTS 归因边界
 

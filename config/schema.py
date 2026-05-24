@@ -129,6 +129,12 @@ class TTSRuntimeConfig(BaseModel):
     tts_queue_limit: int = 16
 
 
+class EventBusRuntimeConfig(BaseModel):
+    log_max_buffer: int = 200
+    log_flush_interval_ms: int = 80
+    ui_dispatch_throttle_ms: int = 0
+
+
 class AgentConfig(BaseModel):
     planner: PlannerConfig = PlannerConfig()
     reflector: ReflectorConfig = ReflectorConfig()
@@ -138,3 +144,4 @@ class AgentConfig(BaseModel):
     web_automation: WebAutomationConfig = WebAutomationConfig()
     session_context: SessionContextConfig = SessionContextConfig()
     tts_runtime: TTSRuntimeConfig = TTSRuntimeConfig()
+    event_bus_runtime: EventBusRuntimeConfig = EventBusRuntimeConfig()
