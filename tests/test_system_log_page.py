@@ -269,6 +269,15 @@ def test_system_log_page_filters_sources_by_group_and_specific_source():
                     "summary": "写入 mem0",
                     "details": {},
                 },
+                {
+                    "timestamp": "2026-05-24T10:25:42.000",
+                    "level": "info",
+                    "source": "memory.mem0.cache",
+                    "session_id": "session-1",
+                    "event_type": "memory.cache_saved",
+                    "summary": "不应匹配子串来源",
+                    "details": {},
+                },
             ]
 
     page = SystemLogPage(_Service())
@@ -293,6 +302,8 @@ def test_system_log_page_filters_sources_by_group_and_specific_source():
     page._refresh_view()
     assert page._event_list.count() == 2
 
+    page._source_group_filter.setCurrentText("全部")
+    page._source_filter.addItem("memory.mem0", "memory.mem0")
     page._source_filter.setCurrentText("memory.mem0")
     page._refresh_view()
 
@@ -339,8 +350,9 @@ def test_system_log_page_continuous_text_view_renders_filtered_plain_text():
     assert page._continuous_text.toPlainText().strip()
     assert "segment enqueued" in page._continuous_text.toPlainText()
     assert "第一句" in page._continuous_text.toPlainText()
+    assert "chat.tts" in page._continuous_text.toPlainText()
     assert "llm.manager" not in page._continuous_text.toPlainText()
-    assert page._continuous_text.toHtml() != page._continuous_text.toPlainText()
+    assert "开始生成回复" not in page._continuous_text.toPlainText()
 
 
 def test_system_log_page_refresh_preserves_detail_scroll_when_selected_event_is_unchanged():
@@ -375,6 +387,45 @@ def test_system_log_page_refresh_preserves_detail_scroll_when_selected_event_is_
     page._refresh_view()
 
     assert page._detail_text.toPlainText() == previous_text
+    assert detail_bar.value() == previous_value
+
+
+def test_system_log_page_refreshes_detail_when_selected_event_payload_changes():
+    _app()
+
+    repeated_text = "\n".join(f"line {i}" for i in range(200))
+    page = SystemLogPage(_FakeLogService())
+    original_event = {
+        "id": "same-event",
+        "timestamp": "2026-05-24T10:25:39.573",
+        "level": "info",
+        "source": "agent.manager",
+        "session_id": "session-1",
+        "event_type": "conversation.user_input",
+        "summary": "用户输入",
+        "details": {"text": repeated_text, "version": 1},
+    }
+    updated_event = {
+        "id": "same-event",
+        "timestamp": "2026-05-24T10:25:39.573",
+        "level": "info",
+        "source": "agent.manager",
+        "session_id": "session-1",
+        "event_type": "conversation.user_input",
+        "summary": "用户输入",
+        "details": {"text": repeated_text, "version": 2, "extra": "changed"},
+    }
+
+    page._set_selected_event(original_event)
+
+    detail_bar = page._detail_text.verticalScrollBar()
+    detail_bar.setValue(max(1, detail_bar.maximum() // 2))
+    previous_value = detail_bar.value()
+
+    page._set_selected_event(updated_event)
+
+    assert '"version": 2' in page._detail_text.toPlainText()
+    assert '"extra": "changed"' in page._detail_text.toPlainText()
     assert detail_bar.value() == previous_value
 
 

@@ -232,9 +232,9 @@ class SystemLogPage(QWidget):
         self._refresh_timer.start()
 
     def _set_selected_event(self, event: dict | None) -> None:
-        if self._event_key(event) == self._event_key(self._selected_event):
-            self._selected_event = event
+        if event == self._selected_event:
             return
+        detail_scroll = self._capture_scroll_state(self._detail_text)
         self._selected_event = event
         if event is None:
             self._detail_text.clear()
@@ -242,6 +242,7 @@ class SystemLogPage(QWidget):
             return
         self._detail_text.setPlainText(json.dumps(event, ensure_ascii=False, indent=2))
         self._detail_text.show()
+        self._restore_scroll_state(self._detail_text, detail_scroll)
 
     def _copy_selected_event_json(self) -> None:
         if self._selected_event is None:
@@ -349,7 +350,7 @@ class SystemLogPage(QWidget):
         if source:
             filtered = [
                 event for event in filtered
-                if source in str(event.get("source", "")).lower()
+                if str(event.get("source", "")).lower() == source
             ]
         if level:
             filtered = [event for event in filtered if event.get("level") == level]
