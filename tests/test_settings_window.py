@@ -37,6 +37,61 @@ def test_save_button_only_visible_on_api_page():
     assert save_btn.isHidden()
 
 
+def test_settings_window_navigation_includes_conversation_and_system_logs():
+    _app()
+    window = SettingsWindow()
+    labels = [
+        button.text()
+        for button in window.findChildren(QPushButton)
+        if button.isCheckable()
+    ]
+
+    assert "📝  对话日志" in labels
+    assert "🧪  系统日志" in labels
+
+
+def test_launch_chat_binds_current_session_to_conversation_log_page(monkeypatch):
+    _app()
+    captured = {}
+
+    class DummyChatWindow:
+        def __init__(self, llm_config, **kwargs):
+            self._tts_session_id = "session-xyz"
+
+        def show(self):
+            return None
+
+        def set_memory_store(self, memory_store):
+            return None
+
+    monkeypatch.setattr("ui.settings.window.ChatWindow", DummyChatWindow)
+    monkeypatch.setattr("ui.settings.window.PluginHost", lambda *_: type("P", (), {"load": lambda self: None})())
+    monkeypatch.setattr("ui.settings.window.MCPHost", lambda *_: type("M", (), {"connect_all": lambda self: None})())
+    monkeypatch.setattr("ui.settings.window.ToolRegistry", lambda **_: type("T", (), {})())
+
+    class DummyLoader:
+        def __init__(self, *_args, **_kwargs):
+            self.memory_ready = type("S", (), {"connect": lambda self, *_: None})()
+            self.memory_failed = type("S", (), {"connect": lambda self, *_: None})()
+
+        def start(self):
+            return None
+
+    monkeypatch.setattr("ui.settings.window.MemoryLoaderThread", DummyLoader)
+
+    window = SettingsWindow()
+    monkeypatch.setattr(
+        window._conversation_log_page,
+        "set_session_id",
+        lambda session_id: captured.setdefault("session_id", session_id),
+        raising=False,
+    )
+
+    window._launch_chat()
+
+    assert captured["session_id"] == "session-xyz"
+
+
 def test_api_page_discards_unsaved_changes_when_switching_away():
     _app()
     window = SettingsWindow()

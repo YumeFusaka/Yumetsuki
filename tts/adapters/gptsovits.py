@@ -4,6 +4,7 @@ from urllib.parse import urlsplit, urlunsplit
 import requests
 
 from config.schema import AgentConfig, TTSConfig, TTSRuntimeConfig
+from core.log_types import LogChannel, LogLevel, build_log_event
 from tts.adapter import TTSAdapter
 from tts.types import TTSAudioFormat, TTSStreamEvent
 
@@ -36,6 +37,7 @@ class GPTSoVITSAdapter(TTSAdapter):
         config: TTSConfig,
         session_id: str | None = None,
         runtime_config: TTSRuntimeConfig | None = None,
+        log_service=None,
     ):
         self._api_url = self._normalize_api_url(config.api_url)
         self._prepare_url = self._build_prepare_url(self._api_url)
@@ -52,6 +54,7 @@ class GPTSoVITSAdapter(TTSAdapter):
         self._session = requests.Session()
         self._prepare_attempted = False
         self._reference_state = self._initial_reference_state()
+        self._log_service = log_service
 
     @staticmethod
     def _normalize_api_url(api_url: str) -> str:
@@ -172,6 +175,12 @@ class GPTSoVITSAdapter(TTSAdapter):
                 if 200 <= retry_resp.status_code < 300:
                     self._mark_session_extension_disabled()
                     self._reference_state = "prepared"
+                    self._record_log_event(
+                        level=LogLevel.INFO,
+                        event_type="tts.reference_prepared",
+                        summary="reference prepared with inline fallback",
+                        details={"reference_mode": self._reference_mode},
+                    )
                     if self._reference_mode == self.REFERENCE_MODE_AUTO:
                         self._REFERENCE_CAPABILITY_CACHE.setdefault(self._api_url, "prepared")
                     return True
@@ -180,6 +189,12 @@ class GPTSoVITSAdapter(TTSAdapter):
                 if used_session_extension:
                     self._mark_session_extension_enabled()
                 self._reference_state = "prepared"
+                self._record_log_event(
+                    level=LogLevel.INFO,
+                    event_type="tts.reference_prepared",
+                    summary="reference prepared",
+                    details={"reference_mode": self._reference_mode},
+                )
                 if self._reference_mode == self.REFERENCE_MODE_AUTO:
                     self._REFERENCE_CAPABILITY_CACHE.setdefault(self._api_url, "prepared")
                 return True
@@ -187,6 +202,12 @@ class GPTSoVITSAdapter(TTSAdapter):
         except Exception as exc:
             print(f"[TTS] GPT-SoVITS reference prepare failed: {exc}")
         self._reference_state = "fallback_inline"
+        self._record_log_event(
+            level=LogLevel.WARN,
+            event_type="tts.reference_prepare_failed",
+            summary="reference prepare failed",
+            details={"reference_mode": self._reference_mode},
+        )
         if self._reference_mode == self.REFERENCE_MODE_AUTO:
             self._REFERENCE_CAPABILITY_CACHE[self._api_url] = self.REFERENCE_MODE_INLINE
         return False
@@ -375,6 +396,16 @@ class GPTSoVITSAdapter(TTSAdapter):
         allow_session_retry: bool = True,
     ) -> Iterator[TTSStreamEvent]:
         payload = self._build_tts_payload(text, include_reference, audio_mode)
+        self._record_log_event(
+            level=LogLevel.INFO,
+            event_type="tts.request_started",
+            summary="tts request started",
+            details={
+                "audio_mode": audio_mode,
+                "include_reference": include_reference,
+                "text_length": len(text),
+            },
+        )
         try:
             resp = self._request_audio(payload, audio_mode)
         except Exception as exc:
@@ -389,10 +420,22 @@ class GPTSoVITSAdapter(TTSAdapter):
                     self.force_session_audio_mode(self.AUDIO_MODE_WAV)
                 return success
             print(f"[TTS] GPT-SoVITS request failed: {exc}")
+            self._record_log_event(
+                level=LogLevel.ERROR,
+                event_type="tts.request_failed",
+                summary="tts request failed",
+                details={"error": str(exc), "audio_mode": audio_mode},
+            )
             yield TTSStreamEvent(kind="error", message=str(exc))
             return False
 
         if resp.status_code == 200:
+            self._record_log_event(
+                level=LogLevel.INFO,
+                event_type="tts.request_succeeded",
+                summary="tts request succeeded",
+                details={"audio_mode": audio_mode, "status_code": resp.status_code},
+            )
             if audio_mode == self.AUDIO_MODE_PCM_STREAM:
                 success = yield from self._yield_pcm_response(resp)
                 if success:
@@ -449,5 +492,26 @@ class GPTSoVITSAdapter(TTSAdapter):
 
         error_text = (getattr(resp, "text", "") or "")[:200]
         print(f"[TTS] GPT-SoVITS returned HTTP {resp.status_code}: {error_text}")
+        self._record_log_event(
+            level=LogLevel.ERROR,
+            event_type="tts.request_http_error",
+            summary="tts request http error",
+            details={"status_code": resp.status_code, "error_text": error_text},
+        )
         yield TTSStreamEvent(kind="error", message=f"HTTP {resp.status_code}")
         return False
+
+    def _record_log_event(self, level: LogLevel, event_type: str, summary: str, details: dict) -> None:
+        if self._log_service is None:
+            return
+        self._log_service.record(
+            build_log_event(
+                channel=LogChannel.SYSTEM,
+                level=level,
+                source="tts.gptsovits",
+                event_type=event_type,
+                session_id=self._session_id or "default-session",
+                summary=summary,
+                details=details,
+            )
+        )

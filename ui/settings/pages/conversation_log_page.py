@@ -1,0 +1,219 @@
+from PySide6.QtCore import QTimer
+from html import escape as html_escape
+
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
+
+PAGE_STYLE = """
+QWidget {
+    background: transparent;
+}
+QTextEdit {
+    background: rgba(255, 252, 254, 0.78);
+    border: 1px solid rgba(220, 160, 180, 0.28);
+    border-radius: 14px;
+    padding: 14px;
+    color: #4a3040;
+    font-size: 13px;
+    font-family: "Consolas", "Microsoft YaHei", monospace;
+}
+QLabel {
+    color: #8c6b7a;
+    font-size: 13px;
+}
+QLineEdit {
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(220, 160, 180, 0.3);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #4a3040;
+    min-height: 18px;
+}
+QLineEdit:focus {
+    border-color: #d4567a;
+}
+QPushButton {
+    background: rgba(255, 245, 250, 0.88);
+    border: 1px solid rgba(212, 86, 122, 0.32);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: #6b4a5a;
+}
+QPushButton:hover {
+    background: rgba(255, 232, 240, 0.96);
+    border-color: rgba(212, 86, 122, 0.48);
+}
+QCheckBox {
+    color: #6b4a5a;
+}
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid rgba(212, 86, 122, 0.45);
+    background: rgba(255,255,255,0.8);
+}
+QCheckBox::indicator:checked {
+    background: #d4567a;
+    border-color: #d4567a;
+}
+"""
+
+
+class ConversationLogPage(QWidget):
+    def __init__(self, log_service, parent=None):
+        super().__init__(parent)
+        self._log_service = log_service
+        self._current_session_id: str | None = None
+        self.setStyleSheet(PAGE_STYLE)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("对话日志")
+        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7a3a5a;")
+        layout.addWidget(title)
+
+        desc = QLabel("查看用户输入、角色回复与会话级结构化日志。")
+        layout.addWidget(desc)
+
+        controls = QHBoxLayout()
+        self._session_input = QLineEdit()
+        self._session_input.setPlaceholderText("会话 ID（留空显示全部对话日志）")
+        self._session_input.editingFinished.connect(self._apply_session_input)
+        controls.addWidget(self._session_input, 1)
+
+        refresh_btn = QPushButton("刷新")
+        refresh_btn.clicked.connect(self._refresh_view)
+        controls.addWidget(refresh_btn)
+
+        self._auto_refresh = QCheckBox("自动刷新")
+        self._auto_refresh.setChecked(True)
+        controls.addWidget(self._auto_refresh)
+        layout.addLayout(controls)
+
+        self._timeline = QTextEdit()
+        self._timeline.setReadOnly(True)
+        self._timeline.setPlainText("暂无对话日志。")
+        layout.addWidget(self._timeline, 1)
+
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(1000)
+        self._refresh_timer.timeout.connect(self._refresh_if_enabled)
+        self._refresh_timer.start()
+
+    def _refresh_view(self) -> None:
+        events = self._log_service.query_events(
+            channel="conversation",
+            session_id=self._current_session_id,
+        )
+        if not events:
+            self._timeline.setPlainText("暂无对话日志。")
+            return
+        self._timeline.setHtml("".join(self._render_event_block(event) for event in events))
+
+    def set_session_id(self, session_id: str | None) -> None:
+        self._current_session_id = session_id or None
+        self._session_input.setText(self._current_session_id or "")
+        self._refresh_view()
+
+    def _apply_session_input(self) -> None:
+        text = self._session_input.text().strip()
+        self._current_session_id = text or None
+        self._refresh_view()
+
+    def _refresh_if_enabled(self) -> None:
+        if self._auto_refresh.isChecked():
+            self._refresh_view()
+
+    def _render_event_block(self, event: dict) -> str:
+        event_type = event.get("event_type", "")
+        details = event.get("details", {}) or {}
+        timestamp = self._format_time(event.get("timestamp", ""))
+        text = html_escape(details.get("text", event.get("summary", "")))
+
+        emotion = details.get("emotion")
+        inline_emotion = ""
+        if emotion:
+            inline_emotion = (
+                f' <span style="display:inline-block; margin-left: 6px; padding: 2px 8px; '
+                'background: rgba(255, 236, 242, 0.96); border: 1px solid rgba(212, 86, 122, 0.18); '
+                'border-radius: 999px; font-size: 11px; color: #8b4d66; vertical-align: middle;">'
+                f'{html_escape(str(emotion))}</span>'
+            )
+
+        if event_type == "conversation.user_input":
+            return self._render_message_card(
+                speaker="你",
+                timestamp=timestamp,
+                text=text,
+                inline_suffix="",
+                tags=[],
+                title_color="#5f6fb2",
+            )
+
+        tags = []
+        if emotion:
+            pass
+        tool_names = details.get("tool_names") or []
+        if tool_names:
+            tags.append("工具 " + ", ".join(html_escape(str(name)) for name in tool_names))
+        memory_count = details.get("memory_count")
+        if memory_count:
+            tags.append(f"记忆 {memory_count}")
+        return self._render_message_card(
+            speaker="梦月",
+            timestamp=timestamp,
+            text=text,
+            inline_suffix=inline_emotion,
+            tags=tags,
+            title_color="#9b3060",
+        )
+
+    @staticmethod
+    def _format_time(timestamp: str) -> str:
+        if not timestamp:
+            return ""
+        return timestamp[11:16]
+
+    @staticmethod
+    def _render_message_card(
+        speaker: str,
+        timestamp: str,
+        text: str,
+        inline_suffix: str,
+        tags: list[str],
+        title_color: str,
+    ) -> str:
+        tag_html = ""
+        if tags:
+            tag_html = (
+                '<div style="margin-top: 10px;">'
+                + "".join(
+                    f'<span style="display:inline-block; margin: 0 8px 8px 0; padding: 5px 10px; '
+                    'background: rgba(255, 236, 242, 0.96); border: 1px solid rgba(212, 86, 122, 0.18); '
+                    'border-radius: 999px; font-size: 11px; color: #8b4d66;">'
+                    f'{html_escape(tag)}</span>'
+                    for tag in tags
+                )
+                + "</div>"
+            )
+        return (
+            '<div style="margin: 0 0 16px 0; padding: 16px 18px; background: rgba(255, 248, 251, 0.95); '
+            'border: 1px solid rgba(220, 160, 180, 0.26); border-radius: 16px;">'
+            f'<div style="font-size: 11px; color: {title_color}; margin-bottom: 8px; font-weight: 600;">'
+            f'{speaker} · {timestamp}</div>'
+            f'<div style="font-size: 14px; line-height: 1.7; color: #4a3040;">{text}{inline_suffix}</div>'
+            f'{tag_html}'
+            '</div>'
+        )

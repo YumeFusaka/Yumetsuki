@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LLMConfig(BaseModel):
@@ -59,6 +59,7 @@ class SystemConfig(BaseModel):
     font_family: str = "Microsoft YaHei"
     font_size: int = 14
     proxy: str = ""
+    logging: "LoggingConfig" = Field(default_factory=lambda: LoggingConfig())
 
 
 # --- Agent Config ---
@@ -133,6 +134,13 @@ class EventBusRuntimeConfig(BaseModel):
     log_max_buffer: int = 200
     log_flush_interval_ms: int = 80
     ui_dispatch_throttle_ms: int = 0
+
+
+class LoggingConfig(BaseModel):
+    enabled: bool = True
+    log_root: str = "data/logs"
+    system_flush_interval_ms: int = 200
+    ui_buffer_limit: int = 500
 
 
 class AgentConfig(BaseModel):

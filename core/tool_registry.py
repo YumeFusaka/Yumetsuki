@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import Any
 
+from core.log_types import LogChannel, LogLevel, build_log_event
 from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
 
@@ -38,9 +40,15 @@ class ToolEntry:
 
 
 class ToolRegistry:
-    def __init__(self, plugin_host: PluginHost | None = None, mcp_host: MCPHost | None = None):
+    def __init__(
+        self,
+        plugin_host: PluginHost | None = None,
+        mcp_host: MCPHost | None = None,
+        log_service=None,
+    ):
         self._plugin_host = plugin_host
         self._mcp_host = mcp_host
+        self._log_service = log_service
         self._entries: list[ToolEntry] = []
         self.refresh()
 
@@ -83,12 +91,87 @@ class ToolRegistry:
             counts[entry.source] = counts.get(entry.source, 0) + 1
         return counts
 
-    def call_tool(self, qualified_name: str, arguments: dict[str, Any]) -> Any:
+    def _record_log_event(self, **kwargs) -> None:
+        if self._log_service is None:
+            return
+        self._log_service.record(build_log_event(**kwargs))
+
+    def call_tool(
+        self,
+        qualified_name: str,
+        arguments: dict[str, Any],
+        session_id: str = "default-session",
+        utterance_id: int | None = None,
+    ) -> Any:
+        started = time.perf_counter()
         if self._plugin_host:
             try:
-                return self._plugin_host.call_tool(qualified_name, arguments)
+                result = self._plugin_host.call_tool(qualified_name, arguments)
+                self._record_log_event(
+                    channel=LogChannel.SYSTEM,
+                    level=LogLevel.INFO,
+                    source="tool.registry",
+                    event_type="tool.call_completed",
+                    session_id=session_id,
+                    utterance_id=utterance_id,
+                    summary=f"{qualified_name} completed",
+                    details={
+                        "arguments": arguments,
+                        "elapsed_ms": int((time.perf_counter() - started) * 1000),
+                        "result_preview": str(result)[:200],
+                    },
+                )
+                return result
             except ValueError:
                 pass
+            except Exception as exc:
+                self._record_log_event(
+                    channel=LogChannel.SYSTEM,
+                    level=LogLevel.ERROR,
+                    source="tool.registry",
+                    event_type="tool.call_failed",
+                    session_id=session_id,
+                    utterance_id=utterance_id,
+                    summary=f"{qualified_name} failed",
+                    details={
+                        "arguments": arguments,
+                        "elapsed_ms": int((time.perf_counter() - started) * 1000),
+                        "error": str(exc),
+                    },
+                )
+                raise
         if self._mcp_host:
-            return self._mcp_host.call_tool(qualified_name, arguments)
+            try:
+                result = self._mcp_host.call_tool(qualified_name, arguments)
+                self._record_log_event(
+                    channel=LogChannel.SYSTEM,
+                    level=LogLevel.INFO,
+                    source="tool.registry",
+                    event_type="tool.call_completed",
+                    session_id=session_id,
+                    utterance_id=utterance_id,
+                    summary=f"{qualified_name} completed",
+                    details={
+                        "arguments": arguments,
+                        "elapsed_ms": int((time.perf_counter() - started) * 1000),
+                        "result_preview": str(result)[:200],
+                    },
+                )
+                return result
+            except Exception as exc:
+                self._record_log_event(
+                    channel=LogChannel.SYSTEM,
+                    level=LogLevel.ERROR,
+                    source="tool.registry",
+                    event_type="tool.call_failed",
+                    session_id=session_id,
+                    utterance_id=utterance_id,
+                    summary=f"{qualified_name} failed",
+                    details={
+                        "arguments": arguments,
+                        "elapsed_ms": int((time.perf_counter() - started) * 1000),
+                        "error": str(exc),
+                    },
+                )
+                raise
         raise ValueError(f"Unknown tool: {qualified_name}")

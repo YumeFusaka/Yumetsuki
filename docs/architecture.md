@@ -47,8 +47,12 @@ yumetsuki/
   角色管理页面
 - `ui/settings/pages/plugin_page.py`
   插件与 MCP 管理页面
+- `ui/settings/pages/conversation_log_page.py`
+  对话日志页面，展示会话级结构化事件
+- `ui/settings/pages/system_log_page.py`
+  系统日志页面，展示 TTS / LLM / Tool 等运行期系统事件
 - `ui/chat/window.py`
-  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend）
+  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend；同时产出 TTS 句段与播放相关系统日志）
 - `ui/chat/audio_backends.py`
   TTS 播放后端：`PcmStreamPlaybackBackend` 负责 PCM 边收边播；完整 WAV 在当前聊天窗主路径下由共享 `QMediaPlayer` 顺序播放
 - `ui/chat/tts_pipeline.py`
@@ -130,6 +134,12 @@ yumetsuki/
   当前已具备加锁订阅、退订与发布时 handler 快照语义
 - `core/ui_event_bridge.py`
   Qt 主线程桥；把后台线程发布的 UI 相关事件与日志批量回送到主线程消费
+- `core/log_types.py`
+  结构化日志事件模型与 channel / level 常量
+- `core/log_sanitizer.py`
+  日志脱敏规则：屏蔽 `api_key`、`authorization`、`cookie` 等敏感字段
+- `core/log_service.py`
+  统一日志入口、内存查询、JSONL 落盘、筛选导出
 - `core/character.py`
   角色目录加载
 - `core/plugin_host.py`
@@ -284,7 +294,33 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - `agent.reflection_complete` — 反思完成
 - `agent.multi_step_progress` — 多步推理进度
 
-设置中心「Agent」页面（多 Tab）通过 `UIEventBridge` 消费这些事件；日志页会把用户输入、角色回复、Thinking 预览和内部事件按批量刷新方式合并为一条时间线显示。
+这些事件仍由 Agent 发布到 `EventBus`；但设置中心里的运行日志职责已经从 `Agent` 页面抽离，改为独立日志工作台承接结构化回看能力。
+
+## 日志工作台
+
+日志工作台当前分为两层：
+
+- `conversation`
+  用户输入、角色回复等对话级事件
+- `system`
+  TTS、LLM、Tool、运行期错误与回退事件
+
+当前主链路中，`ChatWindow`、`AgentManager`、`LLMManager`、`ToolRegistry` 与 `GPTSoVITSAdapter` 都可向 `LogService` 写入结构化 `LogEvent`。`LogService` 会先做脱敏，再按 channel 写入 `data/logs/` 下的 JSONL 文件：
+
+- `data/logs/conversation/<session_id>.jsonl`
+- `data/logs/system/YYYY-MM-DD.jsonl`
+
+当前页面形态：
+
+- `对话日志`
+  面向聊天回看，突出用户 / 角色主线，并补充时间、情绪、工具、记忆摘要
+- `系统日志`
+  面向排障与运行回看，展示完整程序运行时间线；默认上半区为高密度日志流，下半区按选中事件显示详情
+
+当前边界：
+
+- 基础能力与聚焦回归已完成
+- 真实 API 超时、真实 TTS 失败、长时间运行等场景仍需继续联调验证
 
 ### 配置
 
@@ -309,13 +345,13 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - 本地记忆系统（Mem0 OSS + Chroma + 本地向量模型）
 - 异步记忆加载
 - Agent 分层智能（路由、反思、多步推理、主动行为）
-- Agent 日志混合时间线
+- 日志工作台首版（对话 / 系统双通道、结构化持久化与导出）
 - 聊天窗长文本滚动与整体缩放
 - 句级增量 TTS 播报（GPT-SoVITS，支持参考预热与软切分）
 - PCM 流式低延迟播放（`audio_mode=pcm_stream`）
 - `auto` 模式下的会话级 WAV 回退
 - 输出语言强约束与句级翻译播报（拟声词 / 语气词优先保留音感）
-- Agent 日志主线程桥接与批量刷新
+- 运行期结构化日志接线与 JSONL 持久化
 - TTS 句段生命周期治理（取消、队列上限、总超时）
 
 尚未实现：

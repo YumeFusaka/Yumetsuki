@@ -2,6 +2,7 @@ from typing import Generator
 import json
 
 from config.schema import LLMConfig
+from core.log_types import LogChannel, LogLevel, build_log_event
 from llm.adapter import LLMAdapter, LLMStreamChunk, ToolCall
 from llm.adapters.openai_compat import OpenAICompatAdapter
 from llm.text_processor import TextProcessor, ProcessedText
@@ -14,6 +15,8 @@ class LLMManager:
         config: LLMConfig,
         character_prompt: str = "",
         tool_registry: ToolRegistry | None = None,
+        log_service=None,
+        session_id: str = "default-session",
     ):
         self._config = config
         self._adapter: LLMAdapter = self._create_adapter(config)
@@ -21,6 +24,8 @@ class LLMManager:
         self._character_prompt = character_prompt
         self._history: list[dict] = []
         self._tool_registry = tool_registry
+        self._log_service = log_service
+        self._session_id = session_id
 
     def _create_adapter(self, config: LLMConfig) -> LLMAdapter:
         if config.provider == "openai_compat":
@@ -58,6 +63,15 @@ class LLMManager:
         extra_context: str = "",
         allow_tools: bool = True,
     ) -> Generator[ProcessedText, None, None]:
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="llm.manager",
+            event_type="llm.stream_started",
+            session_id=self._session_id,
+            summary="LLM stream started",
+            details={"allow_tools": allow_tools},
+        )
         messages = self._build_messages(
             user_input,
             session_context=session_context,
@@ -67,37 +81,58 @@ class LLMManager:
 
         full_response = ""
         tools = self._tool_registry.tool_specs() if self._tool_registry and allow_tools else None
-        for _ in range(3):
-            tool_calls: list[ToolCall] = []
-            for chunk in self._adapter.stream_chat(messages, tools=tools):
-                if isinstance(chunk, LLMStreamChunk):
-                    if chunk.thinking:
-                        yield ProcessedText(clean_text=full_response, emotion=None, thinking=chunk.thinking)
-                    if chunk.content:
-                        full_response += chunk.content
-                        yield self._processor.process(full_response)
-                    if chunk.tool_calls:
-                        tool_calls.extend(chunk.tool_calls)
-                    continue
-                full_response += chunk
+        try:
+            for _ in range(3):
+                tool_calls: list[ToolCall] = []
+                for chunk in self._adapter.stream_chat(messages, tools=tools):
+                    if isinstance(chunk, LLMStreamChunk):
+                        if chunk.thinking:
+                            yield ProcessedText(clean_text=full_response, emotion=None, thinking=chunk.thinking)
+                        if chunk.content:
+                            full_response += chunk.content
+                            yield self._processor.process(full_response)
+                        if chunk.tool_calls:
+                            tool_calls.extend(chunk.tool_calls)
+                        continue
+                    full_response += chunk
+                    yield self._processor.process(full_response)
+
+                if not tool_calls:
+                    break
+
+                assistant_message = {
+                    "role": "assistant",
+                    "content": full_response or None,
+                    "tool_calls": [self._tool_call_message(call) for call in tool_calls],
+                }
+                messages.append(assistant_message)
+                for call in tool_calls:
+                    messages.append(self._execute_tool_call(call))
+            else:
+                full_response += "\n\n工具调用次数过多，已停止继续执行。"
                 yield self._processor.process(full_response)
-
-            if not tool_calls:
-                break
-
-            assistant_message = {
-                "role": "assistant",
-                "content": full_response or None,
-                "tool_calls": [self._tool_call_message(call) for call in tool_calls],
-            }
-            messages.append(assistant_message)
-            for call in tool_calls:
-                messages.append(self._execute_tool_call(call))
-        else:
-            full_response += "\n\n工具调用次数过多，已停止继续执行。"
-            yield self._processor.process(full_response)
+        except Exception as exc:
+            self._record_log_event(
+                channel=LogChannel.SYSTEM,
+                level=LogLevel.ERROR,
+                source="llm.manager",
+                event_type="llm.stream_failed",
+                session_id=self._session_id,
+                summary="LLM stream failed",
+                details={"error": str(exc)},
+            )
+            raise
 
         self._history.append({"role": "assistant", "content": full_response})
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="llm.manager",
+            event_type="llm.stream_completed",
+            session_id=self._session_id,
+            summary="LLM stream completed",
+            details={"response_length": len(full_response)},
+        )
 
     def get_history(self) -> list[dict]:
         return self._history.copy()
@@ -118,6 +153,15 @@ class LLMManager:
     def _execute_tool_call(self, call: ToolCall) -> dict:
         try:
             arguments = json.loads(call.arguments or "{}")
+            self._record_log_event(
+                channel=LogChannel.SYSTEM,
+                level=LogLevel.INFO,
+                source="llm.manager",
+                event_type="llm.tool_call_requested",
+                session_id=self._session_id,
+                summary=f"{call.name} requested",
+                details={"arguments": arguments},
+            )
             result = self._dispatch_tool(call.name, arguments)
             content = str(result)
         except Exception as exc:
@@ -131,5 +175,17 @@ class LLMManager:
 
     def _dispatch_tool(self, name: str, arguments: dict) -> object:
         if self._tool_registry:
-            return self._tool_registry.call_tool(name, arguments)
+            try:
+                return self._tool_registry.call_tool(
+                    name,
+                    arguments,
+                    session_id=self._session_id,
+                )
+            except TypeError:
+                return self._tool_registry.call_tool(name, arguments)
         return ""
+
+    def _record_log_event(self, **kwargs) -> None:
+        if self._log_service is None:
+            return
+        self._log_service.record(build_log_event(**kwargs))

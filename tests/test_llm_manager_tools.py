@@ -1,5 +1,6 @@
 from typing import Generator
 
+from core.log_types import LogChannel
 from core.plugin_host import PluginHost
 from llm.adapter import LLMAdapter, LLMStreamChunk, ToolCall
 from llm.manager import LLMManager
@@ -124,3 +125,31 @@ def test_llm_manager_can_disable_tools_for_reply_only_phase():
 
     assert results[-1].clean_text == "普通回复"
     assert adapter.calls[0]["tools"] is None
+
+
+class FailingAdapter(LLMAdapter):
+    def stream_chat(self, messages: list[dict], tools: list[dict] | None = None):
+        raise TimeoutError("Request timed out")
+
+
+def test_llm_manager_records_failure_event_before_reraising():
+    captured = []
+
+    class _LogService:
+        def record(self, event):
+            captured.append(event)
+
+    manager = LLMManager(LLMConfig(api_key="test"), log_service=_LogService(), session_id="s1")
+    manager._adapter = FailingAdapter()
+
+    try:
+        list(manager.chat_stream("会超时吗"))
+    except TimeoutError:
+        pass
+    else:
+        raise AssertionError("Expected TimeoutError")
+
+    failure = next(event for event in captured if event.event_type == "llm.stream_failed")
+    assert failure.channel == LogChannel.SYSTEM
+    assert failure.session_id == "s1"
+    assert "Request timed out" in failure.details["error"]

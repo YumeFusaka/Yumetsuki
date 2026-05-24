@@ -13,7 +13,10 @@ from ui.settings.pages.plugin_page import PluginPage
 from ui.settings.pages.system_page import SystemPage
 from ui.settings.pages.memory_page import MemoryPage
 from ui.settings.pages.agent_page import AgentPage
+from ui.settings.pages.conversation_log_page import ConversationLogPage
+from ui.settings.pages.system_log_page import SystemLogPage
 from ui.chat.window import ChatWindow
+from core.log_service import LogService
 from core.mcp_host import MCPHost
 from core.plugin_host import PluginHost
 from core.tool_registry import ToolRegistry
@@ -144,6 +147,10 @@ class SettingsWindow(QMainWindow):
         """)
 
         self._config = ConfigManager()
+        self._log_service = LogService(
+            log_root=self._config.system.logging.log_root,
+            system_flush_interval_ms=self._config.system.logging.system_flush_interval_ms,
+        )
         self._chat_window = None
 
         central = QWidget()
@@ -169,9 +176,11 @@ class SettingsWindow(QMainWindow):
             ("🤖  API 设定", 0),
             ("👤  角色管理", 1),
             ("🧠  记忆", 2),
-            ("🤖  Agent", 3),
-            ("🧩  插件", 4),
-            ("⚙  系统", 5),
+            ("📝  对话日志", 3),
+            ("🧪  系统日志", 4),
+            ("🤖  Agent", 5),
+            ("🧩  插件", 6),
+            ("⚙  系统", 7),
         ]
         for label, idx in pages_info:
             btn = QPushButton(label)
@@ -201,6 +210,12 @@ class SettingsWindow(QMainWindow):
 
         self._memory_page = MemoryPage(self._config.memory)
         self._stack.addWidget(self._memory_page)
+
+        self._conversation_log_page = ConversationLogPage(self._log_service)
+        self._stack.addWidget(self._conversation_log_page)
+
+        self._system_log_page = SystemLogPage(self._log_service)
+        self._stack.addWidget(self._system_log_page)
 
         self._agent_page = AgentPage(self._config.agent)
         self._stack.addWidget(self._agent_page)
@@ -310,7 +325,11 @@ class SettingsWindow(QMainWindow):
         plugin_host.load()
         mcp_host = MCPHost(self._config.mcp.servers)
         mcp_host.connect_all()
-        tool_registry = ToolRegistry(plugin_host=plugin_host, mcp_host=mcp_host)
+        tool_registry = ToolRegistry(
+            plugin_host=plugin_host,
+            mcp_host=mcp_host,
+            log_service=self._log_service,
+        )
         # Create chat window immediately (memory loaded in background)
         self._chat_window = ChatWindow(
             self._config.api.llm,
@@ -321,7 +340,12 @@ class SettingsWindow(QMainWindow):
             settings_window_factory=lambda: self,
             agent_config=self._config.agent,
             tts_config=self._config.api.tts,
+            log_service=self._log_service,
         )
+        if hasattr(self._conversation_log_page, "set_session_id") and hasattr(self._chat_window, "_tts_session_id"):
+            self._conversation_log_page.set_session_id(self._chat_window._tts_session_id)
+        if hasattr(self._system_log_page, "set_session_id") and hasattr(self._chat_window, "_tts_session_id"):
+            self._system_log_page.set_session_id(self._chat_window._tts_session_id)
         self._chat_window.show()
         show_feedback(self, "启动成功", "桌宠对话窗口已启动，正在加载记忆...")
         # Load memory in background

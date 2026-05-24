@@ -1,6 +1,6 @@
 from pathlib import Path
 from config.manager import ConfigManager
-from config.schema import MCPServerConfig
+from config.schema import MCPServerConfig, SystemConfig
 
 
 def test_load_default_config(tmp_path):
@@ -157,3 +157,12 @@ def test_save_and_reload_memory_config(tmp_path):
     assert mgr2.memory.storage_dir == "runtime/memory"
     assert mgr2.memory.user_id == "alice"
     assert mgr2.memory.top_k == 8
+
+
+def test_system_config_exposes_logging_runtime():
+    cfg = SystemConfig()
+
+    assert hasattr(cfg, "logging")
+    assert cfg.logging.enabled is True
+    assert cfg.logging.log_root == "data/logs"
+    assert cfg.logging.system_flush_interval_ms == 200

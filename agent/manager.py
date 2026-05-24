@@ -9,6 +9,7 @@ from agent.planner import AgentPlanner, AgentPlan
 from agent.reflector import AgentReflector, Reflection
 from config.schema import AgentConfig
 from core.event_bus import event_bus
+from core.log_types import LogChannel, LogLevel, build_log_event
 from llm.text_processor import ProcessedText
 from session.manager import SessionContextManager
 
@@ -41,6 +42,7 @@ class AgentManager:
         agent_config: AgentConfig | None = None,
         session_manager: SessionContextManager | None = None,
         session_id: str = "default-session",
+        log_service=None,
     ):
         self._config = agent_config or AgentConfig()
         self._llm_manager = llm_manager
@@ -63,8 +65,18 @@ class AgentManager:
         self._event_bus = event_bus_instance or event_bus
         self._session_manager = session_manager or SessionContextManager()
         self._session_id = session_id
+        self._log_service = log_service
 
     def chat_stream(self, user_input: str) -> Generator[ProcessedText, None, None]:
+        self._record_log_event(
+            channel=LogChannel.CONVERSATION,
+            level=LogLevel.INFO,
+            source="agent.manager",
+            event_type="conversation.user_input",
+            session_id=self._session_id,
+            summary=f"用户输入: {user_input[:80]}",
+            details={"text": user_input},
+        )
         self._event_bus.publish(AgentEvents.USER_INPUT, {"text": user_input})
         session_ctx = self._session_manager.get_or_create(self._user_id, self._session_id)
         self._session_manager.record_user_input(session_ctx, user_input)
@@ -138,6 +150,21 @@ class AgentManager:
             "text": assistant_response,
             "character_name": "",
         })
+        self._record_log_event(
+            channel=LogChannel.CONVERSATION,
+            level=LogLevel.INFO,
+            source="agent.manager",
+            event_type="conversation.assistant_reply",
+            session_id=self._session_id,
+            summary=f"角色回复: {assistant_response[:80]}",
+            details={
+                "text": assistant_response,
+                "emotion": final_result.emotion if final_result else None,
+                "tool_names": [call.get("name") for call in (tool_calls or []) if call.get("name")],
+                "memory_count": len(memories),
+                "character_name": "",
+            },
+        )
         self._session_manager.record_assistant_reply(session_ctx, assistant_response)
 
         # 对话结束后立即返回，记忆写入和反思均放到后台执行
@@ -239,3 +266,8 @@ class AgentManager:
             return AgentLLMHelper(config)
         except (AttributeError, ImportError):
             return None
+
+    def _record_log_event(self, **kwargs) -> None:
+        if self._log_service is None:
+            return
+        self._log_service.record(build_log_event(**kwargs))

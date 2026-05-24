@@ -57,6 +57,7 @@
   其中 TTS 的 `ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 可能包含本地语音素材路径或私有参考文本，也按本地敏感配置处理
 - `data/config/system_config.yaml`
   系统配置
+  当前也承载 `logging` 运行时配置，如日志根目录与系统日志 flush 间隔
 - `data/config/mcp.yaml`
   MCP 实际配置
 - `data/config/mcp.example.yaml`
@@ -68,6 +69,11 @@
   Agent 默认配置
   当前已包含 `session_context`、`tts_runtime` 两组运行时配置
   可提交默认值，但个人临时调参不应随意提交
+- `data/logs/`
+  日志工作台默认输出目录
+  `conversation/` 存放按 `session_id` 分文件的对话日志
+  `system/` 存放按日期切分的系统日志
+  默认不应提交运行期产物
 
 ## 配置化要求
 
@@ -147,7 +153,12 @@
   - `SessionPolicy` 的 `mem0` 升格候选筛选
   - SQLite 快照读写
   - `AgentManager -> LLMManager` 的短期上下文注入
-- Agent 日志相关改动优先覆盖事件发布与日志页入口逻辑
+- 日志工作台相关改动优先覆盖：
+  - 结构化事件模型与脱敏
+  - `LogService` 的筛选、导出与 JSONL 落盘
+  - `SettingsWindow` 下的 `对话日志` / `系统日志` 页面入口
+  - 关键运行链路的日志接线
+  - 真实服务场景下的异常日志可见性与 UI 联动
 - `EventBus` 相关改动优先覆盖：
   - 发布时 handler 快照语义
   - 订阅 / 退订与发布并发下的基本安全性
@@ -189,6 +200,10 @@
 - Agent / EventBus：
   - `python -m pytest tests/test_config_agent.py -q`
   - `python -m pytest tests/test_event_bus.py tests/test_agent_page_events.py tests/test_agent_log_events.py -q`
+- 日志工作台：
+  - `python -m pytest tests/test_log_sanitizer.py tests/test_log_service.py tests/test_logging_integration.py -q`
+  - `python -m pytest tests/test_conversation_log_page.py tests/test_system_log_page.py tests/test_settings_window.py -q`
+  - 当前这些用例主要覆盖本地聚焦回归；真实 API / TTS / 网络异常仍需手工联调验证
 - TTS：
   - `python -m pytest tests/test_tts_pipeline.py tests/test_tts_adapter.py tests/test_chat_tts_flow.py -q`
 - 语法检查：

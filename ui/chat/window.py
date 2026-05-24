@@ -21,6 +21,7 @@ from llm.text_processor import ProcessedText
 from llm.adapter import LLMStreamChunk
 from config.schema import AgentConfig, LLMConfig, TTSConfig
 from core.character import load_character, build_system_prompt
+from core.log_types import LogChannel, LogLevel, build_log_event
 from tts.adapters.gptsovits import GPTSoVITSAdapter
 from tts.types import TTSAudioFormat, TTSStreamEvent
 from ui.chat.audio_backends import PcmStreamPlaybackBackend, WavPlaybackBackend
@@ -32,6 +33,7 @@ SENTENCE_ENDINGS = "。！？；\n"
 class LLMWorker(QThread):
     chunk_received = Signal(object)
     finished_signal = Signal()
+    error_signal = Signal(str)
 
     def __init__(self, chat_engine, user_input: str):
         super().__init__()
@@ -39,9 +41,12 @@ class LLMWorker(QThread):
         self._input = user_input
 
     def run(self):
-        for result in self._chat_engine.chat_stream(self._input):
-            self.chunk_received.emit(result)
-        self.finished_signal.emit()
+        try:
+            for result in self._chat_engine.chat_stream(self._input):
+                self.chunk_received.emit(result)
+            self.finished_signal.emit()
+        except Exception as exc:
+            self.error_signal.emit(str(exc))
 
 
 class TTSWorker(QThread):
@@ -210,6 +215,7 @@ class ChatWindow(QWidget):
         settings_window_factory=None,
         agent_config = None,
         tts_config: TTSConfig | None = None,
+        log_service=None,
     ):
         super().__init__()
         self._scale = 1.0
@@ -217,6 +223,7 @@ class ChatWindow(QWidget):
         self._char_dir = character_dir
         self._settings_window_factory = settings_window_factory
         self._settings_window = None
+        self._log_service = log_service
         self._tts_session_id = uuid.uuid4().hex
         runtime_config = (agent_config or AgentConfig()).tts_runtime
         self._tts_pipeline = TTSPipelineController(
@@ -225,7 +232,13 @@ class ChatWindow(QWidget):
             queue_limit=runtime_config.tts_queue_limit,
             segment_total_timeout_seconds=runtime_config.segment_total_timeout_seconds,
         )
-        self._tts_adapter = self._create_tts_adapter(tts_config, self._tts_session_id, runtime_config)
+        self._tts_adapter = self._create_tts_adapter(
+            tts_config,
+            self._tts_session_id,
+            runtime_config,
+        )
+        if self._tts_adapter is not None and hasattr(self._tts_adapter, "_log_service"):
+            self._tts_adapter._log_service = log_service
         self._tts_output_lang = self._normalize_tts_lang(tts_config.output_lang if tts_config else "")
         self._streamed_assistant_text = ""
         self._tts_committed_text = ""
@@ -270,13 +283,20 @@ class ChatWindow(QWidget):
         self._setup_ui()
 
         # LLM
-        self._llm = LLMManager(config, tool_registry=tool_registry)
+        self._llm = LLMManager(
+            config,
+            tool_registry=tool_registry,
+            log_service=log_service,
+            session_id=self._tts_session_id,
+        )
         self._chat_engine = AgentManager(
             llm_manager=self._llm,
             memory_store=memory_store,
             tool_registry=tool_registry,
             user_id=user_id or getpass.getuser(),
             agent_config=agent_config,
+            session_id=self._tts_session_id,
+            log_service=log_service,
         )
         self._worker = None
         self._char_name = ""
@@ -632,7 +652,11 @@ class ChatWindow(QWidget):
         if tts_config is None:
             return None
         if tts_config.engine == "gptsovits":
-            return GPTSoVITSAdapter(tts_config, session_id=session_id, runtime_config=runtime_config)
+            return GPTSoVITSAdapter(
+                tts_config,
+                session_id=session_id,
+                runtime_config=runtime_config,
+            )
         return None
 
     @staticmethod
@@ -899,8 +923,28 @@ class ChatWindow(QWidget):
             needs_translation=needs_translation,
         )
         if state.status == TTSSegmentStatus.SKIPPED:
+            self._record_log_event(
+                channel=LogChannel.SYSTEM,
+                level=LogLevel.WARN,
+                source="chat.tts",
+                event_type="tts.segment_skipped",
+                session_id=self._tts_session_id,
+                utterance_id=self._current_utterance_id,
+                summary=f"segment {segment_id} skipped",
+                details={"text": text, "reason": "queue_limit_exceeded"},
+            )
             print(f"[TTS] segment {segment_id} skipped: queue limit exceeded")
             return
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="chat.tts",
+            event_type="tts.segment_enqueued",
+            session_id=self._tts_session_id,
+            utterance_id=self._current_utterance_id,
+            summary=f"segment {segment_id} enqueued",
+            details={"text": text, "needs_translation": needs_translation},
+        )
         if needs_translation:
             if len(self._active_translation_workers) >= self._max_translation_workers:
                 self._pending_translation_segments.append(
@@ -918,6 +962,11 @@ class ChatWindow(QWidget):
             self._pending_tts_segments.append((self._current_utterance_id, segment_id, text))
             return
         self._start_tts_worker(self._current_utterance_id, segment_id, text)
+
+    def _record_log_event(self, **kwargs) -> None:
+        if self._log_service is None:
+            return
+        self._log_service.record(build_log_event(**kwargs))
 
     def _start_tts_worker(self, utterance_id: int, segment_id: int, text: str) -> None:
         if self._tts_adapter is None:
@@ -1263,6 +1312,7 @@ class ChatWindow(QWidget):
         self._worker = LLMWorker(self._chat_engine, text)
         self._worker.chunk_received.connect(self._on_chunk, Qt.ConnectionType.QueuedConnection)
         self._worker.finished_signal.connect(self._on_llm_done, Qt.ConnectionType.QueuedConnection)
+        self._worker.error_signal.connect(self._on_llm_error, Qt.ConnectionType.QueuedConnection)
         self._worker.start()
 
     def _on_chunk(self, result: ProcessedText):
@@ -1284,6 +1334,19 @@ class ChatWindow(QWidget):
             for segment in self._extract_tts_segments(flush=True):
                 self._tts_committed_text += segment
                 self._enqueue_tts_segment(segment)
+        self._worker = None
+
+    def _on_llm_error(self, error_message: str):
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.ERROR,
+            source="chat.window",
+            event_type="chat.request_failed",
+            session_id=self._tts_session_id,
+            utterance_id=self._current_utterance_id,
+            summary="聊天请求失败",
+            details={"error": error_message},
+        )
         self._worker = None
 
     def _on_proactive_message(self, message: str, source: str):

@@ -117,6 +117,21 @@ def test_launch_chat_passes_tts_config(monkeypatch):
     assert captured["tts"] == window._config.api.tts
 
 
+def test_chat_window_llm_error_records_system_log(chat_window, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        chat_window,
+        "_record_log_event",
+        lambda **kwargs: recorded.append(kwargs),
+        raising=False,
+    )
+
+    chat_window._on_llm_error("Request timed out")
+
+    assert recorded[-1]["event_type"] == "chat.request_failed"
+    assert "Request timed out" in recorded[-1]["details"]["error"]
+
+
 def test_chunked_output_enqueues_sentence_when_period_arrives(chat_window):
     chat_window._on_chunk(ProcessedText(clean_text="第一句", emotion=None))
     assert chat_window._queued_texts == []
