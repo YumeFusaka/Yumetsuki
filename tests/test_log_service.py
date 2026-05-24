@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from core.log_service import LogService
-from core.log_types import LogChannel, LogEvent, LogLevel, build_log_event
+from core.log_types import LogChannel, LogEvent, LogLevel
 
 
 def test_log_service_writes_system_events_to_daily_jsonl(tmp_path):
@@ -67,7 +67,7 @@ def test_log_service_flushes_immediately_when_interval_is_zero(tmp_path):
     assert any((tmp_path / "system").glob("*.jsonl"))
 
 
-def test_list_conversation_sessions_returns_latest_first(tmp_path):
+def test_list_conversation_sessions_returns_latest_first_with_readable_fields(tmp_path):
     service = LogService(tmp_path)
     service.record(
         LogEvent(
@@ -81,6 +81,21 @@ def test_list_conversation_sessions_returns_latest_first(tmp_path):
             utterance_id=None,
             summary="用户输入: 你好",
             details={"text": "你好"},
+            sensitive=False,
+        )
+    )
+    service.record(
+        LogEvent(
+            id="evt-session-1-latest",
+            timestamp=datetime(2026, 5, 24, 21, 16, 3, 182000),
+            channel=LogChannel.CONVERSATION,
+            level=LogLevel.INFO,
+            source="agent.manager",
+            event_type="conversation.assistant_output",
+            session_id="session-1",
+            utterance_id=None,
+            summary="助手回复: 这是更晚的一条消息",
+            details={"text": "这是更晚的一条消息"},
             sensitive=False,
         )
     )
@@ -102,9 +117,73 @@ def test_list_conversation_sessions_returns_latest_first(tmp_path):
 
     sessions = service.list_conversation_sessions(limit=10)
 
-    assert sessions[0]["session_id"] == "session-2"
-    assert sessions[0]["label"]
-    assert sessions[1]["session_id"] == "session-1"
+    assert sessions == [
+        {
+            "session_id": "session-1",
+            "last_timestamp": "2026-05-24T21:16:03.182",
+            "preview": "这是更晚的一条消息",
+            "label": "21:16  这是更晚的一条消息",
+        },
+        {
+            "session_id": "session-2",
+            "last_timestamp": "2026-05-24T21:15:03.182",
+            "preview": "下午好",
+            "label": "21:15  下午好",
+        },
+    ]
+
+
+def test_list_conversation_sessions_applies_limit_after_sorting(tmp_path):
+    service = LogService(tmp_path)
+    service.record(
+        LogEvent(
+            id="evt-session-1",
+            timestamp=datetime(2026, 5, 24, 21, 14, 3, 182000),
+            channel=LogChannel.CONVERSATION,
+            level=LogLevel.INFO,
+            source="agent.manager",
+            event_type="conversation.user_input",
+            session_id="session-1",
+            utterance_id=None,
+            summary="用户输入: 会被截掉",
+            details={"text": "会被截掉"},
+            sensitive=False,
+        )
+    )
+    service.record(
+        LogEvent(
+            id="evt-session-2",
+            timestamp=datetime(2026, 5, 24, 21, 15, 3, 182000),
+            channel=LogChannel.CONVERSATION,
+            level=LogLevel.INFO,
+            source="agent.manager",
+            event_type="conversation.user_input",
+            session_id="session-2",
+            utterance_id=None,
+            summary="用户输入: 保留第二新",
+            details={"text": "保留第二新"},
+            sensitive=False,
+        )
+    )
+    service.record(
+        LogEvent(
+            id="evt-session-3",
+            timestamp=datetime(2026, 5, 24, 21, 16, 3, 182000),
+            channel=LogChannel.CONVERSATION,
+            level=LogLevel.INFO,
+            source="agent.manager",
+            event_type="conversation.user_input",
+            session_id="session-3",
+            utterance_id=None,
+            summary="用户输入: 保留最新",
+            details={"text": "保留最新"},
+            sensitive=False,
+        )
+    )
+
+    sessions = service.list_conversation_sessions(limit=2)
+
+    assert [session["session_id"] for session in sessions] == ["session-3", "session-2"]
 
 
 def test_list_sources_returns_sorted_unique_sources(tmp_path):
