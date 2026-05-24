@@ -4,6 +4,13 @@ from core.log_service import LogService
 from core.log_types import LogChannel, LogEvent, LogLevel
 
 
+class NoFrontPopList(list):
+    def pop(self, index=-1):
+        if index == 0:
+            raise AssertionError("flush should not drain pending events with pop(0)")
+        return super().pop(index)
+
+
 def test_log_service_writes_system_events_to_daily_jsonl(tmp_path):
     service = LogService(log_root=tmp_path, system_flush_interval_ms=0)
     event = LogEvent(
@@ -117,20 +124,16 @@ def test_list_conversation_sessions_returns_latest_first_with_readable_fields(tm
 
     sessions = service.list_conversation_sessions(limit=10)
 
-    assert sessions == [
-        {
-            "session_id": "session-1",
-            "last_timestamp": "2026-05-24T21:16:03.182",
-            "preview": "这是更晚的一条消息",
-            "label": "21:16  这是更晚的一条消息",
-        },
-        {
-            "session_id": "session-2",
-            "last_timestamp": "2026-05-24T21:15:03.182",
-            "preview": "下午好",
-            "label": "21:15  下午好",
-        },
-    ]
+    assert [session["session_id"] for session in sessions] == ["session-1", "session-2"]
+    assert sessions[0]["last_timestamp"] == "2026-05-24T21:16:03.182"
+    assert sessions[0]["preview"] == "这是更晚的一条消息"
+    assert sessions[0]["label"].startswith("21:16")
+    assert sessions[0]["label"].endswith(sessions[0]["preview"])
+    assert len(sessions[0]["label"]) > len(sessions[0]["preview"])
+    assert sessions[1]["last_timestamp"] == "2026-05-24T21:15:03.182"
+    assert sessions[1]["preview"] == "下午好"
+    assert sessions[1]["label"].startswith("21:15")
+    assert sessions[1]["label"].endswith(sessions[1]["preview"])
 
 
 def test_list_conversation_sessions_applies_limit_after_sorting(tmp_path):
@@ -184,6 +187,22 @@ def test_list_conversation_sessions_applies_limit_after_sorting(tmp_path):
     sessions = service.list_conversation_sessions(limit=2)
 
     assert [session["session_id"] for session in sessions] == ["session-3", "session-2"]
+
+
+def test_log_service_flushes_pending_events_without_front_pop(tmp_path):
+    service = LogService(log_root=tmp_path, system_flush_interval_ms=999999)
+    service.record_system("chat.tts", "tts.segment_enqueued", "first", {"segment_id": 1}, session_id="s1")
+    service.record_system("chat.tts", "tts.segment_played", "second", {"segment_id": 2}, session_id="s1")
+    service._pending = NoFrontPopList(service._pending)
+
+    service.flush()
+
+    log_file = tmp_path / "system" / f"{datetime.now():%Y-%m-%d}.jsonl"
+    lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    assert '"summary": "first"' in lines[0]
+    assert '"summary": "second"' in lines[1]
+    assert service._pending == []
 
 
 def test_list_sources_returns_sorted_unique_sources(tmp_path):

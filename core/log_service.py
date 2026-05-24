@@ -94,8 +94,9 @@ class LogService:
                 fh.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def flush(self) -> None:
-        while self._pending:
-            event = self._pending.pop(0)
+        pending = self._pending
+        self._pending = []
+        for event in pending:
             folder = "system" if event.channel == LogChannel.SYSTEM else "conversation"
             filename = (
                 f"{event.timestamp:%Y-%m-%d}.jsonl"
