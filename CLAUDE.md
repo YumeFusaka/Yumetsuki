@@ -65,8 +65,6 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段已完成。
     - `TTSPipelineController` 句段生命周期、取消语义、队列上限与总超时轮询
     - `wav + inline` 句段改走共享 WAV 播放器路径，避免每句创建独立 `QMediaPlayer`
     - 流式前缀漂移时禁止已提交 TTS 前缀重复入队，收口重复播报问题
-  - 已产出后半段收口计划：
-    - `docs/superpowers/plans/2026-05-24-phase-4-back-half-closure-implementation.md`
   - 已完成验收：
     - Phase 4 聚焦回归通过
     - `python -m pytest tests/ -q` 全量测试通过
@@ -86,5 +84,5 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段已完成。
 - [插件与 MCP](./docs/plugin-mcp.md)
 - [开发流程](./docs/development.md)
 - [服务端 TTS 对接规范](./docs/service-tts-compatibility.md)
-- [Phase 4 后半段收口计划（已完成）](./docs/superpowers/plans/2026-05-24-phase-4-back-half-closure-implementation.md)
+- [Phase 4-6 路线图设计](./docs/superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md)
 - [日志工作台设计](./docs/superpowers/specs/2026-05-24-logging-workbench-design.md)

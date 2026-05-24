@@ -15,19 +15,13 @@
 
 - 路线图设计：
   - `docs/superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md`
-- Phase 4 详细设计：
-  - `docs/superpowers/specs/2026-05-24-session-context-hot-path-design.md`
-  - `docs/superpowers/specs/2026-05-24-eventbus-threading-design.md`
-  - `docs/superpowers/specs/2026-05-24-tts-stability-pipeline-design.md`
 - Phase 5 / 6 设计：
   - `docs/superpowers/specs/2026-05-24-phase-5-ui-stt-design.md`
   - `docs/superpowers/specs/2026-05-24-phase-6-browser-vision-ecosystem-design.md`
-- 已完成的 Phase 4 实施计划：
-  - `docs/superpowers/plans/2026-05-24-session-context-hot-path-implementation.md`
-  - `docs/superpowers/plans/2026-05-24-phase-4-core-chain-implementation.md`
-  - `docs/superpowers/plans/2026-05-24-phase-4-back-half-closure-implementation.md`
 - 当前新增设计：
   - `docs/superpowers/specs/2026-05-24-logging-workbench-design.md`
+- 当前实施计划：
+  - `docs/superpowers/plans/2026-05-24-logging-workbench-implementation.md`
 - 当前优先级：
   1. 日志工作台：对话日志 / 系统日志与结构化持久化
   2. Phase 5：桌宠体验与交互输入输出
@@ -37,6 +31,7 @@
 
 - Phase 4 已完成，当前不再需要继续把所有设计与实施优先绑定到 Phase 4 收口
 - 日志工作台是后续 Phase 5 / 6 排障与可观测性的推荐前置项
+- 已完成并被主文档吸收的 Phase 4 细分 spec / plan 应及时删除，避免入口持续指向历史收口材料
 - Phase 4 中短期记忆由 `SessionContext` 负责，`mem0` 继续只做长期记忆
 - 文档默认使用中文撰写；代码标识、路径、命令、配置键名和 git commit message 可保留英文
 - 设计阶段中的关键数值（超时、并发数、窗口大小、预算上限等）默认应配置化，避免在 spec 中永久写死
