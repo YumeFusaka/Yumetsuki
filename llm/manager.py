@@ -31,10 +31,17 @@ class LLMManager:
         self._character_prompt = prompt
         self._history.clear()
 
-    def _build_messages(self, user_input: str, extra_context: str = "") -> list[dict]:
+    def _build_messages(
+        self,
+        user_input: str,
+        session_context: str = "",
+        extra_context: str = "",
+    ) -> list[dict]:
         messages = []
         if self._character_prompt:
             messages.append({"role": "system", "content": self._character_prompt})
+        if session_context:
+            messages.append({"role": "system", "content": session_context})
         if extra_context:
             messages.append({
                 "role": "system",
@@ -47,10 +54,15 @@ class LLMManager:
     def chat_stream(
         self,
         user_input: str,
+        session_context: str = "",
         extra_context: str = "",
         allow_tools: bool = True,
     ) -> Generator[ProcessedText, None, None]:
-        messages = self._build_messages(user_input, extra_context=extra_context)
+        messages = self._build_messages(
+            user_input,
+            session_context=session_context,
+            extra_context=extra_context,
+        )
         self._history.append({"role": "user", "content": user_input})
 
         full_response = ""

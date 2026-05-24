@@ -10,6 +10,7 @@ from agent.reflector import AgentReflector, Reflection
 from config.schema import AgentConfig
 from core.event_bus import event_bus
 from llm.text_processor import ProcessedText
+from session.manager import SessionContextManager
 
 
 class AgentEvents:
@@ -38,6 +39,8 @@ class AgentManager:
         user_id: str = "default-user",
         event_bus_instance=None,
         agent_config: AgentConfig | None = None,
+        session_manager: SessionContextManager | None = None,
+        session_id: str = "default-session",
     ):
         self._config = agent_config or AgentConfig()
         self._llm_manager = llm_manager
@@ -58,9 +61,13 @@ class AgentManager:
         self._tool_registry = tool_registry
         self._user_id = user_id
         self._event_bus = event_bus_instance or event_bus
+        self._session_manager = session_manager or SessionContextManager()
+        self._session_id = session_id
 
     def chat_stream(self, user_input: str) -> Generator[ProcessedText, None, None]:
         self._event_bus.publish(AgentEvents.USER_INPUT, {"text": user_input})
+        session_ctx = self._session_manager.get_or_create(self._user_id, self._session_id)
+        self._session_manager.record_user_input(session_ctx, user_input)
 
         memories = self._search_memories(user_input)
         if memories:
@@ -107,12 +114,14 @@ class AgentManager:
             tool_result,
             tool_executed=bool(tool_calls),
         )
+        session_context = self._session_manager.build_prompt_context(session_ctx)
 
         self._event_bus.publish(AgentEvents.LLM_STARTED, {})
         final_result: ProcessedText | None = None
         assistant_response = ""
         for result in self._llm_manager.chat_stream(
             user_input,
+            session_context=session_context,
             extra_context=extra_context,
             allow_tools=allow_tools,
         ):
@@ -129,13 +138,15 @@ class AgentManager:
             "text": assistant_response,
             "character_name": "",
         })
+        self._session_manager.record_assistant_reply(session_ctx, assistant_response)
 
         # 对话结束后立即返回，记忆写入和反思均放到后台执行
         if final_result:
-            self._async_persist_and_reflect(user_input, assistant_response, tool_calls)
+            self._async_persist_and_reflect(session_ctx, user_input, assistant_response, tool_calls)
 
     def _async_persist_and_reflect(
         self,
+        session_ctx,
         user_input: str,
         assistant_response: str,
         tool_calls: list[dict] | None,
@@ -163,6 +174,15 @@ class AgentManager:
                             memory_type=mem.type,
                             user_id=self._user_id,
                         )
+            if self._memory_store and hasattr(self._memory_store, "add_memory"):
+                for candidate in self._session_manager.collect_mem0_candidates(session_ctx):
+                    self._memory_store.add_memory(
+                        content=candidate.content,
+                        memory_type=candidate.category,
+                        user_id=self._user_id,
+                    )
+                    if hasattr(candidate, "promoted_to_mem0"):
+                        candidate.promoted_to_mem0 = True
 
             self._event_bus.publish(AgentEvents.REFLECTION_COMPLETE, {
                 "needs_continue": reflection.needs_continue,

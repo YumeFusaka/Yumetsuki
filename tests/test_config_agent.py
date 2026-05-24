@@ -18,6 +18,23 @@ def test_agent_config_defaults():
     assert cfg.proactive.idle_interval_minutes == 30
 
 
+def test_agent_config_exposes_session_context_runtime_settings():
+    cfg = AgentConfig()
+
+    assert hasattr(cfg, "session_context")
+    assert hasattr(cfg.session_context, "recent_turns_limit")
+    assert hasattr(cfg.session_context, "constraint_ttl_turns")
+
+
+def test_agent_config_exposes_tts_runtime_limits():
+    cfg = AgentConfig()
+
+    assert hasattr(cfg, "tts_runtime")
+    assert hasattr(cfg.tts_runtime, "pcm_read_timeout_seconds")
+    assert hasattr(cfg.tts_runtime, "max_translation_workers")
+    assert hasattr(cfg.tts_runtime, "max_tts_workers")
+
+
 def test_agent_config_custom_values():
     cfg = AgentConfig(
         planner=PlannerConfig(complexity_threshold=120, extra_trigger_keywords=["分析", "总结"]),

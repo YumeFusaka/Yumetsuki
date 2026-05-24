@@ -3,7 +3,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import requests
 
-from config.schema import TTSConfig
+from config.schema import AgentConfig, TTSConfig, TTSRuntimeConfig
 from tts.adapter import TTSAdapter
 from tts.types import TTSAudioFormat, TTSStreamEvent
 
@@ -31,7 +31,12 @@ class GPTSoVITSAdapter(TTSAdapter):
         "en_us": "en",
     }
 
-    def __init__(self, config: TTSConfig, session_id: str | None = None):
+    def __init__(
+        self,
+        config: TTSConfig,
+        session_id: str | None = None,
+        runtime_config: TTSRuntimeConfig | None = None,
+    ):
         self._api_url = self._normalize_api_url(config.api_url)
         self._prepare_url = self._build_prepare_url(self._api_url)
         self._ref_audio_path = config.ref_audio_path.strip()
@@ -43,6 +48,7 @@ class GPTSoVITSAdapter(TTSAdapter):
         self._session_id = (session_id or "").strip()
         self._session_extension_enabled: bool | None = True if self._session_id else False
         self._session_audio_mode_override: str | None = None
+        self._runtime_config = runtime_config or AgentConfig().tts_runtime
         self._session = requests.Session()
         self._prepare_attempted = False
         self._reference_state = self._initial_reference_state()
@@ -298,7 +304,8 @@ class GPTSoVITSAdapter(TTSAdapter):
 
     def _request_audio(self, payload: dict[str, object], audio_mode: str):
         wants_stream = audio_mode == self.AUDIO_MODE_PCM_STREAM
-        timeout = (30, None) if wants_stream else 30
+        read_timeout = self._runtime_config.pcm_read_timeout_seconds
+        timeout = (30, read_timeout) if wants_stream else 30
         if wants_stream or self._should_send_explicit_audio_fields(audio_mode):
             try:
                 return self._session.post(

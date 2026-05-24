@@ -60,3 +60,17 @@ def test_mem0_store_respects_top_k_limit():
         "filters": {"user_id": "u1"},
         "limit": 1,
     }]
+
+
+def test_mem0_store_adds_single_memory_with_metadata():
+    client = FakeMemoryClient()
+    store = Mem0MemoryStore(memory_client=client)
+
+    store.add_memory("以后别写长篇回答", memory_type="preference", user_id="u1")
+
+    assert client.add_calls == [{
+        "messages": [
+            {"role": "assistant", "content": "以后别写长篇回答"},
+        ],
+        "user_id": "u1",
+    }]

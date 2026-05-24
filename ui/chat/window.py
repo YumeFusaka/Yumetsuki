@@ -17,7 +17,7 @@ from agent.manager import AgentManager
 from llm.manager import LLMManager
 from llm.text_processor import ProcessedText
 from llm.adapter import LLMStreamChunk
-from config.schema import LLMConfig, TTSConfig
+from config.schema import AgentConfig, LLMConfig, TTSConfig
 from core.character import load_character, build_system_prompt
 from tts.adapters.gptsovits import GPTSoVITSAdapter
 from tts.types import TTSAudioFormat, TTSStreamEvent
@@ -216,7 +216,8 @@ class ChatWindow(QWidget):
         self._settings_window_factory = settings_window_factory
         self._settings_window = None
         self._tts_session_id = uuid.uuid4().hex
-        self._tts_adapter = self._create_tts_adapter(tts_config, self._tts_session_id)
+        runtime_config = (agent_config or AgentConfig()).tts_runtime
+        self._tts_adapter = self._create_tts_adapter(tts_config, self._tts_session_id, runtime_config)
         self._tts_output_lang = self._normalize_tts_lang(tts_config.output_lang if tts_config else "")
         self._streamed_assistant_text = ""
         self._tts_committed_text = ""
@@ -231,6 +232,10 @@ class ChatWindow(QWidget):
         self._active_segment_key: tuple[int, int] | None = None
         self._active_tts_workers = []
         self._active_translation_workers = []
+        self._pending_tts_segments: list[tuple[int, int, str]] = []
+        self._pending_translation_segments: list[tuple[int, int, str, str]] = []
+        self._max_translation_workers = runtime_config.max_translation_workers
+        self._max_tts_workers = runtime_config.max_tts_workers
         self._tts_prepare_worker = None
         self._audio_output = None
         self._audio_player = None
@@ -606,11 +611,15 @@ class ChatWindow(QWidget):
         self._settings_window = None
 
     @staticmethod
-    def _create_tts_adapter(tts_config: TTSConfig | None, session_id: str | None = None):
+    def _create_tts_adapter(
+        tts_config: TTSConfig | None,
+        session_id: str | None = None,
+        runtime_config=None,
+    ):
         if tts_config is None:
             return None
         if tts_config.engine == "gptsovits":
-            return GPTSoVITSAdapter(tts_config, session_id=session_id)
+            return GPTSoVITSAdapter(tts_config, session_id=session_id, runtime_config=runtime_config)
         return None
 
     @staticmethod
@@ -856,12 +865,20 @@ class ChatWindow(QWidget):
         segment_id = self._next_segment_id
         self._next_segment_id += 1
         if not self._tts_text_matches_output_lang(text):
+            if len(self._active_translation_workers) >= self._max_translation_workers:
+                self._pending_translation_segments.append(
+                    (self._current_utterance_id, segment_id, text, self._tts_output_lang)
+                )
+                return
             self._start_translation_worker(
                 self._current_utterance_id,
                 segment_id,
                 text,
                 self._tts_output_lang,
             )
+            return
+        if len(self._active_tts_workers) >= self._max_tts_workers:
+            self._pending_tts_segments.append((self._current_utterance_id, segment_id, text))
             return
         self._start_tts_worker(self._current_utterance_id, segment_id, text)
 
@@ -894,11 +911,26 @@ class ChatWindow(QWidget):
         if worker in self._active_tts_workers:
             self._active_tts_workers.remove(worker)
         worker.deleteLater()
+        self._start_next_pending_tts_worker()
 
     def _on_translation_worker_finished(self, worker: TTSTranslationWorker) -> None:
         if worker in self._active_translation_workers:
             self._active_translation_workers.remove(worker)
         worker.deleteLater()
+        self._start_next_pending_translation_worker()
+
+    def _start_next_pending_tts_worker(self) -> None:
+        while self._pending_tts_segments and len(self._active_tts_workers) < self._max_tts_workers:
+            utterance_id, segment_id, text = self._pending_tts_segments.pop(0)
+            self._start_tts_worker(utterance_id, segment_id, text)
+
+    def _start_next_pending_translation_worker(self) -> None:
+        while (
+            self._pending_translation_segments
+            and len(self._active_translation_workers) < self._max_translation_workers
+        ):
+            utterance_id, segment_id, text, target_lang = self._pending_translation_segments.pop(0)
+            self._start_translation_worker(utterance_id, segment_id, text, target_lang)
 
     def _start_tts_reference_prepare(self) -> None:
         if self._tts_adapter is None or self._tts_prepare_worker is not None:
@@ -936,6 +968,8 @@ class ChatWindow(QWidget):
         self._stop_all_segment_backends()
         self._active_segment_key = None
         self._pending_audio_queue.clear()
+        self._pending_tts_segments.clear()
+        self._pending_translation_segments.clear()
         if self._audio_player is not None:
             self._is_audio_playing = False
             self._audio_player.stop()
@@ -972,6 +1006,9 @@ class ChatWindow(QWidget):
         if not translated:
             print(f"[TTS] segment {segment_id} translation failed")
             self._complete_tts_segment(utterance_id, segment_id, None)
+            return
+        if len(self._active_tts_workers) >= self._max_tts_workers:
+            self._pending_tts_segments.append((utterance_id, segment_id, translated))
             return
         self._start_tts_worker(utterance_id, segment_id, translated)
 

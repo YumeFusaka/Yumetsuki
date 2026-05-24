@@ -7,7 +7,7 @@
 
 ## 项目一句话
 
-Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第三阶段已完成。
+Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段前半段已完成。
 
 ## 运行环境
 
@@ -51,10 +51,30 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第三阶段已完成。
   - `pcm_stream + inline` 属于音频扩展，但不属于会话扩展；只有带 `session_id` 的组合才进入当前服务端实现的会话扩展路径
   - 当前已完成的多数 TTS 扩展能力属于桌宠端通用能力（模式边界、流式事件模型、播放后端、顺序播放状态机）；GPT-SoVITS 只是首个服务端适配器实现
   - 当前已确认的剩余 TTS 异常（如服务端 warmup 文本语言选择错误、`、。` 之类切分异常）归因服务端；在桌宠端已正确传递 `session_id`、`prompt_lang`、`prompt_text` 的前提下，不再视为本仓库当前已知根因
+- 第四阶段：前半段已完成，后半段计划已写好
+  - 已完成：
+    - `SessionContext` 配置、数据模型、`SessionPolicy`、`SessionContextStore`、`SessionContextManager`
+    - `AgentManager -> LLMManager` 短期上下文热路径接线
+    - `SessionPolicy` 的 `recent_turns` / `working_facts` 配置化裁切
+    - `mem0` 保守升格边界与去重升格标记
+    - `SessionContextStore` 的 `working_facts` SQLite 快照
+    - `EventBus` 基础线程安全与发布快照语义
+    - GPT-SoVITS PCM 有限读超时
+    - 聊天窗 TTS 翻译 / 合成 worker 上限与待处理队列
+  - 已产出后半段收口计划：
+    - `docs/superpowers/plans/2026-05-24-phase-4-back-half-closure-implementation.md`
+  - 后半段待完成：
+    - EventBus 主线程 UI bridge 与日志节流
+    - TTS 句段生命周期、取消语义、总超时与队列上限的完整收口
+    - Phase 4 最终验证与文档同步
 
 ## 下一步
 
-- 更多内置插件能力扩展（媒体控制、文件操作等）
+- 先按后半段收口计划完成第四阶段：
+  - EventBus 主线程桥与日志监听治理
+  - TTS 有界流水线剩余收口
+  - Phase 4 验证与文档同步
+- 第四阶段完整收口后，再继续更多内置插件能力扩展（媒体控制、文件操作等）
 
 ## 文档入口
 
@@ -64,3 +84,4 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第三阶段已完成。
 - [插件与 MCP](./docs/plugin-mcp.md)
 - [开发流程](./docs/development.md)
 - [服务端 TTS 对接规范](./docs/service-tts-compatibility.md)
+- [Phase 4 后半段收口计划](./docs/superpowers/plans/2026-05-24-phase-4-back-half-closure-implementation.md)

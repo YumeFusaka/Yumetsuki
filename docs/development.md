@@ -25,6 +25,7 @@
 - 当前 Phase 4 实施计划：
   - `docs/superpowers/plans/2026-05-24-session-context-hot-path-implementation.md`
   - `docs/superpowers/plans/2026-05-24-phase-4-core-chain-implementation.md`
+  - `docs/superpowers/plans/2026-05-24-phase-4-back-half-closure-implementation.md`
 - 当前优先级：
   1. Phase 4：核心链路与会话能力
   2. Phase 5：桌宠体验与交互输入输出
@@ -68,6 +69,7 @@
   含本地模型路径，不应提交
 - `data/config/agent.yaml`
   Agent 默认配置
+  当前已包含 `session_context`、`tts_runtime` 两组运行时配置
   可提交默认值，但个人临时调参不应随意提交
 
 ## 配置化要求
@@ -76,6 +78,18 @@
 - 优先级更高的原则是：
   1. 先让参数进入配置层
   2. 再决定是否开放到设置界面
+- Phase 4 当前已落地的配置入口：
+  - `session_context.recent_turns_limit`
+  - `session_context.working_facts_limit`
+  - `session_context.prompt_facts_limit`
+  - `session_context.prompt_turns_limit`
+  - `session_context.constraint_ttl_turns`
+  - `session_context.mem0_promotion_importance`
+  - `tts_runtime.pcm_read_timeout_seconds`
+  - `tts_runtime.segment_total_timeout_seconds`
+  - `tts_runtime.max_translation_workers`
+  - `tts_runtime.max_tts_workers`
+  - `tts_runtime.tts_queue_limit`
 - 以下类型默认都应朝配置化方向演进：
   - 短期记忆窗口、衰减、摘要预算
   - TTS 超时、并发、回退、队列长度
@@ -127,7 +141,16 @@
   - 系统默认浏览器打开 / 搜索
   - Playwright 后台自动化 / 可见自动化
 - 记忆相关改动优先覆盖非阻塞行为，避免对话结束后额外卡顿
+- `session/` 相关改动优先覆盖：
+  - `SessionContext` 数据演进
+  - `SessionPolicy` 的约束提取与热上下文构建
+  - `SessionPolicy` 的 `mem0` 升格候选筛选
+  - SQLite 快照读写
+  - `AgentManager -> LLMManager` 的短期上下文注入
 - Agent 日志相关改动优先覆盖事件发布与日志页入口逻辑
+- `EventBus` 相关改动优先覆盖：
+  - 发布时 handler 快照语义
+  - 订阅 / 退订与发布并发下的基本安全性
 - UI 变更至少保证：
   - 行为测试
   - `py_compile`
@@ -152,6 +175,8 @@
   - `prompt_lang` / `output_lang` 透传与语言别名兼容
   - 逐句翻译、旧轮失效、失败跳过与顺序播放
   - PCM 首个 chunk 到达即播、句段有序播放、失败后会话级 WAV 回退
+  - PCM 流式请求必须使用有限读超时，不允许 `None` 式无限等待
+  - 翻译 worker / 合成 worker 的并发上限与待处理队列推进
   - `ui/chat/audio_backends.py` 中 WAV / PCM 播放后端的无真实设备测试
   - 拟声词、语气词、拖长音、重复音节在翻译时优先保留音感，不被语义意译破坏
   - 避免依赖真实 GPT-SoVITS 服务或真实音频设备

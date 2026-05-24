@@ -210,6 +210,15 @@ def test_pcm_failure_before_audio_starts_forces_session_wav(chat_window):
     assert adapter.get_session_audio_mode() == "wav"
 
 
+def test_pcm_timeout_marks_segment_failed_and_advances(chat_window):
+    key = (chat_window._current_utterance_id, 0)
+
+    chat_window._handle_tts_stream_event(key[0], key[1], TTSStreamEvent(kind="error", message="read timeout"))
+
+    assert chat_window._segment_states[key] == "failed"
+    assert chat_window._next_play_id == 1
+
+
 def test_begin_new_tts_turn_clears_segment_stream_state(chat_window):
     key = (chat_window._current_utterance_id, 0)
     chat_window._segment_states[key] = "streaming"
@@ -302,6 +311,40 @@ def test_non_matching_output_lang_segment_translates_before_tts(chat_window, mon
     assert chat_window._started_segments == []
 
 
+def test_tts_enqueue_queues_translation_when_worker_limit_is_reached(chat_window, monkeypatch):
+    chat_window._tts_output_lang = "en"
+    chat_window._active_translation_workers = ["busy"]
+    monkeypatch.setattr(
+        chat_window,
+        "_enqueue_tts_segment",
+        ChatWindow._enqueue_tts_segment.__get__(chat_window, ChatWindow),
+    )
+
+    chat_window._enqueue_tts_segment("你好。")
+
+    assert chat_window._pending_translation_segments == [
+        (chat_window._current_utterance_id, 0, "你好。", "en")
+    ]
+    assert chat_window._started_segments == []
+
+
+def test_tts_enqueue_queues_synthesis_when_worker_limit_is_reached(chat_window, monkeypatch):
+    chat_window._tts_output_lang = "zh"
+    chat_window._active_tts_workers = ["busy", "busy-2"]
+    monkeypatch.setattr(
+        chat_window,
+        "_enqueue_tts_segment",
+        ChatWindow._enqueue_tts_segment.__get__(chat_window, ChatWindow),
+    )
+
+    chat_window._enqueue_tts_segment("你好。")
+
+    assert chat_window._pending_tts_segments == [
+        (chat_window._current_utterance_id, 0, "你好。")
+    ]
+    assert chat_window._started_segments == []
+
+
 def test_translation_result_starts_tts_for_original_segment(chat_window):
     chat_window._handle_translation_result(chat_window._current_utterance_id, 3, "hello.")
 
@@ -362,6 +405,52 @@ def test_new_user_turn_invalidates_old_translation_results(chat_window):
     chat_window._handle_translation_result(new_id, 0, "new")
 
     assert chat_window._started_segments == [(new_id, 0, "new")]
+
+
+def test_finished_translation_worker_drains_pending_queue(chat_window, monkeypatch):
+    started = []
+
+    class _FakeWorker:
+        def deleteLater(self):
+            return None
+
+    worker = _FakeWorker()
+    chat_window._active_translation_workers = [worker]
+    chat_window._pending_translation_segments = [(7, 3, "你好。", "en")]
+    monkeypatch.setattr(
+        chat_window,
+        "_start_translation_worker",
+        lambda utterance_id, segment_id, text, target_lang: started.append(
+            (utterance_id, segment_id, text, target_lang)
+        ),
+        raising=False,
+    )
+
+    chat_window._on_translation_worker_finished(worker)
+
+    assert started == [(7, 3, "你好。", "en")]
+
+
+def test_finished_tts_worker_drains_pending_queue(chat_window, monkeypatch):
+    started = []
+
+    class _FakeWorker:
+        def deleteLater(self):
+            return None
+
+    worker = _FakeWorker()
+    chat_window._active_tts_workers = [worker]
+    chat_window._pending_tts_segments = [(7, 3, "hello.")]
+    monkeypatch.setattr(
+        chat_window,
+        "_start_tts_worker",
+        lambda utterance_id, segment_id, text: started.append((utterance_id, segment_id, text)),
+        raising=False,
+    )
+
+    chat_window._on_tts_worker_finished(worker)
+
+    assert started == [(7, 3, "hello.")]
 
 
 def test_tts_failure_skips_current_segment_and_keeps_following_playable(chat_window):

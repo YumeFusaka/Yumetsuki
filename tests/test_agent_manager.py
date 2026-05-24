@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 import threading
 import time
+from types import SimpleNamespace
 
 from agent.manager import AgentManager
 from llm.text_processor import ProcessedText
+from session.context import WorkingFact
 
 
 @dataclass
@@ -41,6 +43,7 @@ class FakeMemoryStore:
         self.memories = memories or []
         self.search_calls = []
         self.add_calls = []
+        self.add_memory_calls = []
 
     def search_relevant(self, query, user_id):
         self.search_calls.append({"query": query, "user_id": user_id})
@@ -50,6 +53,13 @@ class FakeMemoryStore:
         self.add_calls.append({
             "user_text": user_text,
             "assistant_text": assistant_text,
+            "user_id": user_id,
+        })
+
+    def add_memory(self, content, memory_type, user_id):
+        self.add_memory_calls.append({
+            "content": content,
+            "memory_type": memory_type,
             "user_id": user_id,
         })
 
@@ -74,14 +84,45 @@ class FakeToolRegistry:
         return []
 
 
+class FakeSessionManager:
+    def __init__(self, prompt_context: str, mem0_candidates=None):
+        self.prompt_context = prompt_context
+        self.context = object()
+        self.calls = []
+        self.mem0_candidates = mem0_candidates or []
+
+    def get_or_create(self, user_id: str, session_id: str):
+        self.calls.append(("get_or_create", user_id, session_id))
+        return self.context
+
+    def record_user_input(self, ctx, text: str) -> None:
+        self.calls.append(("record_user_input", ctx, text))
+
+    def record_assistant_reply(self, ctx, text: str) -> None:
+        self.calls.append(("record_assistant_reply", ctx, text))
+
+    def build_prompt_context(self, ctx) -> str:
+        self.calls.append(("build_prompt_context", ctx))
+        return self.prompt_context
+
+    def collect_mem0_candidates(self, ctx):
+        self.calls.append(("collect_mem0_candidates", ctx))
+        return [
+            candidate
+            for candidate in self.mem0_candidates
+            if not getattr(candidate, "promoted_to_mem0", False)
+        ]
+
+
 class FakeLLMManager:
     def __init__(self, final_text="[emotion:开心]好的"):
         self.final_text = final_text
         self.calls = []
 
-    def chat_stream(self, user_input, extra_context="", allow_tools=True):
+    def chat_stream(self, user_input, session_context="", extra_context="", allow_tools=True):
         self.calls.append({
             "user_input": user_input,
+            "session_context": session_context,
             "extra_context": extra_context,
             "allow_tools": allow_tools,
         })
@@ -191,3 +232,101 @@ def test_agent_manager_does_not_block_on_add_conversation():
     assert memory_store.started.is_set()
     assert elapsed < 0.5
     memory_store.release.set()
+
+
+def test_agent_manager_injects_short_term_session_context_before_reply():
+    llm = FakeLLMManager("[emotion:开心]我记得刚刚说的是先讨论方案")
+    session_manager = FakeSessionManager(
+        prompt_context="当前会话短期上下文:\n- 最近高优先级信息:\n  - 先不要改代码，只讨论方案。"
+    )
+    manager = AgentManager(
+        llm_manager=llm,
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        memory_store=FakeMemoryStore(),
+        tool_registry=FakeToolRegistry(),
+        session_manager=session_manager,
+        user_id="u1",
+    )
+
+    list(manager.chat_stream("继续"))
+
+    assert "当前会话短期上下文" in llm.calls[0]["session_context"]
+
+
+def test_agent_manager_promotes_session_candidates_into_mem0():
+    llm = FakeLLMManager("[emotion:开心]记住了")
+    memory_store = FakeMemoryStore()
+    candidate = WorkingFact(
+        fact_id="f1",
+        content="以后别写长篇回答",
+        category="preference",
+        importance=0.95,
+        created_turn_id=1,
+        last_seen_turn_id=1,
+        ttl_turns=12,
+        source="user",
+        sticky=True,
+    )
+    session_manager = FakeSessionManager(
+        prompt_context="当前会话短期上下文:\n- 当前主题: 偏好",
+        mem0_candidates=[candidate],
+    )
+    manager = AgentManager(
+        llm_manager=llm,
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        memory_store=memory_store,
+        tool_registry=FakeToolRegistry(),
+        session_manager=session_manager,
+        user_id="u1",
+    )
+
+    list(manager.chat_stream("记住，我以后都不想看长篇回答。"))
+    time.sleep(0.05)
+
+    assert memory_store.add_memory_calls == [{
+        "content": "以后别写长篇回答",
+        "memory_type": "preference",
+        "user_id": "u1",
+    }]
+
+
+def test_agent_manager_does_not_promote_same_session_candidate_twice():
+    llm = FakeLLMManager("[emotion:开心]记住了")
+    memory_store = FakeMemoryStore()
+    candidate = WorkingFact(
+        fact_id="f1",
+        content="以后别写长篇回答",
+        category="preference",
+        importance=0.95,
+        created_turn_id=1,
+        last_seen_turn_id=1,
+        ttl_turns=12,
+        source="user",
+        sticky=True,
+    )
+    session_manager = FakeSessionManager(
+        prompt_context="当前会话短期上下文:\n- 当前主题: 偏好",
+        mem0_candidates=[candidate],
+    )
+    manager = AgentManager(
+        llm_manager=llm,
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        memory_store=memory_store,
+        tool_registry=FakeToolRegistry(),
+        session_manager=session_manager,
+        user_id="u1",
+    )
+
+    list(manager.chat_stream("记住，我以后都不想看长篇回答。"))
+    time.sleep(0.05)
+    list(manager.chat_stream("继续"))
+    time.sleep(0.05)
+
+    assert memory_store.add_memory_calls == [{
+        "content": "以后别写长篇回答",
+        "memory_type": "preference",
+        "user_id": "u1",
+    }]

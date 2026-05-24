@@ -868,6 +868,29 @@ def test_gptsovits_inline_reference_mode_does_not_send_session_id_for_pcm_extens
     assert captured["stream"] is True
 
 
+def test_pcm_stream_request_uses_finite_read_timeout(monkeypatch):
+    captured = {}
+
+    class _FakeSession:
+        def get(self, *args, **kwargs):
+            raise AssertionError("not used")
+
+        def post(self, url, json=None, timeout=None, stream=None):
+            captured["timeout"] = timeout
+            captured["stream"] = stream
+            raise RuntimeError("stop")
+
+    monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: _FakeSession())
+    adapter = GPTSoVITSAdapter(
+        TTSConfig(engine="gptsovits", api_url="http://fake:9880", audio_mode="pcm_stream"),
+    )
+
+    list(adapter.stream_synthesize("你好"))
+
+    assert captured["stream"] is True
+    assert captured["timeout"][1] is not None
+
+
 def test_gptsovits_pcm_stream_timeout_yields_error_event_instead_of_raising(monkeypatch):
     class _FakeResponse:
         status_code = 200

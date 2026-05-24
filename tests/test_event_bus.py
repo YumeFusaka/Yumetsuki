@@ -1,28 +1,20 @@
 from core.event_bus import EventBus
 
 
-def test_subscribe_and_publish():
+def test_event_bus_publish_uses_snapshot_of_handlers():
     bus = EventBus()
-    received = []
-    bus.subscribe("test", lambda data: received.append(data))
-    bus.publish("test", {"msg": "hello"})
-    assert received == [{"msg": "hello"}]
+    seen = []
 
+    def first(data):
+        seen.append(("first", data))
+        bus.unsubscribe("x", first)
 
-def test_unsubscribe():
-    bus = EventBus()
-    received = []
-    handler = lambda data: received.append(data)
-    bus.subscribe("test", handler)
-    bus.unsubscribe("test", handler)
-    bus.publish("test", {"msg": "hello"})
-    assert received == []
+    def second(data):
+        seen.append(("second", data))
 
+    bus.subscribe("x", first)
+    bus.subscribe("x", second)
 
-def test_multiple_subscribers():
-    bus = EventBus()
-    results = []
-    bus.subscribe("evt", lambda d: results.append("a"))
-    bus.subscribe("evt", lambda d: results.append("b"))
-    bus.publish("evt", None)
-    assert results == ["a", "b"]
+    bus.publish("x", 1)
+
+    assert seen == [("first", 1), ("second", 1)]

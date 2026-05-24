@@ -16,6 +16,7 @@ yumetsuki/
 ├── main.py
 ├── core/
 ├── config/
+├── session/
 ├── llm/
 ├── tts/
 ├── ui/
@@ -59,6 +60,7 @@ yumetsuki/
 
 - `config/schema.py`
   Pydantic 配置模型
+  当前已包含 `SessionContextConfig` 与 `TTSRuntimeConfig`
 - `config/manager.py`
   YAML 读写，当前支持：
   - `api.yaml`
@@ -76,9 +78,22 @@ yumetsuki/
 - `llm/adapters/openai_compat.py`
   OpenAI-compatible 接口实现
 - `llm/manager.py`
-  对话历史、流式输出、工具调用循环
+  对话历史、短期上下文注入、流式输出、工具调用循环
 - `llm/text_processor.py`
   解析 `[emotion:xxx]`
+
+### `session/`
+
+负责单会话短期记忆与热路径上下文。
+
+- `session/context.py`
+  `SessionContext`、`SessionTurn`、`WorkingFact`、`ActiveTask`、`SessionSummary`
+- `session/policy.py`
+  当前会话工作记忆更新规则、约束提取、热上下文构建，以及保守的 `mem0` 升格候选筛选
+- `session/store.py`
+  SQLite 快照持久化
+- `session/manager.py`
+  面向 `AgentManager` 的高层短期记忆门面
 
 ### `tts/`
 
@@ -100,6 +115,7 @@ yumetsuki/
   提供 HTTP 合成请求、流式事件输出与基础失败日志
   会把基础地址规范化到 `/tts`，支持 `reference_mode` 参考策略：逐次携带、会话预热、自动回退或完全由服务端托管；可在启动聊天后异步通过 `GET /set_refer_audio?refer_audio_path=...` 预热参考，并在需要时只向 `/tts` 发送正文与输出语言；若 `auto` 模式探测到目标服务端仍要求逐次携带参考，会在当前进程内缓存该能力判断，避免重复首句试错
   同时支持 `audio_mode=auto/pcm_stream/wav`：在显式扩展路径下可透传 `session_id`、`prompt_lang`、`prompt_text`、请求 PCM chunk stream，并在当前聊天会话内按需锁定 WAV 回退
+  PCM 流式请求现已使用有限读超时，避免 `None` 式无限等待
   `audio_mode=wav + reference_mode=inline` 被实现为桌宠端保底模式：不调用 `set_refer_audio`、不透传 `session_id`、不发送 PCM/流式扩展参数，只保留原版显式参考字段工作流
   `pcm_stream + inline` 被实现为音频扩展：只扩展音频返回方式，不进入当前服务端以 `session_id` 判定的会话扩展路径
 
@@ -109,6 +125,7 @@ yumetsuki/
 
 - `core/event_bus.py`
   发布 / 订阅事件总线
+  当前已具备加锁订阅、退订与发布时 handler 快照语义
 - `core/character.py`
   角色目录加载
 - `core/plugin_host.py`
@@ -157,7 +174,8 @@ yumetsuki/
 ```text
 用户输入
 → AgentManager 编排当前轮
-→ LLMManager 组装 messages
+→ SessionContextManager 同步更新当前会话短期记忆
+→ LLMManager 按“角色提示 → SessionContext 热上下文 → 长期记忆补充 → 当前输入”组装 messages
 → ToolRegistry 注入 tool schemas
 → OpenAI-compatible API 流式返回
 → TextProcessor 解析 emotion
@@ -171,6 +189,7 @@ yumetsuki/
 → 翻译结果进入 GPT-SoVITS 合成
 → GPT-SoVITS 依据 `audio_mode` 返回完整 WAV 或 PCM chunk stream
 → ChatWindow 按句段顺序驱动 `WavPlaybackBackend` 或 `PcmStreamPlaybackBackend`
+→ 翻译 worker / TTS worker 受 `AgentConfig.tts_runtime` 限流，超额句段先进入待处理队列
 → Qt 多媒体按句序播放音频；PCM 在首个可播 chunk 到达后尽快起播
 ```
 
@@ -205,6 +224,7 @@ Agent 层采用分层智能架构，核心设计原则：**简单对话零开销
 - `agent/proactive.py` — 主动行为调度器（定时 + 事件驱动）
 - `agent/llm_helper.py` — Agent 内部 LLM 调用（非流式）
 - `agent/manager.py` — Agent 编排器
+  当前已接入 `SessionContextManager`，在首字热路径中同步记录用户输入、构建短期上下文，并在回复完成后回写 assistant turn
 
 ### 分层路由（Planner）
 
@@ -270,6 +290,8 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - `ReflectorConfig` — 深层反思开关、触发条件
 - `MultiStepConfig` — 最大步数、超时时间
 - `ProactiveConfig` — 启用开关、闲置间隔、冷却时间、活跃时段、自定义事件列表
+- `SessionContextConfig` — recent turns、working facts、热上下文相关上限
+- `TTSRuntimeConfig` — PCM 读超时、单句超时候选、翻译 / 合成并发上限、队列上限
 
 ## 当前能力边界
 
@@ -306,28 +328,22 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - 把聊天主路径拆为首字热路径与深能力层，避免所有能力默认争抢首字前关键路径
 - 治理 EventBus 线程边界与 TTS 分段流水线，降低长时间运行时的卡死和状态错乱风险
 
-### `session/`（Phase 4 目标模块）
+### `session/`（Phase 4 已落地的首批模块）
 
-以下模块属于已确认的 Phase 4 设计目标，当前仓库尚未落地：
+当前仓库已落地以下首批短期记忆模块：
 
 - `session/context.py`
-  `SessionContext`、`SessionTurn`、`WorkingFact`、`ActiveTask`、`SessionSummary`
 - `session/policy.py`
-  当前会话工作记忆更新规则、热上下文构建、长期记忆升格边界
 - `session/store.py`
-  SQLite 快照持久化
 - `session/manager.py`
-  面向 `AgentManager` 的高层短期记忆门面
 
-目标状态下，对话主路径会补充以下约定：
+当前对话主路径已具备以下约定：
 
 - 首字热路径优先依赖 `SessionContext` 的短期上下文块，而不是先依赖深记忆检索
 - 长期记忆补充位于短期会话上下文之后
 
-后续架构文档应在 Phase 4 落地后同步更新：
+后续仍待继续补完：
 
-- `SessionContext` 模块与存储边界
-- Agent / Planner / Memory 的新时序
 - TTS 固定流水线与取消语义
 - UI 被动互动、STT、视觉与浏览器自由操控在后续阶段中的接入点
 
@@ -357,8 +373,9 @@ Agent 通过 `EventBus` 发布内部行为事件：
 启动聊天 → 聊天窗口立即显示（无等待）
        → 后台线程加载向量模型
        → 模型就绪后注入 AgentManager
-用户输入 → AgentManager 检索相关记忆 → 注入 extra_context → LLM 生成回复
+用户输入 → AgentManager 先更新 `SessionContext` 并构建热上下文
+       → 检索相关长期记忆 → 注入 extra_context → LLM 生成回复
 回复完成 → UI 立即解锁输入
-       → 后台线程写入 Mem0/Chroma
+       → 后台线程把反思结果与保守筛选后的短期稳定事实写入 Mem0/Chroma
        → 后台线程执行反思与深层记忆提取
 ```

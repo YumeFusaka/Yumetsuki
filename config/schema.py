@@ -112,6 +112,23 @@ class WebAutomationConfig(BaseModel):
     screenshot_dir: str = "data/screenshots"
 
 
+class SessionContextConfig(BaseModel):
+    recent_turns_limit: int = 8
+    working_facts_limit: int = 12
+    prompt_facts_limit: int = 3
+    prompt_turns_limit: int = 2
+    constraint_ttl_turns: int = 12
+    mem0_promotion_importance: float = 0.9
+
+
+class TTSRuntimeConfig(BaseModel):
+    pcm_read_timeout_seconds: int = 15
+    segment_total_timeout_seconds: int = 45
+    max_translation_workers: int = 1
+    max_tts_workers: int = 2
+    tts_queue_limit: int = 16
+
+
 class AgentConfig(BaseModel):
     planner: PlannerConfig = PlannerConfig()
     reflector: ReflectorConfig = ReflectorConfig()
@@ -119,3 +136,5 @@ class AgentConfig(BaseModel):
     proactive: ProactiveConfig = ProactiveConfig()
     system_control: SystemControlConfig = SystemControlConfig()
     web_automation: WebAutomationConfig = WebAutomationConfig()
+    session_context: SessionContextConfig = SessionContextConfig()
+    tts_runtime: TTSRuntimeConfig = TTSRuntimeConfig()

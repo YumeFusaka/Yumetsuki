@@ -19,6 +19,10 @@ class Mem0MemoryStore:
         ]
         self._memory_client.add(messages, user_id=user_id)
 
+    def add_memory(self, content: str, memory_type: str, user_id: str) -> None:
+        messages = [{"role": "assistant", "content": content}]
+        self._memory_client.add(messages, user_id=user_id)
+
 
 def build_local_mem0_store(config, llm_config=None):
     import warnings
