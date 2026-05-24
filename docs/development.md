@@ -11,6 +11,45 @@
 - 测试：
   `python -m pytest tests/ -q`
 
+## 规划文档
+
+- 路线图设计：
+  - `docs/superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md`
+- Phase 4 详细设计：
+  - `docs/superpowers/specs/2026-05-24-session-context-hot-path-design.md`
+  - `docs/superpowers/specs/2026-05-24-eventbus-threading-design.md`
+  - `docs/superpowers/specs/2026-05-24-tts-stability-pipeline-design.md`
+- Phase 5 / 6 设计：
+  - `docs/superpowers/specs/2026-05-24-phase-5-ui-stt-design.md`
+  - `docs/superpowers/specs/2026-05-24-phase-6-browser-vision-ecosystem-design.md`
+- 当前 Phase 4 实施计划：
+  - `docs/superpowers/plans/2026-05-24-session-context-hot-path-implementation.md`
+  - `docs/superpowers/plans/2026-05-24-phase-4-core-chain-implementation.md`
+- 当前优先级：
+  1. Phase 4：核心链路与会话能力
+  2. Phase 5：桌宠体验与交互输入输出
+  3. Phase 6：高级代理、插件生态与视觉
+
+说明：
+
+- 在 Phase 4 未完成前，不建议直接推进 STT、视觉或浏览器自由操控
+- 设计文档和实施计划应优先围绕 Phase 4 收敛
+- Phase 4 中短期记忆由 `SessionContext` 负责，`mem0` 继续只做长期记忆
+- 文档默认使用中文撰写；代码标识、路径、命令、配置键名和 git commit message 可保留英文
+- 设计阶段中的关键数值（超时、并发数、窗口大小、预算上限等）默认应配置化，避免在 spec 中永久写死
+- 当前仓库里已经存在不少历史硬编码参数；后续在对应模块重构、修复或增强时，应把这些参数逐步迁移为可配置项
+
+## 文档层级
+
+- 路线图：
+  - 负责阶段目标、范围、依赖和验收边界
+- 专题 spec：
+  - 负责一个主题的设计决策、边界、风险和默认策略
+- 实施计划：
+  - 负责把已确认 spec 拆成可执行任务
+
+当前文档统一采用上述层级，不建议混写。
+
 ## 配置文件
 
 - `data/config/api.yaml`
@@ -30,6 +69,27 @@
 - `data/config/agent.yaml`
   Agent 默认配置
   可提交默认值，但个人临时调参不应随意提交
+
+## 配置化要求
+
+- 关键体验参数不应长期散落在实现中硬编码
+- 优先级更高的原则是：
+  1. 先让参数进入配置层
+  2. 再决定是否开放到设置界面
+- 以下类型默认都应朝配置化方向演进：
+  - 短期记忆窗口、衰减、摘要预算
+  - TTS 超时、并发、回退、队列长度
+  - STT 录音与静音阈值
+  - 被动互动频率、停留时长、显示策略
+  - 浏览器自动化超时、OCR 频率、事件刷新频率
+
+### 对 spec / plan 的要求
+
+- spec 中如出现参数数值，必须明确其属于：
+  - 示例值
+  - 建议默认值
+  - 或未来配置项候选
+- plan 中如果展示示例代码，不应默认把关键参数直接写死为字面量，应尽量体现“由配置读取”的实现方向
 
 ## Git 约定
 

@@ -156,6 +156,7 @@ yumetsuki/
 
 ```text
 用户输入
+→ AgentManager 编排当前轮
 → LLMManager 组装 messages
 → ToolRegistry 注入 tool schemas
 → OpenAI-compatible API 流式返回
@@ -291,6 +292,44 @@ Agent 通过 `EventBus` 发布内部行为事件：
 尚未实现：
 
 - 更多内置插件能力扩展（媒体控制、截图等）
+
+## 已确认的后续演进方向
+
+当前已确认的路线图见：
+
+- [Phase 4-6 路线图设计](./superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md)
+
+其中对当前架构影响最大的下一阶段是 Phase 4，核心收敛方向如下：
+
+- 新增 `SessionContext` 短期记忆层，位于 UI / Agent / 长期记忆之间
+- 把多轮连续性建立在“单会话工作记忆”之上，而不是仅依赖原始 `_history` 或长期记忆检索
+- 把聊天主路径拆为首字热路径与深能力层，避免所有能力默认争抢首字前关键路径
+- 治理 EventBus 线程边界与 TTS 分段流水线，降低长时间运行时的卡死和状态错乱风险
+
+### `session/`（Phase 4 目标模块）
+
+以下模块属于已确认的 Phase 4 设计目标，当前仓库尚未落地：
+
+- `session/context.py`
+  `SessionContext`、`SessionTurn`、`WorkingFact`、`ActiveTask`、`SessionSummary`
+- `session/policy.py`
+  当前会话工作记忆更新规则、热上下文构建、长期记忆升格边界
+- `session/store.py`
+  SQLite 快照持久化
+- `session/manager.py`
+  面向 `AgentManager` 的高层短期记忆门面
+
+目标状态下，对话主路径会补充以下约定：
+
+- 首字热路径优先依赖 `SessionContext` 的短期上下文块，而不是先依赖深记忆检索
+- 长期记忆补充位于短期会话上下文之后
+
+后续架构文档应在 Phase 4 落地后同步更新：
+
+- `SessionContext` 模块与存储边界
+- Agent / Planner / Memory 的新时序
+- TTS 固定流水线与取消语义
+- UI 被动互动、STT、视觉与浏览器自由操控在后续阶段中的接入点
 
 ## 记忆系统
 
