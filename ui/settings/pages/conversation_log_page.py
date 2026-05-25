@@ -3,9 +3,9 @@ from html import escape as html_escape
 
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -30,7 +30,7 @@ QLabel {
     color: #8c6b7a;
     font-size: 13px;
 }
-QLineEdit {
+QComboBox {
     background: rgba(255, 255, 255, 0.78);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 8px;
@@ -38,8 +38,12 @@ QLineEdit {
     color: #4a3040;
     min-height: 18px;
 }
-QLineEdit:focus {
+QComboBox:focus {
     border-color: #d4567a;
+}
+QComboBox::drop-down {
+    border: none;
+    width: 22px;
 }
 QPushButton {
     background: rgba(255, 245, 250, 0.88);
@@ -88,13 +92,19 @@ class ConversationLogPage(QWidget):
         layout.addWidget(desc)
 
         controls = QHBoxLayout()
-        self._session_input = QLineEdit()
-        self._session_input.setPlaceholderText("会话 ID（留空显示全部对话日志）")
-        self._session_input.editingFinished.connect(self._apply_session_input)
-        controls.addWidget(self._session_input, 1)
+        controls.addWidget(QLabel("范围"))
+        self._scope_selector = QComboBox()
+        self._scope_selector.addItems(["当前会话", "全部会话"])
+        self._scope_selector.currentTextChanged.connect(self._refresh_view)
+        controls.addWidget(self._scope_selector)
+
+        controls.addWidget(QLabel("最近会话"))
+        self._session_selector = QComboBox()
+        self._session_selector.currentIndexChanged.connect(self._apply_session_selection)
+        controls.addWidget(self._session_selector, 1)
 
         refresh_btn = QPushButton("刷新")
-        refresh_btn.clicked.connect(self._refresh_view)
+        refresh_btn.clicked.connect(self._refresh_sessions_and_view)
         controls.addWidget(refresh_btn)
 
         self._auto_refresh = QCheckBox("自动刷新")
@@ -111,11 +121,15 @@ class ConversationLogPage(QWidget):
         self._refresh_timer.setInterval(1000)
         self._refresh_timer.timeout.connect(self._refresh_if_enabled)
         self._refresh_timer.start()
+        self._refresh_sessions()
 
     def _refresh_view(self) -> None:
+        session_id = self._current_session_id
+        if self._scope_selector.currentText() == "全部会话":
+            session_id = None
         events = self._log_service.query_events(
             channel="conversation",
-            session_id=self._current_session_id,
+            session_id=session_id,
         )
         if not events:
             self._timeline.setPlainText("暂无对话日志。")
@@ -124,13 +138,46 @@ class ConversationLogPage(QWidget):
 
     def set_session_id(self, session_id: str | None) -> None:
         self._current_session_id = session_id or None
-        self._session_input.setText(self._current_session_id or "")
+        self._scope_selector.setCurrentText("当前会话" if self._current_session_id else "全部会话")
+        self._refresh_sessions()
         self._refresh_view()
 
-    def _apply_session_input(self) -> None:
-        text = self._session_input.text().strip()
-        self._current_session_id = text or None
+    def _apply_session_selection(self) -> None:
+        self._current_session_id = self._session_selector.currentData() or None
+        if self._current_session_id:
+            self._scope_selector.setCurrentText("当前会话")
         self._refresh_view()
+
+    def _refresh_sessions_and_view(self) -> None:
+        self._refresh_sessions()
+        self._refresh_view()
+
+    def _refresh_sessions(self) -> None:
+        list_sessions = getattr(self._log_service, "list_conversation_sessions", None)
+        sessions = list_sessions(limit=20) if callable(list_sessions) else []
+        selected_session_id = self._current_session_id
+        self._session_selector.blockSignals(True)
+        self._session_selector.clear()
+
+        found_current = False
+        for session in sessions:
+            session_id = session.get("session_id")
+            if not session_id:
+                continue
+            label = session.get("label") or str(session_id)
+            self._session_selector.addItem(str(label), session_id)
+            if session_id == selected_session_id:
+                found_current = True
+
+        if selected_session_id and not found_current:
+            self._session_selector.insertItem(0, f"当前会话 {selected_session_id}", selected_session_id)
+
+        if self._session_selector.count() > 0:
+            index = self._session_selector.findData(selected_session_id)
+            self._session_selector.setCurrentIndex(index if index >= 0 else 0)
+            if selected_session_id:
+                self._current_session_id = self._session_selector.currentData() or self._current_session_id
+        self._session_selector.blockSignals(False)
 
     def _refresh_if_enabled(self) -> None:
         if self._auto_refresh.isChecked():
@@ -146,9 +193,9 @@ class ConversationLogPage(QWidget):
         inline_emotion = ""
         if emotion:
             inline_emotion = (
-                f' <span style="display:inline-block; margin-left: 6px; padding: 2px 8px; '
+                f' <span style="display:inline-block; margin-left: 6px; padding: 4px 12px; '
                 'background: rgba(255, 236, 242, 0.96); border: 1px solid rgba(212, 86, 122, 0.18); '
-                'border-radius: 999px; font-size: 11px; color: #8b4d66; vertical-align: middle;">'
+                'border-radius: 12px; font-size: 11px; color: #8b4d66; vertical-align: middle;">'
                 f'{html_escape(str(emotion))}</span>'
             )
 

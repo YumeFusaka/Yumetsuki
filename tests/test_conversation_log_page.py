@@ -12,6 +12,9 @@ class _FakeLogService:
     def query_events(self, **kwargs):
         return []
 
+    def list_conversation_sessions(self, limit=20):
+        return []
+
 
 def test_conversation_log_page_builds_readonly_timeline():
     _app()
@@ -54,6 +57,62 @@ def test_conversation_log_page_without_session_id_shows_all_conversation_events(
     text = page._timeline.toPlainText()
     assert "用户：你好" in text
     assert "助手：你好呀" in text
+
+
+def test_conversation_log_page_loads_recent_session_labels_from_log_service():
+    _app()
+
+    class _Service:
+        def __init__(self):
+            self.session_limit = None
+
+        def list_conversation_sessions(self, limit=20):
+            self.session_limit = limit
+            return [
+                {"session_id": "session-2", "label": "10:30  最近的回复"},
+                {"session_id": "session-1", "label": "09:15  早些的回复"},
+            ]
+
+        def query_events(self, **kwargs):
+            return []
+
+    service = _Service()
+    page = ConversationLogPage(service)
+
+    assert service.session_limit == 20
+    assert page._session_selector.itemText(0) == "10:30  最近的回复"
+    assert page._session_selector.itemData(0) == "session-2"
+    assert page._session_selector.itemText(1) == "09:15  早些的回复"
+    assert page._session_selector.itemData(1) == "session-1"
+
+
+def test_conversation_log_page_switches_between_current_and_all_sessions():
+    _app()
+
+    class _Service:
+        def __init__(self):
+            self.queries = []
+
+        def list_conversation_sessions(self, limit=20):
+            return [{"session_id": "session-1", "label": "10:30  当前会话"}]
+
+        def query_events(self, **kwargs):
+            self.queries.append(kwargs)
+            return []
+
+    service = _Service()
+    page = ConversationLogPage(service)
+    page.set_session_id("session-1")
+
+    assert service.queries[-1]["session_id"] == "session-1"
+
+    page._scope_selector.setCurrentText("全部会话")
+    page._refresh_view()
+    assert service.queries[-1]["session_id"] is None
+
+    page._scope_selector.setCurrentText("当前会话")
+    page._refresh_view()
+    assert service.queries[-1]["session_id"] == "session-1"
 
 
 def test_conversation_log_page_renders_reply_tags_for_time_emotion_tool_and_memory():
@@ -127,3 +186,33 @@ def test_conversation_log_page_uses_same_card_structure_for_user_and_assistant_a
     assert "诶嘿~ 哥哥下午好呀！" in html
     assert ">happy</span>" in html
     assert "情绪 happy" not in page._timeline.toPlainText()
+
+
+def test_conversation_log_page_renders_wider_rounded_inline_emotion_chip():
+    _app()
+
+    class _Service:
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "event_type": "conversation.assistant_reply",
+                    "summary": "角色回复",
+                    "details": {"text": "你好呀", "emotion": "happy"},
+                },
+            ]
+
+        def list_conversation_sessions(self, limit=20):
+            return []
+
+    page = ConversationLogPage(_Service())
+    page._refresh_view()
+
+    html = page._render_event_block(
+        {
+            "event_type": "conversation.assistant_reply",
+            "summary": "角色回复",
+            "details": {"text": "你好呀", "emotion": "happy"},
+        }
+    )
+    assert "padding: 4px 12px" in html
+    assert "border-radius: 12px" in html
