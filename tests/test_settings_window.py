@@ -1,5 +1,6 @@
 from PySide6.QtGui import QPalette
-from PySide6.QtWidgets import QApplication, QPushButton, QTextEdit
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QGroupBox, QLabel, QPushButton, QScrollArea, QSizePolicy, QTextEdit
 
 from config.manager import ConfigManager
 from config.schema import APIConfig
@@ -340,6 +341,9 @@ def test_api_page_asr_uses_faster_whisper_local_service_fields():
 
     assert [page._asr_engine.itemText(i) for i in range(page._asr_engine.count())] == ["none", "faster_whisper"]
     assert page._asr_url.placeholderText() == "http://127.0.0.1:8000"
+    form_labels = [label.text() for label in page.findChildren(QLabel)]
+    assert "API URL:" in form_labels
+    assert "本地服务:" not in form_labels
     assert not hasattr(page, "_asr_base_url")
     assert not hasattr(page, "_asr_api_key")
 
@@ -378,13 +382,8 @@ def test_api_page_asr_uses_faster_whisper_local_service_fields():
     assert page._asr_silence_duration.value() == 1200
 
 
-def test_system_page_phase5_display_fields_apply(monkeypatch, tmp_path):
+def test_system_page_phase5_display_fields_apply(tmp_path):
     _app()
-    monkeypatch.setattr(
-        system_page_module,
-        "ConfigManager",
-        lambda: ConfigManager(config_dir=tmp_path),
-    )
     config = SystemConfig()
     page = SystemPage(config)
 
@@ -414,21 +413,84 @@ def test_system_page_uses_font_combo_with_system_fonts(monkeypatch):
     _app()
     monkeypatch.setattr(
         "ui.settings.pages.system_page.QFontDatabase.families",
-        lambda *_: ["Arial", "Microsoft YaHei", "SimSun"],
+        lambda *_: ["Arial", "Fixedsys", "Microsoft YaHei", "SimSun"],
+    )
+    monkeypatch.setattr(
+        "ui.settings.pages.system_page.QFontDatabase.isSmoothlyScalable",
+        lambda family, *_: family != "Fixedsys",
     )
     config = SystemConfig(font_family="Microsoft YaHei")
 
     page = SystemPage(config)
 
     assert page._font.isEditable()
-    assert [page._font.itemText(i) for i in range(page._font.count())] == ["Arial", "Microsoft YaHei", "SimSun"]
+    assert [page._font.itemText(i) for i in range(page._font.count())] == [
+        "Arial",
+        "Fixedsys",
+        "Microsoft YaHei",
+        "SimSun",
+    ]
     assert page._font.currentText() == "Microsoft YaHei"
+    assert page._font.itemData(0, Qt.ItemDataRole.FontRole).family() == "Arial"
+    assert page._font.itemData(1, Qt.ItemDataRole.FontRole) is None
+    assert page._font.itemData(2, Qt.ItemDataRole.FontRole).family() == "Microsoft YaHei"
+    assert page._font.font().family() == "Microsoft YaHei"
+
+    page._font.setCurrentText("SimSun")
+
+    assert page._font.font().family() == "SimSun"
+
+
+def test_system_page_does_not_preview_unscalable_current_font(monkeypatch):
+    _app()
+    monkeypatch.setattr(
+        "ui.settings.pages.system_page.QFontDatabase.families",
+        lambda *_: ["Fixedsys", "Microsoft YaHei"],
+    )
+    monkeypatch.setattr(
+        "ui.settings.pages.system_page.QFontDatabase.isSmoothlyScalable",
+        lambda family, *_: family != "Fixedsys",
+    )
+
+    page = SystemPage(SystemConfig(font_family="Fixedsys"))
+
+    assert page._font.currentText() == "Fixedsys"
+    assert page._font.itemData(0, Qt.ItemDataRole.FontRole) is None
+    assert page._font.font().family() != "Fixedsys"
+
+
+def test_system_page_layout_is_scrollable_and_keeps_rows_readable():
+    _app()
+    page = SystemPage(SystemConfig())
+    scroll = page.findChild(QScrollArea)
+
+    assert scroll is not None
+    assert scroll.widgetResizable()
+    assert page.layout().contentsMargins().top() == 0
+    assert page._language.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Expanding
+    assert page._font.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Expanding
+    assert page._font_size.minimumHeight() >= 34
+    assert page._idle_threshold.minimumHeight() >= 34
+    assert page._bubble_duration.minimumHeight() >= 34
+    group_names = [group.title() for group in page.findChildren(QGroupBox)]
+    assert group_names == ["基础外观", "聊天显示", "被动状态", "被动气泡", "网络"]
+
+
+def test_system_page_keeps_bubble_controls_in_single_group():
+    _app()
+    page = SystemPage(SystemConfig())
+
+    assert page._bubble_group.layout().indexOf(page._bubble_scale) >= 0
+    assert page._bubble_group.layout().indexOf(page._bubble_max_width) >= 0
+    assert page._bubble_group.layout().indexOf(page._bubble_duration) >= 0
+    assert page._display_group.layout().indexOf(page._bubble_scale) < 0
+    assert page._passive_group.layout().indexOf(page._bubble_max_width) < 0
 
 
 def test_system_page_apply_does_not_save_until_settings_window_save(monkeypatch):
     _app()
     saved = []
-    monkeypatch.setattr("ui.settings.pages.system_page.ConfigManager.save_system", lambda self: saved.append("save"))
+    monkeypatch.setattr(ConfigManager, "save_system", lambda self: saved.append("save"))
 
     config = SystemConfig()
     page = SystemPage(config)

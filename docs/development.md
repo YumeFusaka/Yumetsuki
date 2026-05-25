@@ -238,7 +238,7 @@
   - `python -m pytest tests/test_tts_pipeline.py tests/test_tts_adapter.py tests/test_chat_tts_flow.py -q`
 - Phase 5 UI / STT：
   - `python -m pytest tests/test_chat_passive_bubble.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py -q`
-  - 当前这些用例主要覆盖无真实设备的配置、气泡、录音、faster-whisper 本地服务 mock、被动状态状态机、系统字体下拉框、系统页保存应用和聊天窗主链路；真实麦克风、真实 faster-whisper 服务和真实 STT / TTS 互锁仍需本地手工联调验证
+  - 当前这些用例主要覆盖无真实设备的配置、气泡、录音、faster-whisper 本地服务 mock、被动状态状态机、带字体预览的系统字体下拉框、系统页保存应用和聊天窗主链路；真实麦克风、真实 faster-whisper 服务和真实 STT / TTS 互锁仍需本地手工联调验证
 - 语法检查：
   - Phase 5 当前实现：`python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py stt/types.py stt/adapter.py stt/adapters/faster_whisper.py stt/manager.py`
 

@@ -370,6 +370,39 @@
 - `git diff --check`
   - 结果：通过；仅提示工作区 LF/CRLF 转换，无空白错误。
 
+## Phase 5 当前进度整理与 Trellis 配置忽略
+
+时间：2026-05-25 22:43:40 +08:00
+
+### 需求
+
+- 第五阶段核心实现已基本完成，需要把当前进度同步到项目文档。
+- 新加入 Trellis skill 后，项目目录出现 `.trellis/`、`.agents/`、`AGENTS.md`、`.codex/config.toml`、`.codex/hooks*` 等本地工具配置，需要放入 `.gitignore`。
+- 整理完成后执行本地验证、提交并推送。
+
+### 执行记录
+
+- 恢复被 Trellis 初始化影响而显示为删除的既有 `.codex` 留痕文件，避免丢失项目上下文摘要、操作日志和验证报告。
+- `.gitignore` 新增 Trellis / 本地 Agent 工具配置忽略项：
+  - `.trellis/`
+  - `.agents/`
+  - `AGENTS.md`
+  - `.codex/agents/`
+  - `.codex/skills/`
+  - `.codex/hooks/`
+  - `.codex/config.toml`
+  - `.codex/hooks.json`
+- `CLAUDE.md` 与 `docs/README.md` 已把 Phase 5 状态更新为“基本完成，等待用户实机测试与真实联调”。
+- `docs/superpowers/specs/2026-05-25-phase-5-stt-passive-settings-refinement-design.md` 已更新状态、系统设置五组布局、字体预览回退策略和当前进度。
+- `docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md` 已补充当前进度、ASR `API URL` 命名、被动气泡独立分组和不可缩放字体预览回退策略。
+- 本地运行配置 `data/config/agent.yaml`、`data/config/system_config.yaml` 保持未暂存，避免提交用户本地状态。
+
+### 验证边界
+
+- 用户明确要求本轮不执行自动化测试，后续由用户进行实机测试。
+- 本轮只核对文档同步、忽略规则和 Git 暂存范围。
+- 核对暂存区不包含本地运行配置和 Trellis 工具配置。
+
 ### 注意事项
 
 - 未修改、未暂存 `data/config/agent.yaml`，该文件仍视为用户本地配置改动。
@@ -453,7 +486,7 @@
 - Task 2：API 页 ASR 配置已改为 `none / faster_whisper`，本地服务字段使用 `api_url`，删除 OpenAI Whisper Base URL / API Key 控件。
 - Task 3：已新增 `stt/adapters/faster_whisper.py`，`STTManager` 只识别 `none` 与 `faster_whisper`，删除 `stt/adapters/openai_whisper.py`。
 - Task 4：`ChatWindow` 已新增运行态被动状态、空闲计时器、交互刷新、右键菜单进入 / 退出被动状态；主动消息仅在被动状态下使用气泡。
-- Task 5：系统页已拆分为基础外观、聊天显示、被动状态、网络；字体改为系统字体下拉框；移除实时保存。
+- Task 5：系统页已拆分为基础外观、聊天显示、被动状态、被动气泡、网络；字体改为带预览的系统字体下拉框，不可平滑缩放字体只保留名称；移除实时保存。
 - Task 6：设置中心保存按钮已支持 API 页和系统页分流；系统页保存后调用 `ChatWindow.apply_system_config()` 应用到已打开聊天窗。
 - Task 7：已同步 `CLAUDE.md`、`docs/README.md`、`docs/architecture.md`、`docs/development.md`、`docs/ui-guidelines.md` 和 `.codex` 留痕。
 

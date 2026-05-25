@@ -45,7 +45,7 @@ yumetsuki/
 - `ui/settings/pages/api_page.py`
   API 配置页面
 - `ui/settings/pages/system_page.py`
-  系统设置页面；当前已将外观相关配置拆分为基础外观、聊天显示、被动状态和网络区域，字体输入使用系统字体下拉框
+  系统设置页面；当前已将外观相关配置拆分为基础外观、聊天显示、被动状态、被动气泡和网络区域，字体下拉框按字体自身样式预览
 - `ui/settings/pages/character_page.py`
   角色页面
 - `ui/settings/pages/plugin_page.py`

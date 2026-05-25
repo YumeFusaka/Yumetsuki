@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python 3、PySide6、pytest、requests、Pydantic、现有 YAML 配置系统。
 
+**当前进度（2026-05-25）:** 核心实现已基本完成，包含 faster-whisper 本地服务 STT、聊天窗运行态被动状态、系统页独立保存、ASR `API URL` 字段命名、系统页五组布局、被动气泡独立分组和可回退的字体预览。本轮按用户要求不执行自动化测试；真实麦克风、真实 faster-whisper 服务和真实 STT / TTS / API 互锁体验仍需后续实机联调。
+
 ---
 
 ## 文件结构
@@ -29,6 +31,8 @@
   - 新增被动状态运行态、空闲计时器、右键菜单切换、用户交互刷新、`apply_system_config()`。
 - 修改 `ui/settings/pages/system_page.py`
   - 拆分布局组，字体改为系统字体下拉框，取消实时保存。
+  - 将被动气泡参数集中到“被动气泡”分组。
+  - 字体项只对可平滑缩放字体启用自身样式预览，避免 `Fixedsys` 等字体触发 Qt DirectWrite 警告。
 - 修改 `ui/settings/window.py`
   - 保存按钮同时支持 API 页和系统页，系统保存后应用到已打开聊天窗。
 - 修改测试：
@@ -185,7 +189,7 @@ asr_form.addRow("引擎:", self._asr_engine)
 
 self._asr_url = QLineEdit(config.asr.api_url)
 self._asr_url.setPlaceholderText("http://127.0.0.1:8000")
-asr_form.addRow("本地服务:", self._asr_url)
+asr_form.addRow("API URL:", self._asr_url)
 
 self._asr_model = QLineEdit(config.asr.model)
 self._asr_model.setPlaceholderText("base")
@@ -596,6 +600,8 @@ Expected: PASS.
 **Files:**
 - Modify: `ui/settings/pages/system_page.py`
 - Test: `tests/test_settings_window.py`
+
+**当前补充结果:** 系统页最终分为基础外观、聊天显示、被动状态、被动气泡、网络五组；聊天显示只保留聊天字号倍率，被动状态只保留空闲阈值，被动气泡集中放置气泡缩放、最大宽度和停留时长。字体预览只对可平滑缩放字体启用，不可预览字体保留名称但不作为渲染字体。
 
 - [x] **Step 1: Write failing system page tests**
 

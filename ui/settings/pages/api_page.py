@@ -221,7 +221,7 @@ class APIPage(QWidget):
 
         self._asr_url = QLineEdit(config.asr.api_url)
         self._asr_url.setPlaceholderText("http://127.0.0.1:8000")
-        asr_form.addRow("本地服务:", self._asr_url)
+        asr_form.addRow("API URL:", self._asr_url)
 
         self._asr_model = QLineEdit(config.asr.model)
         self._asr_model.setPlaceholderText("base")

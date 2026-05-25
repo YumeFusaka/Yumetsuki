@@ -524,3 +524,51 @@
 - **综合评分**: 92/100
 - **明确建议**: 通过，可提交；提交时必须排除本地配置文件。
 - **审查结论时间戳**: 2026-05-25 20:16:42 +08:00
+
+## Phase 5 进度整理与 Trellis 配置审查报告
+
+生成时间：2026-05-25 22:43:40 +08:00
+
+### 1. 需求字段完整性
+
+- **目标**: 整理 Phase 5 当前进度，同步项目文档，忽略 Trellis / Agent 本地工具配置，完成本地验证后提交并推送。
+- **范围**: `.gitignore`、`CLAUDE.md`、`docs/README.md`、Phase 5 改进 spec / plan、`.codex` 留痕、既有 Phase 5 UI 修复文件。
+- **交付物映射**:
+  - 忽略规则：`.gitignore`
+  - 文档：`CLAUDE.md`、`docs/README.md`、`docs/superpowers/specs/2026-05-25-phase-5-stt-passive-settings-refinement-design.md`、`docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md`
+  - 留痕：`.codex/operations-log.md`、`.codex/verification-report.md`
+  - 代码与测试：`ui/settings/pages/api_page.py`、`ui/settings/pages/system_page.py`、`tests/test_settings_window.py`
+- **审查要点**: Phase 5 状态是否准确表达“基本完成但真实联调未完成”；Trellis 本地配置是否被忽略；提交内容是否排除 `data/config/*` 本地运行配置。
+
+### 2. 覆盖原始意图
+
+- **当前进度**: 文档已统一为 Phase 5 核心实现基本完成，等待用户实机测试与真实联调。
+- **Trellis 配置**: `.trellis/`、`.agents/`、`AGENTS.md`、`.codex/config.toml`、`.codex/hooks*`、`.codex/agents/` 和 `.codex/skills/` 已加入 `.gitignore`。
+- **文档同步**: 已补充 ASR `API URL` 命名、系统设置五组布局、被动气泡独立分组、字体预览回退策略和真实联调边界。
+
+### 3. 依赖与风险评估
+
+- **提交风险**: `data/config/agent.yaml` 和 `data/config/system_config.yaml` 是本地运行配置，必须保持未暂存。
+- **工具配置风险**: Trellis 目录含脚本、workspace、tasks 和平台技能，应作为本地工具状态忽略，不进入项目提交。
+- **验证风险**: 用户明确要求本轮不执行自动化测试，后续由用户进行实机测试；本报告不声明本轮测试通过。
+
+### 4. 本轮验证边界
+
+- 自动化测试：按用户要求跳过，等待后续实机测试。
+- 语法检查：用户中断前已有 `py_compile` 命令完成且无输出错误；不作为完整测试结论。
+- 暂存区核对：提交前必须确认未暂存 `data/config/agent.yaml`、`data/config/system_config.yaml` 和 Trellis 本地工具目录。
+
+### 5. 初步评分
+
+- **代码质量**: 92/100
+- **测试覆盖**: 未评分，本轮按用户要求不执行自动化测试。
+- **规范遵循**: 91/100
+- **需求匹配**: 94/100
+- **架构一致**: 92/100
+- **风险评估**: 90/100
+
+### 6. 当前结论
+
+- **综合评分**: 88/100
+- **明确建议**: 可按用户要求提交；测试结论留待后续实机测试回填。
+- **审查结论时间戳**: 2026-05-25 22:43:40 +08:00
