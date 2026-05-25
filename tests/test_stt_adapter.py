@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 
 from config.schema import ASRConfig
@@ -39,74 +37,97 @@ def test_stt_manager_rejects_unknown_engine():
     assert result.error == "不支持的 STT 引擎：missing"
 
 
-def test_openai_whisper_adapter_sends_audio(monkeypatch):
-    captured_client = {}
-    captured_request = {}
+def test_stt_manager_creates_faster_whisper_adapter_by_default():
+    manager = STTManager(ASRConfig())
 
-    class _Transcriptions:
-        def create(self, **kwargs):
-            captured_request.update(kwargs)
-            return SimpleNamespace(text=" 你好呀 ")
-
-    class _Audio:
-        transcriptions = _Transcriptions()
-
-    class _Client:
-        audio = _Audio()
-
-    def fake_openai(**kwargs):
-        captured_client.update(kwargs)
-        return _Client()
-
-    monkeypatch.setattr("stt.adapters.openai_whisper.OpenAI", fake_openai)
-
-    config = ASRConfig(
-        engine="openai_whisper",
-        api_key="sk-test",
-        base_url="https://api.openai.com/v1",
-        model="whisper-1",
-        language="zh",
-    )
-    result = STTManager(config).transcribe_wav(b"RIFF....WAVE")
-
-    assert result == STTResult(text="你好呀", language="zh")
-    assert captured_client == {
-        "api_key": "sk-test",
-        "base_url": "https://api.openai.com/v1",
-    }
-    assert captured_request["model"] == "whisper-1"
-    assert captured_request["language"] == "zh"
-    assert captured_request["file"][0] == "speech.wav"
-    assert captured_request["file"][2] == "audio/wav"
-    assert captured_request["file"][1].read() == b"RIFF....WAVE"
+    assert manager._adapter.__class__.__name__ == "FasterWhisperAdapter"
 
 
-def test_openai_whisper_adapter_returns_error_for_empty_audio(monkeypatch):
-    def fail_openai(**kwargs):
-        raise AssertionError("空音频不应创建 OpenAI 客户端")
+def test_faster_whisper_adapter_sends_wav_to_local_service(monkeypatch):
+    captured = {}
 
-    monkeypatch.setattr("stt.adapters.openai_whisper.OpenAI", fail_openai)
+    class _Response:
+        status_code = 200
 
-    result = STTManager(ASRConfig(engine="openai_whisper")).transcribe_wav(b"")
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"text": "  你好呀  ", "language": "zh"}
+
+    def fake_post(url, files=None, data=None, timeout=None):
+        captured["url"] = url
+        captured["files"] = files
+        captured["data"] = data
+        captured["timeout"] = timeout
+        return _Response()
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.requests.post", fake_post)
+
+    result = STTManager(
+        ASRConfig(
+            engine="faster_whisper",
+            api_url="http://127.0.0.1:9000/",
+            model="small",
+            language="auto",
+            record_timeout_seconds=15,
+        )
+    ).transcribe_wav(b"RIFF....WAVE")
+
+    assert captured["url"] == "http://127.0.0.1:9000/transcribe"
+    assert captured["data"] == {"model": "small", "language": "auto"}
+    assert captured["timeout"] == 25
+    assert captured["files"]["file"][0] == "speech.wav"
+    assert captured["files"]["file"][2] == "audio/wav"
+    assert captured["files"]["file"][1].read() == b"RIFF....WAVE"
+    assert result.text == "你好呀"
+    assert result.language == "zh"
+
+
+def test_faster_whisper_adapter_returns_error_for_empty_audio(monkeypatch):
+    def fail_post(*_args, **_kwargs):
+        raise AssertionError("空音频不应请求本地 STT 服务")
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.requests.post", fail_post)
+
+    result = STTManager(ASRConfig(engine="faster_whisper")).transcribe_wav(b"")
 
     assert result.text == ""
     assert result.error == "录音内容为空"
 
 
-def test_openai_whisper_adapter_returns_error_for_exception(monkeypatch):
-    class _Transcriptions:
-        def create(self, **kwargs):
-            raise RuntimeError("网络失败")
+def test_faster_whisper_adapter_returns_error_for_invalid_json(monkeypatch):
+    class _Response:
+        status_code = 200
 
-    class _Audio:
-        transcriptions = _Transcriptions()
+        def raise_for_status(self):
+            return None
 
-    class _Client:
-        audio = _Audio()
+        def json(self):
+            return {"segments": []}
 
-    monkeypatch.setattr("stt.adapters.openai_whisper.OpenAI", lambda **kwargs: _Client())
+    monkeypatch.setattr("stt.adapters.faster_whisper.requests.post", lambda *_args, **_kwargs: _Response())
 
-    result = STTManager(ASRConfig(engine="openai_whisper")).transcribe_wav(b"RIFF....WAVE")
+    result = STTManager(ASRConfig(engine="faster_whisper")).transcribe_wav(b"RIFF....WAVE")
+
+    assert result.text == ""
+    assert "返回格式无效" in result.error
+
+
+def test_faster_whisper_adapter_returns_error_for_exception(monkeypatch):
+    def fail_post(*_args, **_kwargs):
+        raise RuntimeError("网络失败")
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.requests.post", fail_post)
+
+    result = STTManager(ASRConfig(engine="faster_whisper")).transcribe_wav(b"RIFF....WAVE")
 
     assert result.text == ""
     assert result.error == "网络失败"
+
+
+def test_openai_whisper_is_not_supported():
+    result = STTManager(ASRConfig(engine="openai_whisper")).transcribe_wav(b"RIFF....WAVE")
+
+    assert result.text == ""
+    assert "不支持的 STT 引擎" in result.error

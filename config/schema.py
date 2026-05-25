@@ -23,11 +23,9 @@ class TTSConfig(BaseModel):
 
 
 class ASRConfig(BaseModel):
-    engine: str = "none"
-    model_path: str = ""
-    base_url: str = ""
-    api_key: str = ""
-    model: str = "whisper-1"
+    engine: str = "faster_whisper"
+    api_url: str = "http://127.0.0.1:8000"
+    model: str = "base"
     language: str = "zh"
     record_timeout_seconds: int = 20
     silence_threshold: float = 0.02
@@ -66,7 +64,7 @@ class ChatDisplayConfig(BaseModel):
 
 
 class PassiveInteractionConfig(BaseModel):
-    enabled: bool = False
+    idle_threshold_seconds: int = 300
     bubble_max_width: int = 280
     bubble_duration_seconds: int = 8
 

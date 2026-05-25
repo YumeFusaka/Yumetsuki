@@ -1,3 +1,3 @@
-from stt.adapters.openai_whisper import OpenAIWhisperAdapter
+from stt.adapters.faster_whisper import FasterWhisperAdapter
 
-__all__ = ["OpenAIWhisperAdapter"]
+__all__ = ["FasterWhisperAdapter"]

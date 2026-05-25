@@ -55,7 +55,7 @@
 - Modify: `config/schema.py`
 - Test: `tests/test_config.py`
 
-- [ ] **Step 1: Write the failing config tests**
+- [x] **Step 1: Write the failing config tests**
 
 Add or replace these tests in `tests/test_config.py`:
 
@@ -81,7 +81,7 @@ def test_passive_interaction_config_uses_idle_threshold_not_enable_switch():
     assert not hasattr(cfg.passive_interaction, "enabled")
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -91,7 +91,7 @@ python -m pytest tests/test_config.py::test_asr_config_defaults_to_faster_whispe
 
 Expected: FAIL because `ASRConfig` still defaults to `none` / `whisper-1` and `PassiveInteractionConfig.enabled` still exists.
 
-- [ ] **Step 3: Implement schema changes**
+- [x] **Step 3: Implement schema changes**
 
 Update `config/schema.py`:
 
@@ -112,7 +112,7 @@ class PassiveInteractionConfig(BaseModel):
     bubble_duration_seconds: int = 8
 ```
 
-- [ ] **Step 4: Run config tests and verify GREEN**
+- [x] **Step 4: Run config tests and verify GREEN**
 
 Run:
 
@@ -130,7 +130,7 @@ Expected: PASS.
 - Modify: `ui/settings/pages/api_page.py`
 - Test: `tests/test_settings_window.py`
 
-- [ ] **Step 1: Write failing API page tests**
+- [x] **Step 1: Write failing API page tests**
 
 Replace the ASR Phase 5 test expectations in `tests/test_settings_window.py` with:
 
@@ -163,7 +163,7 @@ def test_api_page_asr_uses_faster_whisper_local_service_fields():
     assert config.asr.silence_duration_ms == 900
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 Run:
 
@@ -173,7 +173,7 @@ python -m pytest tests/test_settings_window.py::test_api_page_asr_uses_faster_wh
 
 Expected: FAIL because the page still exposes `openai_whisper`, `base_url`, and `api_key`.
 
-- [ ] **Step 3: Implement API page changes**
+- [x] **Step 3: Implement API page changes**
 
 In `ui/settings/pages/api_page.py`, change the ASR group:
 
@@ -213,7 +213,7 @@ self._config.asr.silence_duration_ms = self._asr_silence_duration.value()
 
 Update `reset()` similarly from `self._config.asr.api_url`.
 
-- [ ] **Step 4: Run API settings tests**
+- [x] **Step 4: Run API settings tests**
 
 Run:
 
@@ -234,7 +234,7 @@ Expected: PASS.
 - Delete: `stt/adapters/openai_whisper.py`
 - Test: `tests/test_stt_adapter.py`
 
-- [ ] **Step 1: Write failing STT adapter tests**
+- [x] **Step 1: Write failing STT adapter tests**
 
 Replace OpenAI Whisper tests in `tests/test_stt_adapter.py` with:
 
@@ -308,7 +308,7 @@ def test_openai_whisper_is_not_supported():
     assert "不支持的 STT 引擎" in result.error
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -318,7 +318,7 @@ python -m pytest tests/test_stt_adapter.py -q
 
 Expected: FAIL because `FasterWhisperAdapter` does not exist and `openai_whisper` is still supported.
 
-- [ ] **Step 3: Implement FasterWhisperAdapter**
+- [x] **Step 3: Implement FasterWhisperAdapter**
 
 Create `stt/adapters/faster_whisper.py`:
 
@@ -389,7 +389,7 @@ class STTManager:
 
 Delete `stt/adapters/openai_whisper.py`.
 
-- [ ] **Step 4: Run STT adapter tests**
+- [x] **Step 4: Run STT adapter tests**
 
 Run:
 
@@ -407,7 +407,7 @@ Expected: PASS.
 - Modify: `ui/chat/window.py`
 - Test: `tests/test_chat_passive_bubble.py`
 
-- [ ] **Step 1: Write failing passive-state tests**
+- [x] **Step 1: Write failing passive-state tests**
 
 Add these tests to `tests/test_chat_passive_bubble.py`:
 
@@ -469,7 +469,7 @@ def test_idle_timer_enters_passive_state(monkeypatch):
         window.close()
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -479,7 +479,7 @@ python -m pytest tests/test_chat_passive_bubble.py -q
 
 Expected: FAIL because `ChatWindow` still uses `passive_interaction.enabled` and has no passive state machine.
 
-- [ ] **Step 3: Implement passive state fields and timer**
+- [x] **Step 3: Implement passive state fields and timer**
 
 In `ChatWindow.__init__()` add:
 
@@ -527,7 +527,7 @@ def _on_proactive_message(self, message: str, source: str):
     self._set_dialog_text(message)
 ```
 
-- [ ] **Step 4: Refresh interaction in user actions**
+- [x] **Step 4: Refresh interaction in user actions**
 
 Call `_refresh_interaction()` at the start of:
 
@@ -560,7 +560,7 @@ if hasattr(self, "_passive_idle_timer"):
     self._passive_idle_timer.stop()
 ```
 
-- [ ] **Step 5: Add right-click menu toggle**
+- [x] **Step 5: Add right-click menu toggle**
 
 In `_show_context_menu()`:
 
@@ -579,7 +579,7 @@ elif action == passive_action:
         self._enter_passive_state()
 ```
 
-- [ ] **Step 6: Run passive bubble tests**
+- [x] **Step 6: Run passive bubble tests**
 
 Run:
 
@@ -597,7 +597,7 @@ Expected: PASS.
 - Modify: `ui/settings/pages/system_page.py`
 - Test: `tests/test_settings_window.py`
 
-- [ ] **Step 1: Write failing system page tests**
+- [x] **Step 1: Write failing system page tests**
 
 Add tests:
 
@@ -629,7 +629,7 @@ def test_system_page_apply_does_not_save_until_settings_window_save(monkeypatch)
     assert saved == []
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -639,7 +639,7 @@ python -m pytest tests/test_settings_window.py::test_system_page_uses_font_combo
 
 Expected: FAIL because `_font` is still a `QLineEdit` and `_save_live()` persists immediately.
 
-- [ ] **Step 3: Implement font combo and grouped layout**
+- [x] **Step 3: Implement font combo and grouped layout**
 
 Update imports:
 
@@ -697,7 +697,7 @@ self._config.font_family = self._font.currentText().strip()
 self._config.passive_interaction.idle_threshold_seconds = self._idle_threshold.value() * 60
 ```
 
-- [ ] **Step 4: Run system page tests**
+- [x] **Step 4: Run system page tests**
 
 Run:
 
@@ -717,7 +717,7 @@ Expected: PASS.
 - Test: `tests/test_settings_window.py`
 - Test: `tests/test_chat_window_scale.py`
 
-- [ ] **Step 1: Write failing settings save tests**
+- [x] **Step 1: Write failing settings save tests**
 
 Add to `tests/test_settings_window.py`:
 
@@ -763,7 +763,7 @@ def test_system_save_applies_to_existing_chat_window(monkeypatch):
     assert applied == ["Arial"]
 ```
 
-- [ ] **Step 2: Write failing ChatWindow apply test**
+- [x] **Step 2: Write failing ChatWindow apply test**
 
 Add to `tests/test_chat_window_scale.py`:
 
@@ -786,7 +786,7 @@ def test_chat_window_apply_system_config_updates_font_and_bubble(monkeypatch):
         window.close()
 ```
 
-- [ ] **Step 3: Run tests and verify RED**
+- [x] **Step 3: Run tests and verify RED**
 
 Run:
 
@@ -796,7 +796,7 @@ python -m pytest tests/test_settings_window.py::test_save_button_visible_on_api_
 
 Expected: FAIL because save button only supports API page and `ChatWindow.apply_system_config()` does not exist.
 
-- [ ] **Step 4: Implement settings window save routing**
+- [x] **Step 4: Implement settings window save routing**
 
 In `_switch_page()`:
 
@@ -835,7 +835,7 @@ else:
     return
 ```
 
-- [ ] **Step 5: Implement ChatWindow.apply_system_config()**
+- [x] **Step 5: Implement ChatWindow.apply_system_config()**
 
 Add:
 
@@ -851,7 +851,7 @@ def apply_system_config(self, config: SystemConfig) -> None:
         self._position_passive_bubble()
 ```
 
-- [ ] **Step 6: Run save and scale tests**
+- [x] **Step 6: Run save and scale tests**
 
 Run:
 
@@ -874,7 +874,7 @@ Expected: PASS.
 - Modify: `.codex/operations-log.md`
 - Modify: `.codex/verification-report.md`
 
-- [ ] **Step 1: Write documentation checks**
+- [x] **Step 1: Write documentation checks**
 
 Run after docs edits:
 
@@ -884,7 +884,7 @@ rg -n "OpenAIWhisperAdapter|openai_whisper|OpenAI Whisper 兼容|api_key.*ASR|ba
 
 Expected after implementation: no matches except historical text inside old implementation plan if that file is intentionally retained.
 
-- [ ] **Step 2: Update docs**
+- [x] **Step 2: Update docs**
 
 Document these facts:
 
@@ -894,7 +894,7 @@ Document these facts:
 - 系统页保存语义将改为独立保存并保存后应用到聊天窗。
 - 字体选择将改为系统字体下拉框。
 
-- [ ] **Step 3: Update verification report**
+- [x] **Step 3: Update verification report**
 
 Add a section with:
 
@@ -907,7 +907,7 @@ Add a section with:
 - 建议：通过。
 ```
 
-- [ ] **Step 4: Run docs scan**
+- [x] **Step 4: Run docs scan**
 
 Run:
 
@@ -924,7 +924,7 @@ Expected: matches in updated docs.
 **Files:**
 - All changed files
 
-- [ ] **Step 1: Focused tests**
+- [x] **Step 1: Focused tests**
 
 Run:
 
@@ -934,7 +934,7 @@ python -m pytest tests/test_config.py tests/test_settings_window.py tests/test_c
 
 Expected: PASS.
 
-- [ ] **Step 2: Full tests**
+- [x] **Step 2: Full tests**
 
 Run:
 
@@ -944,7 +944,7 @@ python -m pytest tests/ -q
 
 Expected: PASS.
 
-- [ ] **Step 3: Syntax check**
+- [x] **Step 3: Syntax check**
 
 Run:
 
@@ -954,7 +954,7 @@ python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/ap
 
 Expected: exit code 0.
 
-- [ ] **Step 4: Whitespace check**
+- [x] **Step 4: Whitespace check**
 
 Run:
 
@@ -964,7 +964,7 @@ git diff --check
 
 Expected: exit code 0; LF/CRLF warnings are acceptable in this repository.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Stage only project changes, excluding local runtime configs:
 

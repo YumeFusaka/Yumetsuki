@@ -24,10 +24,9 @@
   - `docs/superpowers/plans/2026-05-25-phase-5-ui-stt-implementation.md`
   - `docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md`
 - 当前优先级：
-  1. Phase 5 改进实现：faster-whisper 本地服务 STT、聊天窗运行态被动模式、系统字体下拉框、系统页独立保存和保存后应用
+  1. Phase 5 真实 STT / TTS / API 联调：真实麦克风、真实 faster-whisper 服务、真实 TTS 服务和异常场景串联验证
   2. Phase 6：浏览器、视觉与插件生态
-  3. Phase 5 真实 STT / TTS / API 联调：真实麦克风、真实 faster-whisper 服务、真实 TTS 服务和异常场景串联验证
-  4. 平台日志真实 API / TTS / STT / 异常场景联调验证
+  3. 平台日志真实 API / TTS / STT / 异常场景联调验证
 
 说明：
 
@@ -57,11 +56,11 @@
   含 key，不应提交
   其中 TTS 的 `audio_mode`、`ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 控制运行态音频链路与参考策略
   其中 TTS 的 `ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 可能包含本地语音素材路径或私有参考文本，也按本地敏感配置处理
-  其中 ASR / STT 配置位于 `asr`：当前基础实现仍包含 Whisper 兼容字段；已确认改进计划会收敛为 `engine=faster_whisper`、`api_url`、`model`、`language`、`record_timeout_seconds`、`silence_threshold`、`silence_duration_ms`，通过本地 faster-whisper 服务接口转写
+  其中 ASR / STT 配置位于 `asr`：当前字段为 `engine=faster_whisper`、`api_url`、`model`、`language`、`record_timeout_seconds`、`silence_threshold`、`silence_duration_ms`，通过本地 faster-whisper 服务接口转写
 - `data/config/system_config.yaml`
   系统配置
   当前也承载 `logging` 运行时配置，如日志根目录与平台日志内部 `system` channel 的 flush 间隔
-  当前也承载 `chat_display` 与 `passive_interaction`：前者控制聊天字体倍率和气泡倍率；后者基础实现包含被动气泡显示参数，已确认改进计划会移除系统级启用开关，改为聊天窗运行态被动状态，并用空闲阈值控制自动进入
+  当前也承载 `chat_display` 与 `passive_interaction`：前者控制聊天字体倍率和气泡倍率；后者包含空闲阈值、被动气泡最大宽度和停留时长。被动状态属于聊天窗运行态，空闲阈值用于自动进入，不再使用系统级启用开关。
 - `data/config/mcp.yaml`
   MCP 实际配置
 - `data/config/mcp.example.yaml`
@@ -239,10 +238,9 @@
   - `python -m pytest tests/test_tts_pipeline.py tests/test_tts_adapter.py tests/test_chat_tts_flow.py -q`
 - Phase 5 UI / STT：
   - `python -m pytest tests/test_chat_passive_bubble.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py -q`
-  - 当前这些用例主要覆盖无真实设备的配置、气泡、录音、转写适配器和聊天窗主链路；改进实现后应覆盖 faster-whisper 本地服务 mock、被动状态状态机、系统字体下拉框和系统页保存应用；真实麦克风、真实 faster-whisper 服务和真实 STT / TTS 互锁仍需本地手工联调验证
+  - 当前这些用例主要覆盖无真实设备的配置、气泡、录音、faster-whisper 本地服务 mock、被动状态状态机、系统字体下拉框、系统页保存应用和聊天窗主链路；真实麦克风、真实 faster-whisper 服务和真实 STT / TTS 互锁仍需本地手工联调验证
 - 语法检查：
-  - 基础实现：`python -m py_compile core/event_bus.py core/ui_event_bridge.py ui/settings/pages/agent_page.py ui/chat/tts_pipeline.py ui/chat/window.py ui/chat/stt_recorder.py tts/adapters/gptsovits.py stt/types.py stt/adapter.py stt/adapters/openai_whisper.py stt/manager.py`
-  - Phase 5 改进实现后：`python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py stt/types.py stt/adapter.py stt/adapters/faster_whisper.py stt/manager.py`
+  - Phase 5 当前实现：`python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py stt/types.py stt/adapter.py stt/adapters/faster_whisper.py stt/manager.py`
 
 ### TTS 归因边界
 
@@ -290,7 +288,7 @@
 
 ### 系统页面
 
-- Phase 5 基础实现仍是实时写入；已确认改进计划会改为显示 `保存系统配置`
+- 系统页面显示 `保存系统配置`
 - 点击后需确认
 - 只保存系统配置
 - 保存成功后应用到已打开聊天窗，不保存 API 配置

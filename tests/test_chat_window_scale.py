@@ -176,6 +176,34 @@ def test_chat_window_uses_system_font_scale(monkeypatch):
             window.close()
 
 
+def test_chat_window_apply_system_config_updates_font_and_bubble(monkeypatch):
+    """系统设置保存后应能刷新已打开聊天窗的显示参数。"""
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    window = None
+    try:
+        from ui.chat.window import ChatWindow
+
+        window = ChatWindow(LLMConfig(), system_config=SystemConfig(font_family="Microsoft YaHei", font_size=14))
+        config = SystemConfig(font_family="Arial", font_size=18)
+        config.chat_display.font_scale = 1.25
+        config.chat_display.bubble_scale = 1.2
+        config.passive_interaction.bubble_max_width = 360
+
+        window.apply_system_config(config)
+
+        assert window._display_font_family == "Arial"
+        assert window._display_font_size == 18
+        assert 'font-family: "Arial"' in window._input.styleSheet()
+        assert window._passive_bubble.maximumWidth() <= int(360 * 1.2)
+    finally:
+        if window is not None:
+            window.close()
+
+
 def test_launch_chat_passes_system_and_asr_config(monkeypatch):
     """设置窗启动聊天时应传递系统显示配置和 ASR 配置。"""
     _app()

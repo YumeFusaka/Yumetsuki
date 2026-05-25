@@ -68,51 +68,47 @@ def _make_window(monkeypatch, system_config: SystemConfig):
     return window
 
 
-def test_passive_message_uses_bubble_when_enabled(monkeypatch):
+def test_proactive_message_uses_main_panel_until_window_is_passive(monkeypatch):
     config = SystemConfig(font_family="Microsoft YaHei", font_size=16)
-    config.passive_interaction.enabled = True
+    config.passive_interaction.idle_threshold_seconds = 300
 
     window = _make_window(monkeypatch, config)
     try:
-        window._on_proactive_message("今天也要好好休息 <3", "idle")
+        window._on_proactive_message("主动提醒", "idle")
 
-        assert window._passive_bubble.text() == "今天也要好好休息 <3"
+        assert window._passive_bubble.isHidden()
+        assert not window._panel.isHidden()
+        assert "主动提醒" in window._dialog_box.text()
+    finally:
+        window.close()
+
+
+def test_proactive_message_uses_bubble_in_passive_state(monkeypatch):
+    config = SystemConfig()
+
+    window = _make_window(monkeypatch, config)
+    try:
+        window._enter_passive_state()
+        window._on_proactive_message("被动提醒", "idle")
+
         assert not window._passive_bubble.isHidden()
         assert window._panel.isHidden()
+        assert window._passive_bubble.text() == "被动提醒"
         assert window._passive_bubble_timer.isSingleShot()
     finally:
         window.close()
 
 
-def test_passive_message_uses_dialog_when_disabled(monkeypatch):
+def test_user_send_exits_passive_state(monkeypatch):
     config = SystemConfig()
-    config.passive_interaction.enabled = False
 
     window = _make_window(monkeypatch, config)
     try:
-        window._on_proactive_message("回来啦？", "idle")
-
-        assert window._name_label.text() == "樱"
-        assert "回来啦？" in window._dialog_box.text()
-        assert window._passive_bubble.isHidden()
-        assert not window._panel.isHidden()
-    finally:
-        window.close()
-
-
-def test_user_send_restores_main_panel(monkeypatch):
-    config = SystemConfig()
-    config.passive_interaction.enabled = True
-
-    window = _make_window(monkeypatch, config)
-    try:
-        window._on_proactive_message("我在这里。", "idle")
-        assert not window._passive_bubble.isHidden()
-        assert window._panel.isHidden()
-
+        window._enter_passive_state()
         window._input.setText("你好")
         window._on_send()
 
+        assert window._is_passive is False
         assert window._passive_bubble.isHidden()
         assert not window._panel.isHidden()
         assert "你好" in window._dialog_box.text()
@@ -120,10 +116,23 @@ def test_user_send_restores_main_panel(monkeypatch):
         window.close()
 
 
+def test_idle_timer_enters_passive_state(monkeypatch):
+    config = SystemConfig()
+    config.passive_interaction.idle_threshold_seconds = 1
+
+    window = _make_window(monkeypatch, config)
+    try:
+        window._last_interaction_at -= 2
+        window._check_passive_idle()
+
+        assert window._is_passive is True
+    finally:
+        window.close()
+
+
 def test_passive_bubble_uses_configured_width_scale_and_duration(monkeypatch):
     config = SystemConfig(font_family="Microsoft YaHei", font_size=18)
     config.chat_display.bubble_scale = 1.25
-    config.passive_interaction.enabled = True
     config.passive_interaction.bubble_max_width = 320
     config.passive_interaction.bubble_duration_seconds = 3
 
@@ -131,6 +140,7 @@ def test_passive_bubble_uses_configured_width_scale_and_duration(monkeypatch):
     try:
         window._scale = 1.2
         window._apply_scale()
+        window._enter_passive_state()
         window._on_proactive_message("缩放后的气泡", "idle")
 
         assert window._passive_bubble.maximumWidth() <= int(320 * 1.25 * 1.2)
@@ -146,7 +156,6 @@ def test_passive_bubble_uses_configured_width_scale_and_duration(monkeypatch):
 def test_passive_bubble_is_capped_by_window_available_width(monkeypatch):
     config = SystemConfig(font_family="Microsoft YaHei", font_size=18)
     config.chat_display.bubble_scale = 2.0
-    config.passive_interaction.enabled = True
     config.passive_interaction.bubble_max_width = 800
 
     window = _make_window(monkeypatch, config)
@@ -154,6 +163,7 @@ def test_passive_bubble_is_capped_by_window_available_width(monkeypatch):
         window._scale = 1.0
         window._apply_scale()
         long_text = "这是一段很长的被动消息，" * 30
+        window._enter_passive_state()
         window._on_proactive_message(long_text, "idle")
 
         margin = max(8, int(14 * window._scale))

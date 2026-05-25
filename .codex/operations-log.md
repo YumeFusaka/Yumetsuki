@@ -420,3 +420,88 @@
   - `SystemPage` 字体下拉框与布局拆分
   - `SettingsWindow` API / 系统页保存分流
   - 文档和验证任务
+
+## Phase 5 改进实现执行记录
+
+时间：2026-05-25 20:16:42 +08:00
+
+### 工具可用性说明
+
+- 用户提供的 AGENTS 要求优先使用 `sequential-thinking`、`shrimp-task-manager`、`desktop-commander`、`context7` 和 `github.search_code`。
+- 当前 Codex 工具集中未提供这些工具；已改用本地 `rg`、`Get-Content`、`pytest`、`py_compile` 和 `git diff --check` 执行等价检索与验证。
+- 所有本地配置文件继续排除提交范围：`data/config/agent.yaml`、`data/config/system_config.yaml`。
+
+### 编码前检查 - Phase 5 改进实现
+
+□ 已查阅上下文摘要文件：`.codex/context-summary-phase-5-stt-passive-settings-refinement.md`
+□ 将使用以下可复用组件：
+
+- `stt.adapter.STTAdapter`: 保持 STT 适配器抽象。
+- `stt.types.STTResult`: 统一 STT 返回协议。
+- `ui.settings.pages.api_page.APIPage`: 复用设置页 apply/reset 模式。
+- `ui.settings.pages.system_page.SystemPage`: 复用系统页配置写回模式。
+- `ui.chat.window.ChatWindow._show_passive_bubble()`: 复用被动气泡展示能力。
+- `ui.chat.window.ChatWindow._apply_scale()`: 复用聊天窗外观应用能力。
+
+□ 将遵循命名约定：私有控件字段使用 `_xxx`，测试函数使用 `test_行为描述`
+□ 将遵循代码风格：4 空格缩进、PySide 信号在构造阶段连接、pytest monkeypatch 隔离外部服务
+□ 确认不重复造轮子：已检查 `stt/`、`ui/settings/pages/`、`ui/chat/window.py`、相关测试文件，确认需要替换而不是新增平行链路
+
+### 执行结果
+
+- Task 1：`ASRConfig` 默认值已改为 `faster_whisper` 本地服务；`PassiveInteractionConfig` 已移除 `enabled` 并新增 `idle_threshold_seconds`。
+- Task 2：API 页 ASR 配置已改为 `none / faster_whisper`，本地服务字段使用 `api_url`，删除 OpenAI Whisper Base URL / API Key 控件。
+- Task 3：已新增 `stt/adapters/faster_whisper.py`，`STTManager` 只识别 `none` 与 `faster_whisper`，删除 `stt/adapters/openai_whisper.py`。
+- Task 4：`ChatWindow` 已新增运行态被动状态、空闲计时器、交互刷新、右键菜单进入 / 退出被动状态；主动消息仅在被动状态下使用气泡。
+- Task 5：系统页已拆分为基础外观、聊天显示、被动状态、网络；字体改为系统字体下拉框；移除实时保存。
+- Task 6：设置中心保存按钮已支持 API 页和系统页分流；系统页保存后调用 `ChatWindow.apply_system_config()` 应用到已打开聊天窗。
+- Task 7：已同步 `CLAUDE.md`、`docs/README.md`、`docs/architecture.md`、`docs/development.md`、`docs/ui-guidelines.md` 和 `.codex` 留痕。
+
+### 已执行的 TDD 红绿记录
+
+- `tests/test_config.py`：先确认 faster-whisper 默认值和被动阈值测试红灯，再实现配置模型并通过 `14 passed`。
+- `tests/test_settings_window.py::test_api_page_asr_uses_faster_whisper_local_service_fields`：先因旧 `base_url/api_key` 字段红灯，再实现 API 页并通过。
+- `tests/test_stt_adapter.py`：先因缺少 `stt.adapters.faster_whisper` 与旧 OpenAI 适配器红灯，再实现本地 HTTP 适配器并通过 `10 passed`。
+- `tests/test_chat_passive_bubble.py`：先因旧 `enabled` 与缺少被动状态方法红灯，再实现聊天窗被动状态并通过 `6 passed`。
+- `tests/test_settings_window.py` 系统页聚焦测试：先因旧实时保存和旧字体输入红灯，再实现字体下拉、布局拆分和非实时保存并通过 `3 passed`。
+- `tests/test_settings_window.py` 与 `tests/test_chat_window_scale.py` 保存分流聚焦测试：先因旧保存文案、缺少系统保存分流和缺少 `apply_system_config()` 红灯，再实现并通过 `3 passed`。
+
+### 编码后声明 - Phase 5 改进实现
+
+#### 1. 复用了以下既有组件
+
+- `STTAdapter` / `STTResult`: 用于保持 STT 适配层与结果协议稳定。
+- `RoseSpinBox`: 用于录音超时、静音阈值、系统显示倍率和被动阈值输入。
+- `SAKURA_COMBO_BOX_STYLE`: 用于 API 页和系统页下拉框主题一致。
+- `ChatWindow._apply_scale()`: 用于保存系统配置后刷新已打开聊天窗外观。
+- `ChatWindow._show_passive_bubble()` / `_hide_passive_bubble()`: 用于被动状态下主动消息展示。
+
+#### 2. 遵循了以下项目约定
+
+- 命名约定：新增 `_asr_url`、`_asr_timeout`、`_idle_threshold`、`_is_passive`、`_passive_idle_timer` 与既有私有字段一致。
+- 代码风格：沿用 PySide 控件构造、信号连接、`apply()` 写回配置的局部模式。
+- 文件组织：STT 适配器仍位于 `stt/adapters/`；设置页仍位于 `ui/settings/pages/`；聊天窗运行态仍在 `ui/chat/window.py`。
+
+#### 3. 对比了以下相似实现
+
+- `APIPage` TTS 本地服务字段：ASR 本地服务字段沿用相同 URL 输入模式，但字段名使用 `api_url`。
+- `SystemPage` 旧实时保存：本轮保留 `apply()` 写配置模式，删除实时保存连接，由 `SettingsWindow` 统一落盘。
+- `ChatWindow` 旧气泡能力：本轮复用气泡样式、尺寸和定时隐藏，只把触发条件改为运行态被动状态。
+- `STTManager` 旧引擎分发：保留未知引擎错误路径，替换有效适配器为 `FasterWhisperAdapter`。
+
+#### 4. 未重复造轮子的证明
+
+- 已检查 `stt/manager.py`、`stt/adapter.py`、`stt/types.py`，没有现成 faster-whisper HTTP 适配器。
+- 已检查 `ui/chat/window.py`，已有被动气泡显示能力但没有运行态状态机，因此复用气泡函数并补状态机。
+- 已检查 `ui/settings/window.py`，已有 API 保存分流入口，因此扩展为 API / 系统保存路由。
+
+### 最终验证结果
+
+- `python -m pytest tests/test_config.py tests/test_settings_window.py tests/test_chat_window_scale.py tests/test_chat_passive_bubble.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py -q`
+  - 结果：`88 passed in 14.74s`。
+- `python -m pytest tests/ -q`
+  - 结果：`350 passed in 46.82s`。
+- `python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py ui/theme.py stt/types.py stt/adapter.py stt/adapters/faster_whisper.py stt/manager.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py`
+  - 结果：通过，无输出错误。
+- `git diff --check`
+  - 结果：通过；仅提示工作区 LF/CRLF 转换，无空白错误。

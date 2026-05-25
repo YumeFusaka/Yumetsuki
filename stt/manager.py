@@ -1,5 +1,5 @@
 from config.schema import ASRConfig
-from stt.adapters.openai_whisper import OpenAIWhisperAdapter
+from stt.adapters.faster_whisper import FasterWhisperAdapter
 from stt.types import STTResult
 
 
@@ -12,8 +12,8 @@ class STTManager:
         engine = (config.engine or "none").strip().lower()
         if engine == "none":
             return None
-        if engine == "openai_whisper":
-            return OpenAIWhisperAdapter(config)
+        if engine == "faster_whisper":
+            return FasterWhisperAdapter(config)
         return engine
 
     def transcribe_wav(self, audio: bytes) -> STTResult:

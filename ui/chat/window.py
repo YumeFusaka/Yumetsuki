@@ -297,6 +297,12 @@ class ChatWindow(QWidget):
         self._stt_worker = None
         self._is_stt_recording = False
         self._is_closing = False
+        self._is_passive = False
+        self._last_interaction_at = time.monotonic()
+        self._passive_idle_timer = QTimer(self)
+        self._passive_idle_timer.setInterval(1000)
+        self._passive_idle_timer.timeout.connect(self._check_passive_idle)
+        self._passive_idle_timer.start()
         self._tts_timeout_timer = QTimer(self)
         self._tts_timeout_timer.setInterval(500)
         self._tts_timeout_timer.timeout.connect(self._poll_tts_timeouts)
@@ -530,6 +536,22 @@ class ChatWindow(QWidget):
         self._passive_bubble.hide()
         self._panel.show()
 
+    def _refresh_interaction(self) -> None:
+        self._last_interaction_at = time.monotonic()
+        self._exit_passive_state()
+
+    def _enter_passive_state(self) -> None:
+        self._is_passive = True
+
+    def _exit_passive_state(self) -> None:
+        self._is_passive = False
+        self._hide_passive_bubble()
+
+    def _check_passive_idle(self) -> None:
+        threshold = max(1, int(self._system_config.passive_interaction.idle_threshold_seconds))
+        if time.monotonic() - self._last_interaction_at >= threshold:
+            self._enter_passive_state()
+
     def _show_passive_bubble(self, text: str) -> None:
         config = self._system_config.passive_interaction
         self._panel.hide()
@@ -668,6 +690,7 @@ class ChatWindow(QWidget):
     # --- Dragging ---
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            self._refresh_interaction()
             self._drag_pos = event.globalPosition().toPoint() - self.pos()
             event.accept()
 
@@ -681,6 +704,7 @@ class ChatWindow(QWidget):
 
     # --- Scaling via scroll wheel ---
     def wheelEvent(self, event):
+        self._refresh_interaction()
         delta = event.angleDelta().y()
         if delta > 0:
             self._scale = min(self.MAX_SCALE, self._scale + 0.1)
@@ -708,6 +732,9 @@ class ChatWindow(QWidget):
         self._topmost_action = menu.addAction("📌 取消置顶" if self._is_topmost() else "📌 置顶")
         menu.addSeparator()
 
+        passive_action = menu.addAction("退出被动状态" if self._is_passive else "进入被动状态")
+        menu.addSeparator()
+
         settings_action = menu.addAction("⚙ 打开设置")
         quit_action = menu.addAction("✕ 关闭")
 
@@ -723,6 +750,11 @@ class ChatWindow(QWidget):
             self._apply_scale()
         elif action == self._topmost_action:
             self._toggle_topmost()
+        elif action == passive_action:
+            if self._is_passive:
+                self._refresh_interaction()
+            else:
+                self._enter_passive_state()
         elif action == settings_action:
             self._open_settings()
         elif action == quit_action:
@@ -741,6 +773,7 @@ class ChatWindow(QWidget):
         self.show()
 
     def _open_settings(self):
+        self._refresh_interaction()
         if self._settings_window is None:
             if self._settings_window_factory is not None:
                 self._settings_window = self._settings_window_factory()
@@ -1460,6 +1493,7 @@ class ChatWindow(QWidget):
         return self._stt_recorder
 
     def _toggle_stt_recording(self) -> None:
+        self._refresh_interaction()
         if self._is_stt_recording:
             self._stop_stt_recording()
             return
@@ -1551,10 +1585,10 @@ class ChatWindow(QWidget):
 
     # --- Chat logic ---
     def _on_send(self):
+        self._refresh_interaction()
         text = self._input.text().strip()
         if not text or self._worker is not None:
             return
-        self._hide_passive_bubble()
         self._input.clear()
         self._begin_new_tts_turn()
         self._set_speaker_name("我", is_user=True)
@@ -1608,12 +1642,22 @@ class ChatWindow(QWidget):
 
     def _on_proactive_message(self, message: str, source: str):
         """收到主动消息：以角色身份显示。"""
-        if self._system_config.passive_interaction.enabled:
+        if self._is_passive:
             self._show_passive_bubble(message)
             return
         if self._char_name:
             self._set_speaker_name(self._char_name)
         self._set_dialog_text(message)
+
+    def apply_system_config(self, config: SystemConfig) -> None:
+        self._system_config = config
+        self._display_font_family = config.font_family or SystemConfig().font_family
+        self._display_font_size = max(1, int(config.font_size))
+        self._display_font_scale = max(0.1, float(config.chat_display.font_scale))
+        self._display_bubble_scale = max(0.1, float(config.chat_display.bubble_scale))
+        self._apply_scale()
+        if not self._passive_bubble.isHidden():
+            self._position_passive_bubble()
 
     def set_memory_store(self, memory_store) -> None:
         self._chat_engine.set_memory_store(memory_store)
@@ -1624,6 +1668,8 @@ class ChatWindow(QWidget):
             self._proactive_scheduler.stop()
         if hasattr(self, "_passive_bubble_timer"):
             self._passive_bubble_timer.stop()
+        if hasattr(self, "_passive_idle_timer"):
+            self._passive_idle_timer.stop()
         if self._stt_recorder is not None:
             self._stt_recorder.cancel()
         if self._stt_worker is not None:

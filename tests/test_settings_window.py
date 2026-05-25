@@ -24,7 +24,7 @@ def _app() -> QApplication:
     return app or QApplication([])
 
 
-def test_save_button_only_visible_on_api_page():
+def test_save_button_visible_on_api_and_system_pages_only():
     _app()
     window = SettingsWindow()
     save_btn = next(
@@ -34,6 +34,11 @@ def test_save_button_only_visible_on_api_page():
 
     window._switch_page(0)
     assert not save_btn.isHidden()
+    assert save_btn.text() == "保存 API 配置"
+
+    window._switch_page(7)
+    assert not save_btn.isHidden()
+    assert save_btn.text() == "保存系统配置"
 
     window._switch_page(1)
     assert save_btn.isHidden()
@@ -46,6 +51,29 @@ def test_save_button_only_visible_on_api_page():
 
     window._switch_page(4)
     assert save_btn.isHidden()
+
+
+def test_system_save_applies_to_existing_chat_window(monkeypatch):
+    _app()
+    applied = []
+    saved = []
+
+    window = SettingsWindow()
+    window._chat_window = type(
+        "Chat",
+        (),
+        {"apply_system_config": lambda self, config: applied.append(config.font_family)},
+    )()
+    monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
+    monkeypatch.setattr(window._config, "save_system", lambda: saved.append("save"))
+
+    window._system_page._font.setCurrentText("Arial")
+    window._switch_page(7)
+    window._confirm_save()
+
+    assert window._config.system.font_family == "Arial"
+    assert saved == ["save"]
+    assert applied == ["Arial"]
 
 
 def test_settings_window_navigation_uses_current_labels_icons_and_order():
@@ -305,36 +333,36 @@ def test_api_page_tts_language_and_ref_audio_apply_and_reset():
     assert page._tts_output_lang.currentText() == "ko"
 
 
-def test_api_page_asr_phase5_fields_apply_and_reset():
+def test_api_page_asr_uses_faster_whisper_local_service_fields():
     _app()
     config = APIConfig()
     page = APIPage(config)
 
-    assert [page._asr_engine.itemText(i) for i in range(page._asr_engine.count())] == ["none", "openai_whisper"]
+    assert [page._asr_engine.itemText(i) for i in range(page._asr_engine.count())] == ["none", "faster_whisper"]
+    assert page._asr_url.placeholderText() == "http://127.0.0.1:8000"
+    assert not hasattr(page, "_asr_base_url")
+    assert not hasattr(page, "_asr_api_key")
 
-    page._asr_engine.setCurrentText("openai_whisper")
-    page._asr_base_url.setText("https://api.openai.com/v1")
-    page._asr_api_key.setText("sk-local-test")
-    page._asr_model.setText("whisper-1-large")
-    page._asr_language.setCurrentText("ja")
-    page._asr_record_timeout.setValue(25)
-    page._asr_silence_threshold.setValue(5)
-    page._asr_silence_duration.setValue(1500)
+    page._asr_engine.setCurrentText("faster_whisper")
+    page._asr_url.setText("http://127.0.0.1:9000")
+    page._asr_model.setText("small")
+    page._asr_language.setCurrentText("auto")
+    page._asr_timeout.setValue(15)
+    page._asr_silence_threshold.setValue(3)
+    page._asr_silence_duration.setValue(900)
     page.apply()
 
-    assert config.asr.engine == "openai_whisper"
-    assert config.asr.base_url == "https://api.openai.com/v1"
-    assert config.asr.api_key == "sk-local-test"
-    assert config.asr.model == "whisper-1-large"
-    assert config.asr.language == "ja"
-    assert config.asr.record_timeout_seconds == 25
-    assert config.asr.silence_threshold == 0.05
-    assert config.asr.silence_duration_ms == 1500
+    assert config.asr.engine == "faster_whisper"
+    assert config.asr.api_url == "http://127.0.0.1:9000"
+    assert config.asr.model == "small"
+    assert config.asr.language == "auto"
+    assert config.asr.record_timeout_seconds == 15
+    assert config.asr.silence_threshold == 0.03
+    assert config.asr.silence_duration_ms == 900
 
     config.asr.engine = "none"
-    config.asr.base_url = ""
-    config.asr.api_key = ""
-    config.asr.model = "whisper-1"
+    config.asr.api_url = "http://127.0.0.1:8001"
+    config.asr.model = "base"
     config.asr.language = "zh"
     config.asr.record_timeout_seconds = 20
     config.asr.silence_threshold = 0.02
@@ -342,11 +370,10 @@ def test_api_page_asr_phase5_fields_apply_and_reset():
     page.reset()
 
     assert page._asr_engine.currentText() == "none"
-    assert page._asr_base_url.text() == ""
-    assert page._asr_api_key.text() == ""
-    assert page._asr_model.text() == "whisper-1"
+    assert page._asr_url.text() == "http://127.0.0.1:8001"
+    assert page._asr_model.text() == "base"
     assert page._asr_language.currentText() == "zh"
-    assert page._asr_record_timeout.value() == 20
+    assert page._asr_timeout.value() == 20
     assert page._asr_silence_threshold.value() == 2
     assert page._asr_silence_duration.value() == 1200
 
@@ -363,23 +390,53 @@ def test_system_page_phase5_display_fields_apply(monkeypatch, tmp_path):
 
     page._chat_font_scale.setValue(125)
     page._bubble_scale.setValue(110)
-    page._passive_enabled.setChecked(True)
+    page._idle_threshold.setValue(3)
     page._bubble_max_width.setValue(360)
     page._bubble_duration.setValue(12)
     page.apply()
 
     assert config.chat_display.font_scale == 1.25
     assert config.chat_display.bubble_scale == 1.1
-    assert config.passive_interaction.enabled is True
+    assert config.passive_interaction.idle_threshold_seconds == 180
     assert config.passive_interaction.bubble_max_width == 360
     assert config.passive_interaction.bubble_duration_seconds == 12
+    assert not hasattr(config.passive_interaction, "enabled")
 
     reloaded = ConfigManager(config_dir=tmp_path)
-    assert reloaded.system.chat_display.font_scale == 1.25
-    assert reloaded.system.chat_display.bubble_scale == 1.1
-    assert reloaded.system.passive_interaction.enabled is True
-    assert reloaded.system.passive_interaction.bubble_max_width == 360
-    assert reloaded.system.passive_interaction.bubble_duration_seconds == 12
+    assert reloaded.system.chat_display.font_scale == 1.0
+    assert reloaded.system.chat_display.bubble_scale == 1.0
+    assert reloaded.system.passive_interaction.idle_threshold_seconds == 300
+    assert reloaded.system.passive_interaction.bubble_max_width == 280
+    assert reloaded.system.passive_interaction.bubble_duration_seconds == 8
+
+
+def test_system_page_uses_font_combo_with_system_fonts(monkeypatch):
+    _app()
+    monkeypatch.setattr(
+        "ui.settings.pages.system_page.QFontDatabase.families",
+        lambda *_: ["Arial", "Microsoft YaHei", "SimSun"],
+    )
+    config = SystemConfig(font_family="Microsoft YaHei")
+
+    page = SystemPage(config)
+
+    assert page._font.isEditable()
+    assert [page._font.itemText(i) for i in range(page._font.count())] == ["Arial", "Microsoft YaHei", "SimSun"]
+    assert page._font.currentText() == "Microsoft YaHei"
+
+
+def test_system_page_apply_does_not_save_until_settings_window_save(monkeypatch):
+    _app()
+    saved = []
+    monkeypatch.setattr("ui.settings.pages.system_page.ConfigManager.save_system", lambda self: saved.append("save"))
+
+    config = SystemConfig()
+    page = SystemPage(config)
+    page._font.setCurrentText("Arial")
+    page.apply()
+
+    assert config.font_family == "Arial"
+    assert saved == []
 
 
 class _FakeLLMManager:

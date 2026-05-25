@@ -306,21 +306,42 @@ class SettingsWindow(QMainWindow):
         self._stack.setCurrentIndex(index)
         for btn in self._nav_buttons:
             btn.setChecked(btn.property("page_index") == index)
-        self._save_btn.setVisible(index == 0)
+        self._save_btn.setVisible(index in {0, 7})
+        if index == 0:
+            self._save_btn.setText("保存 API 配置")
+        elif index == 7:
+            self._save_btn.setText("保存系统配置")
 
     def _apply_and_save_api(self):
         self._api_page.apply()
         self._config.save_api()
 
+    def _apply_and_save_system(self):
+        self._system_page.apply()
+        self._config.save_system()
+        if self._chat_window is not None and hasattr(self._chat_window, "apply_system_config"):
+            self._chat_window.apply_system_config(self._config.system)
+
     def _confirm_save(self):
-        if not confirm_action(self, "确认保存", "确定保存当前 API 设定吗？"):
+        current_index = self._stack.currentIndex()
+        if current_index == 0:
+            message = "确定保存当前 API 设定吗？"
+            save = self._apply_and_save_api
+            success = "API 设定已成功保存。"
+        elif current_index == 7:
+            message = "确定保存当前系统设定吗？"
+            save = self._apply_and_save_system
+            success = "系统设定已成功保存。"
+        else:
             return
         try:
-            self._apply_and_save_api()
+            if not confirm_action(self, "确认保存", message):
+                return
+            save()
         except Exception as exc:
             show_feedback(self, "保存失败", f"配置保存失败：{exc}", success=False)
             return
-        show_feedback(self, "保存成功", "API 设定已成功保存。")
+        show_feedback(self, "保存成功", success)
 
     def _launch_chat(self):
         try:

@@ -148,7 +148,7 @@ def _make_window(
     window = ChatWindow(
         LLMConfig(),
         tts_config=TTSConfig(engine="gptsovits", api_url="http://fake:9880"),
-        asr_config=asr_config or ASRConfig(engine="openai_whisper"),
+        asr_config=asr_config or ASRConfig(),
     )
     return window
 

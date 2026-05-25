@@ -451,3 +451,76 @@
 - **综合评分**: 93/100
 - **明确建议**: 通过。
 - **审查结论时间戳**: 2026-05-25 19:49:56 +08:00
+
+## Phase 5 改进实现审查报告
+
+生成时间：2026-05-25 20:16:42 +08:00
+
+### 1. 需求字段完整性
+
+- **目标**: 实现 faster-whisper 本地服务 STT、聊天窗运行态被动状态、系统字体下拉框和系统页独立保存。
+- **范围**: 配置模型、API 设置页、STT 适配器、聊天窗状态机、系统设置页、设置中心保存分流、测试与文档同步。
+- **交付物映射**:
+  - 代码：`config/schema.py`、`ui/settings/pages/api_page.py`、`stt/adapters/faster_whisper.py`、`stt/manager.py`、`stt/adapters/__init__.py`、`ui/chat/window.py`、`ui/settings/pages/system_page.py`、`ui/settings/window.py`
+  - 删除：`stt/adapters/openai_whisper.py`
+  - 测试：`tests/test_config.py`、`tests/test_settings_window.py`、`tests/test_stt_adapter.py`、`tests/test_chat_passive_bubble.py`、`tests/test_chat_window_scale.py`
+  - 文档：`CLAUDE.md`、`docs/README.md`、`docs/architecture.md`、`docs/development.md`、`docs/ui-guidelines.md`
+  - 留痕：`.codex/context-summary-phase-5-stt-passive-settings-refinement.md`、`.codex/operations-log.md`、`.codex/verification-report.md`
+- **审查要点**: 是否删除 OpenAI Whisper 当前路径；是否只保留 faster-whisper 本地接口；被动状态是否为聊天窗运行态；系统页保存是否隔离 API 配置并应用到聊天窗。
+
+### 2. 覆盖原始意图
+
+- **Whisper 默认引擎**: `ASRConfig.engine` 默认 `faster_whisper`，API 页选项为 `none / faster_whisper`。
+- **被动气泡理解**: 空闲阈值自动进入被动状态，右键菜单可手动切换；主动消息只有在被动状态下走气泡。
+- **系统设置拥挤**: 系统页拆为基础外观、聊天显示、被动状态、网络四组。
+- **字体下拉框**: 系统页使用 `QFontDatabase.families()` 填充可编辑 `QComboBox`。
+- **系统页保存**: `SettingsWindow` 在系统页显示 `保存系统配置`，保存后调用 `save_system()` 和 `ChatWindow.apply_system_config()`。
+
+### 3. 依赖与风险评估
+
+- **服务风险**: faster-whisper 真实 HTTP 服务仍需本地联调；离线测试仅 mock `{api_url}/transcribe`。
+- **配置风险**: 旧本地配置若仍写 `openai_whisper`，运行时会得到“不支持的 STT 引擎”错误；本轮不做兼容迁移，符合用户要求。
+- **UI 风险**: `ChatWindow` 职责较多，新增被动状态需继续关注与 STT/TTS worker 生命周期的交互。
+- **验证风险**: 真实麦克风、真实服务和真实音频播放不纳入离线 pytest 硬依赖，需后续本地联调。
+
+### 4. 本地验证步骤与结果
+
+- `python -m pytest tests/test_config.py -q`
+  - 结果：`14 passed`。
+- `python -m pytest tests/test_settings_window.py::test_api_page_asr_uses_faster_whisper_local_service_fields -q`
+  - 结果：`1 passed`。
+- `python -m pytest tests/test_stt_adapter.py -q`
+  - 结果：`10 passed`。
+- `python -m pytest tests/test_chat_passive_bubble.py -q`
+  - 结果：`6 passed`。
+- `python -m pytest tests/test_settings_window.py tests/test_chat_window_scale.py -q`
+  - 结果：`36 passed`。
+- `python -m pytest tests/test_config.py tests/test_settings_window.py tests/test_chat_window_scale.py tests/test_chat_passive_bubble.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py -q`
+  - 结果：`88 passed in 14.74s`。
+- `python -m pytest tests/ -q`
+  - 结果：`350 passed in 46.82s`。
+- `python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py ui/theme.py stt/types.py stt/adapter.py stt/adapters/faster_whisper.py stt/manager.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py`
+  - 结果：通过，无输出错误。
+- `git diff --check`
+  - 结果：通过；仅提示工作区 LF/CRLF 转换，无空白错误。
+
+### 5. 技术评分
+
+- **代码质量**: 92/100
+  - 复用既有适配器层、设置页 apply 模式和聊天窗缩放入口；改动边界清晰。
+- **测试覆盖**: 91/100
+  - 覆盖配置、设置页、STT mock、被动状态和系统保存应用；真实服务联调仍为剩余风险。
+- **规范遵循**: 90/100
+  - 文档与记录使用中文；按 TDD 红绿推进；缺失指定 MCP 工具已记录替代流程。
+- **需求匹配**: 95/100
+  - 用户五项改进均有代码和测试映射。
+- **架构一致**: 93/100
+  - STT 仍通过 `STTManager -> STTAdapter`；被动状态限制在 `ChatWindow`；系统页保存不污染 API 配置。
+- **风险评估**: 90/100
+  - 已明确真实 faster-whisper、真实麦克风和旧配置破坏性变更边界。
+
+### 6. 结论
+
+- **综合评分**: 92/100
+- **明确建议**: 通过，可提交；提交时必须排除本地配置文件。
+- **审查结论时间戳**: 2026-05-25 20:16:42 +08:00
