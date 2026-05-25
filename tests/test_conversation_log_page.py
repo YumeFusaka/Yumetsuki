@@ -86,6 +86,29 @@ def test_conversation_log_page_loads_recent_session_labels_from_log_service():
     assert page._session_selector.itemData(1) == "session-1"
 
 
+def test_conversation_log_page_initial_current_scope_uses_selected_recent_session():
+    _app()
+
+    class _Service:
+        def __init__(self):
+            self.queries = []
+
+        def list_conversation_sessions(self, limit=20):
+            return [{"session_id": "session-2", "label": "10:30  最近的回复"}]
+
+        def query_events(self, **kwargs):
+            self.queries.append(kwargs)
+            return []
+
+    service = _Service()
+    page = ConversationLogPage(service)
+    page._refresh_view()
+
+    assert page._scope_selector.currentText() == "当前会话"
+    assert page._session_selector.currentData() == "session-2"
+    assert service.queries[-1]["session_id"] == "session-2"
+
+
 def test_conversation_log_page_switches_between_current_and_all_sessions():
     _app()
 

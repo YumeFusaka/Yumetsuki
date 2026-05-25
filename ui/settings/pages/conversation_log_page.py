@@ -175,8 +175,7 @@ class ConversationLogPage(QWidget):
         if self._session_selector.count() > 0:
             index = self._session_selector.findData(selected_session_id)
             self._session_selector.setCurrentIndex(index if index >= 0 else 0)
-            if selected_session_id:
-                self._current_session_id = self._session_selector.currentData() or self._current_session_id
+            self._current_session_id = self._session_selector.currentData() or None
         self._session_selector.blockSignals(False)
 
     def _refresh_if_enabled(self) -> None:
