@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from core.log_types import LogChannel, LogLevel, build_log_event
 from session.context import SessionContext
 from session.policy import SessionPolicy
 from session.store import SessionContextStore
@@ -10,9 +11,11 @@ class SessionContextManager:
         self,
         store: SessionContextStore | None = None,
         policy: SessionPolicy | None = None,
+        log_service=None,
     ):
         self._store = store
         self._policy = policy or SessionPolicy()
+        self._log_service = log_service
         self._live: dict[tuple[str, str], SessionContext] = {}
 
     def get_or_create(self, user_id: str, session_id: str) -> SessionContext:
@@ -34,7 +37,26 @@ class SessionContextManager:
             self._store.save(ctx)
 
     def build_prompt_context(self, ctx: SessionContext) -> str:
-        return self._policy.build_prompt_context(ctx)
+        prompt_context = self._policy.build_prompt_context(ctx)
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="session.manager",
+            event_type="session.prompt_context_built",
+            session_id=ctx.session_id,
+            summary="Session prompt context built",
+            details={
+                "recent_turn_count": len(ctx.recent_turns),
+                "working_fact_count": len(ctx.working_facts),
+                "preview": prompt_context[:200],
+            },
+        )
+        return prompt_context
 
     def collect_mem0_candidates(self, ctx: SessionContext):
         return self._policy.collect_mem0_candidates(ctx)
+
+    def _record_log_event(self, **kwargs) -> None:
+        if self._log_service is None:
+            return
+        self._log_service.record(build_log_event(**kwargs))

@@ -6,6 +6,24 @@ from config.schema import LLMConfig, TTSConfig
 from core.log_types import LogChannel
 from ui.chat.window import ChatWindow
 from agent.manager import AgentManager
+from llm.adapter import LLMStreamChunk
+from llm.manager import LLMManager
+from session.context import SessionContext
+from session.manager import SessionContextManager
+
+
+class _RecordingLogService:
+    def __init__(self):
+        self.events = []
+
+    def record(self, event):
+        self.events.append(event)
+
+
+class _StreamingAdapter:
+    def stream_chat(self, _messages, tools=None):
+        yield LLMStreamChunk(content="你好")
+        yield LLMStreamChunk(content="，世界")
 
 
 class _FakeLLMManager:
@@ -167,3 +185,70 @@ def test_agent_manager_conversation_reply_log_contains_emotion_tool_and_memory_m
     assert reply_event["details"]["emotion"] == "开心"
     assert reply_event["details"]["tool_names"] == ["notes__search"]
     assert reply_event["details"]["memory_count"] == 1
+
+
+def test_agent_manager_records_system_log_for_memory_retrieval_summary():
+    log_service = _RecordingLogService()
+    llm = _FakeLLMManager("[emotion:开心]收到")
+    memory_store = type(
+        "M",
+        (),
+        {
+            "search_relevant": lambda self, *_args, **_kwargs: [
+                "用户喜欢热茶",
+                "用户最近在整理书房",
+            ]
+        },
+    )()
+    manager = AgentManager(
+        llm_manager=llm,
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        memory_store=memory_store,
+        tool_registry=None,
+        user_id="u1",
+        session_id="s1",
+        log_service=log_service,
+    )
+
+    list(manager.chat_stream("测试输入"))
+
+    event = next(item for item in log_service.events if item.event_type == "memory.retrieved")
+    assert event.channel == LogChannel.SYSTEM
+    assert event.source == "agent.manager"
+    assert event.session_id == "s1"
+    assert event.details["count"] == 2
+    assert "用户喜欢热茶" in event.details["preview"]
+
+
+def test_session_context_manager_records_prompt_context_built_log():
+    log_service = _RecordingLogService()
+    manager = SessionContextManager(log_service=log_service)
+    ctx = SessionContext.new(session_id="s1", user_id="u1")
+    manager.record_user_input(ctx, "记住我喜欢红茶")
+
+    prompt_context = manager.build_prompt_context(ctx)
+
+    event = next(item for item in log_service.events if item.event_type == "session.prompt_context_built")
+    assert event.channel == LogChannel.SYSTEM
+    assert event.source == "session.manager"
+    assert event.session_id == "s1"
+    assert event.details["recent_turn_count"] == 1
+    assert event.details["working_fact_count"] == 1
+    assert prompt_context[:40] in event.details["preview"]
+
+
+def test_llm_manager_records_stream_progress_during_content_accumulation(monkeypatch):
+    log_service = _RecordingLogService()
+    monkeypatch.setattr(LLMManager, "_create_adapter", lambda self, _config: _StreamingAdapter())
+    manager = LLMManager(LLMConfig(), log_service=log_service, session_id="s1")
+
+    list(manager.chat_stream("测试输入"))
+
+    events = [item for item in log_service.events if item.event_type == "llm.stream_progress"]
+    assert events
+    assert events[-1].channel == LogChannel.SYSTEM
+    assert events[-1].source == "llm.manager"
+    assert events[-1].session_id == "s1"
+    assert events[-1].details["response_length"] == len("你好，世界")
+    assert events[-1].details["tail_preview"] == "你好，世界"

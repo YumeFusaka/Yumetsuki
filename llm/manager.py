@@ -90,11 +90,13 @@ class LLMManager:
                             yield ProcessedText(clean_text=full_response, emotion=None, thinking=chunk.thinking)
                         if chunk.content:
                             full_response += chunk.content
+                            self._record_stream_progress(full_response)
                             yield self._processor.process(full_response)
                         if chunk.tool_calls:
                             tool_calls.extend(chunk.tool_calls)
                         continue
                     full_response += chunk
+                    self._record_stream_progress(full_response)
                     yield self._processor.process(full_response)
 
                 if not tool_calls:
@@ -110,6 +112,7 @@ class LLMManager:
                     messages.append(self._execute_tool_call(call))
             else:
                 full_response += "\n\n工具调用次数过多，已停止继续执行。"
+                self._record_stream_progress(full_response)
                 yield self._processor.process(full_response)
         except Exception as exc:
             self._record_log_event(
@@ -184,6 +187,20 @@ class LLMManager:
             except TypeError:
                 return self._tool_registry.call_tool(name, arguments)
         return ""
+
+    def _record_stream_progress(self, full_response: str) -> None:
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.DEBUG,
+            source="llm.manager",
+            event_type="llm.stream_progress",
+            session_id=self._session_id,
+            summary="LLM stream progress",
+            details={
+                "response_length": len(full_response),
+                "tail_preview": full_response[-80:],
+            },
+        )
 
     def _record_log_event(self, **kwargs) -> None:
         if self._log_service is None:

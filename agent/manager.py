@@ -63,7 +63,7 @@ class AgentManager:
         self._tool_registry = tool_registry
         self._user_id = user_id
         self._event_bus = event_bus_instance or event_bus
-        self._session_manager = session_manager or SessionContextManager()
+        self._session_manager = session_manager or SessionContextManager(log_service=log_service)
         self._session_id = session_id
         self._log_service = log_service
 
@@ -231,7 +231,20 @@ class AgentManager:
     def _search_memories(self, user_input: str) -> list[str]:
         if not self._memory_store:
             return []
-        return self._memory_store.search_relevant(user_input, user_id=self._user_id)
+        memories = self._memory_store.search_relevant(user_input, user_id=self._user_id)
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="agent.manager",
+            event_type="memory.retrieved",
+            session_id=self._session_id,
+            summary=f"Retrieved {len(memories)} memories",
+            details={
+                "count": len(memories),
+                "preview": "\n".join(str(memory) for memory in memories[:3])[:200],
+            },
+        )
+        return memories
 
     def set_memory_store(self, memory_store) -> None:
         self._memory_store = memory_store
