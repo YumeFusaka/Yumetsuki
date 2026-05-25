@@ -141,6 +141,28 @@ class SettingsWindow(QMainWindow):
                 color: #6b4a5a; font-size: 13px;
             }}
             QDialog QPushButton:hover {{ background: rgba(255,154,162,0.4); }}
+            QMenu {{
+                background: rgba(255, 250, 252, 0.98);
+                border: 1px solid rgba(220, 160, 180, 0.35);
+                border-radius: 8px;
+                padding: 6px;
+                color: #4a3040;
+            }}
+            QMenu::item {{
+                background: transparent;
+                padding: 7px 24px 7px 12px;
+                border-radius: 6px;
+                color: #4a3040;
+            }}
+            QMenu::item:selected {{
+                background: rgba(255, 222, 232, 0.95);
+                color: #9b3060;
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: rgba(220, 160, 180, 0.25);
+                margin: 5px 8px;
+            }}
             * {{ outline: none; }}
             *:focus {{ border-color: #d4567a; }}
             {GLOBAL_SCROLLBAR}

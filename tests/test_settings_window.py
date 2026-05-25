@@ -50,6 +50,16 @@ def test_settings_window_navigation_includes_conversation_and_system_logs():
     assert "🧪  系统日志" in labels
 
 
+def test_settings_window_context_menu_uses_sakura_theme():
+    _app()
+    window = SettingsWindow()
+
+    style = window.styleSheet()
+    assert "QMenu" in style
+    assert "background: rgba(255, 250, 252, 0.98)" in style
+    assert "QMenu::item:selected" in style
+
+
 def test_launch_chat_binds_current_session_to_conversation_log_page(monkeypatch):
     _app()
     captured = {}

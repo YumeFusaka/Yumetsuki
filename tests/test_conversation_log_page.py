@@ -197,7 +197,7 @@ def test_conversation_log_page_renders_reply_tags_for_time_emotion_tool_and_memo
     assert "诶嘿~ 哥哥下午好呀！" in text
     assert "happy" in text
     assert "web_search" in text
-    assert "记忆 1" in text
+    assert "关联记忆 1 条" in text
     assert "10:25" in text
 
 
@@ -264,4 +264,4 @@ def test_conversation_log_page_renders_wider_rounded_inline_emotion_chip():
         }
     )
     assert "padding: 4px 12px" in html
-    assert "border-radius: 12px" in html
+    assert "border-radius: 999px" in html

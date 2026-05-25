@@ -295,6 +295,18 @@ def test_system_log_page_styles_combo_and_checkbox_like_theme():
     assert "QComboBox::drop-down" in page.styleSheet()
     assert "QCheckBox::indicator" in page.styleSheet()
     assert "background: transparent" in page.styleSheet()
+    assert "border-left: 1px" not in page.styleSheet()
+    assert "border-top: 6px solid #9b3060" in page.styleSheet()
+
+
+def test_system_log_page_toolbar_keeps_keyword_as_only_responsive_field():
+    _app()
+    page = SystemLogPage(_FakeLogService())
+
+    assert page._keyword_filter.sizePolicy().horizontalStretch() == 1
+    assert page._source_filter.sizePolicy().horizontalStretch() == 0
+    assert page._source_filter.minimumWidth() >= 150
+    assert page._keyword_filter.minimumWidth() >= 220
 
 
 def test_system_log_page_filters_sources_by_group_and_specific_source():
@@ -570,3 +582,95 @@ def test_system_log_page_continuous_text_only_autoscrolls_when_near_bottom():
     page._refresh_view()
 
     assert bar.value() == bar.maximum()
+
+
+def test_system_log_page_structured_list_preserves_scroll_when_reading_old_events():
+    _app()
+
+    base_events = [
+        {
+            "id": f"event-{i}",
+            "timestamp": f"2026-05-24T10:25:{i:02d}.000",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "conversation.user_input",
+            "summary": f"用户输入 {i}",
+            "details": {"text": f"text {i}"},
+        }
+        for i in range(60)
+    ]
+
+    class _Service:
+        log_root = "."
+
+        def __init__(self):
+            self.events = list(base_events)
+
+        def query_events(self, **kwargs):
+            return list(self.events)
+
+    service = _Service()
+    page = SystemLogPage(service)
+    page.resize(640, 320)
+    page._refresh_view()
+    page._event_list.show()
+    QApplication.processEvents()
+
+    bar = page._event_list.verticalScrollBar()
+    bar.setValue(max(0, bar.maximum() // 2))
+    preserved_value = bar.value()
+
+    service.events.append(
+        {
+            "id": "event-60",
+            "timestamp": "2026-05-24T10:26:00.000",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "conversation.user_input",
+            "summary": "用户输入 60",
+            "details": {"text": "text 60"},
+        }
+    )
+    page._refresh_view()
+    QApplication.processEvents()
+
+    assert bar.value() == preserved_value
+
+
+def test_system_log_page_colors_items_by_source():
+    _app()
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "llm.manager",
+                    "session_id": "session-1",
+                    "event_type": "llm.stream_started",
+                    "summary": "开始生成回复",
+                    "details": {},
+                },
+                {
+                    "timestamp": "2026-05-24T10:25:40.221",
+                    "level": "info",
+                    "source": "chat.tts",
+                    "session_id": "session-1",
+                    "event_type": "tts.segment_enqueued",
+                    "summary": "发送 TTS",
+                    "details": {},
+                },
+            ]
+
+    page = SystemLogPage(_Service())
+    page._refresh_view()
+
+    first_color = page._event_list.item(0).foreground().color().name()
+    second_color = page._event_list.item(1).foreground().color().name()
+    assert first_color != second_color
+    assert first_color == "#5f6fb2"

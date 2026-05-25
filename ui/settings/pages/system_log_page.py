@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QListWidget,
     QListWidgetItem,
+    QSizePolicy,
 )
 
 
@@ -30,6 +32,20 @@ SOURCE_GROUPS = {
     "Agent": ["agent.manager"],
 }
 
+SOURCE_COLORS = {
+    "llm.manager": "#5f6fb2",
+    "session.manager": "#3f8f78",
+    "memory.mem0": "#3f8f78",
+    "chat.segmenter": "#b06a82",
+    "chat.tts": "#c56b2c",
+    "tts.gptsovits": "#c56b2c",
+    "tool.registry": "#8b5fb2",
+    "chat.window": "#6b4a5a",
+    "ui.event_bridge": "#6b4a5a",
+    "agent.manager": "#9b3060",
+}
+
+DEFAULT_SOURCE_COLOR = "#4a3040"
 SCROLL_BOTTOM_THRESHOLD = 24
 
 
@@ -54,7 +70,7 @@ QLineEdit, QComboBox {
     background: rgba(255, 255, 255, 0.78);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 8px 28px 8px 10px;
     color: #4a3040;
     min-height: 18px;
 }
@@ -63,8 +79,7 @@ QLineEdit:focus, QComboBox:focus {
 }
 QComboBox::drop-down {
     border: none;
-    border-left: 1px solid rgba(220, 160, 180, 0.28);
-    width: 22px;
+    width: 24px;
     background: transparent;
     border-top-right-radius: 8px;
     border-bottom-right-radius: 8px;
@@ -153,56 +168,79 @@ class SystemLogPage(QWidget):
         desc = QLabel("查看 TTS、LLM、工具调用与运行期系统事件。")
         layout.addWidget(desc)
 
-        controls = QHBoxLayout()
+        controls = QVBoxLayout()
+        controls.setSpacing(8)
+
+        filter_row = QHBoxLayout()
+        filter_row.setSpacing(8)
+        filter_row.addWidget(QLabel("来源组"))
         self._source_group_filter = QComboBox()
+        self._source_group_filter.setMinimumWidth(96)
         for group_name in SOURCE_GROUPS:
             self._source_group_filter.addItem(group_name, group_name)
         self._source_group_filter.currentIndexChanged.connect(self._on_source_group_changed)
-        controls.addWidget(self._source_group_filter)
+        filter_row.addWidget(self._source_group_filter)
 
+        filter_row.addWidget(QLabel("来源"))
         self._source_filter = QComboBox()
+        self._source_filter.setMinimumWidth(150)
+        self._source_filter.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self._source_filter.currentIndexChanged.connect(self._refresh_view)
-        controls.addWidget(self._source_filter, 1)
+        filter_row.addWidget(self._source_filter)
         self._rebuild_source_filter_options()
 
+        filter_row.addWidget(QLabel("级别"))
         self._level_filter = QComboBox()
+        self._level_filter.setMinimumWidth(110)
         self._level_filter.addItem("全部级别", "")
         self._level_filter.addItem("INFO", "info")
         self._level_filter.addItem("WARN", "warn")
         self._level_filter.addItem("ERROR", "error")
         self._level_filter.currentIndexChanged.connect(self._refresh_view)
-        controls.addWidget(self._level_filter)
+        filter_row.addWidget(self._level_filter)
 
         self._keyword_filter = QLineEdit()
         self._keyword_filter.setPlaceholderText("关键字")
+        self._keyword_filter.setMinimumWidth(220)
+        keyword_policy = self._keyword_filter.sizePolicy()
+        keyword_policy.setHorizontalPolicy(QSizePolicy.Policy.Expanding)
+        keyword_policy.setHorizontalStretch(1)
+        self._keyword_filter.setSizePolicy(keyword_policy)
         self._keyword_filter.editingFinished.connect(self._refresh_view)
-        controls.addWidget(self._keyword_filter, 1)
+        filter_row.addWidget(self._keyword_filter, 1)
+        controls.addLayout(filter_row)
+
+        action_row = QHBoxLayout()
+        action_row.setSpacing(8)
 
         self._current_session_only = QCheckBox("仅当前会话")
         self._current_session_only.stateChanged.connect(lambda *_: self._refresh_view())
-        controls.addWidget(self._current_session_only)
+        action_row.addWidget(self._current_session_only)
 
         self._view_mode = QComboBox()
+        self._view_mode.setMinimumWidth(120)
         self._view_mode.addItem("结构化列表", "list")
         self._view_mode.addItem("连续文本", "text")
         self._view_mode.currentIndexChanged.connect(self._refresh_view)
-        controls.addWidget(self._view_mode)
+        action_row.addWidget(self._view_mode)
 
         refresh_btn = QPushButton("刷新")
         refresh_btn.clicked.connect(self._refresh_view)
-        controls.addWidget(refresh_btn)
+        action_row.addWidget(refresh_btn)
 
         export_btn = QPushButton("导出")
         export_btn.clicked.connect(self._export_current_view)
-        controls.addWidget(export_btn)
+        action_row.addWidget(export_btn)
 
         open_dir_btn = QPushButton("打开目录")
         open_dir_btn.clicked.connect(self._open_log_directory)
-        controls.addWidget(open_dir_btn)
+        action_row.addWidget(open_dir_btn)
 
         copy_btn = QPushButton("复制详情")
         copy_btn.clicked.connect(self._copy_selected_event_json)
-        controls.addWidget(copy_btn)
+        action_row.addWidget(copy_btn)
+        action_row.addStretch()
+        controls.addLayout(action_row)
         layout.addLayout(controls)
 
         self._event_list = QListWidget()
@@ -289,6 +327,7 @@ class SystemLogPage(QWidget):
         self._empty_label.hide()
         for event in events:
             item = QListWidgetItem(self._render_event_line_text(event))
+            item.setForeground(QColor(self._source_color(event.get("source"))))
             item.setData(256, event)
             self._event_list.addItem(item)
         self._continuous_text.setPlainText(self._render_continuous_text(events))
@@ -300,8 +339,10 @@ class SystemLogPage(QWidget):
                 if self._event_key(event) == selected_key:
                     self._event_list.setCurrentRow(index)
                     self._restore_scroll_state(self._event_list, list_scroll)
+                    self._restore_scroll_state_later(self._event_list, list_scroll)
                     return
         self._restore_scroll_state(self._event_list, list_scroll)
+        self._restore_scroll_state_later(self._event_list, list_scroll)
         self._set_selected_event(None)
 
     def _choose_export_path(self) -> Path | None:
@@ -400,6 +441,10 @@ class SystemLogPage(QWidget):
             return f"{event.get('summary', '')} | {details.get('result_preview')}"
         return event.get("summary", "")
 
+    @staticmethod
+    def _source_color(source: str | None) -> str:
+        return SOURCE_COLORS.get(str(source or ""), DEFAULT_SOURCE_COLOR)
+
     def _on_event_selected(self, index: int) -> None:
         if index < 0:
             self._set_selected_event(None)
@@ -434,3 +479,7 @@ class SystemLogPage(QWidget):
             scrollbar.setValue(scrollbar.maximum())
             return
         scrollbar.setValue(min(previous_value, scrollbar.maximum()))
+
+    @staticmethod
+    def _restore_scroll_state_later(widget, state: tuple[bool, int]) -> None:
+        QTimer.singleShot(0, lambda: SystemLogPage._restore_scroll_state(widget, state))

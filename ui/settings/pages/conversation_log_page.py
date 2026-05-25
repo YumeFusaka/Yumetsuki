@@ -197,7 +197,7 @@ class ConversationLogPage(QWidget):
             inline_emotion = (
                 f' <span style="display:inline-block; margin-left: 6px; padding: 4px 12px; '
                 'background: rgba(255, 236, 242, 0.96); border: 1px solid rgba(212, 86, 122, 0.18); '
-                'border-radius: 12px; font-size: 11px; color: #8b4d66; vertical-align: middle;">'
+                'border-radius: 999px; font-size: 11px; color: #8b4d66; vertical-align: middle;">'
                 f'{html_escape(str(emotion))}</span>'
             )
 
@@ -219,7 +219,7 @@ class ConversationLogPage(QWidget):
             tags.append("工具 " + ", ".join(html_escape(str(name)) for name in tool_names))
         memory_count = details.get("memory_count")
         if memory_count:
-            tags.append(f"记忆 {memory_count}")
+            tags.append(f"关联记忆 {memory_count} 条")
         return self._render_message_card(
             speaker="梦月",
             timestamp=timestamp,
