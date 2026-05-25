@@ -136,6 +136,114 @@ def test_enqueue_tts_segment_records_system_log(monkeypatch):
     chat_window.close()
 
 
+def test_chunk_segment_records_segmenter_log_before_tts_enqueue(monkeypatch):
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    chat_window = ChatWindow(
+        LLMConfig(),
+        tts_config=TTSConfig(engine="gptsovits", api_url="http://fake:9880"),
+    )
+    calls = []
+    monkeypatch.setattr(
+        chat_window,
+        "_record_log_event",
+        lambda **kwargs: calls.append(("log", kwargs)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        chat_window,
+        "_enqueue_tts_segment",
+        lambda text: calls.append(("enqueue", text)),
+        raising=False,
+    )
+
+    chat_window._on_chunk(ProcessedText(clean_text="你好。", emotion=None))
+
+    segment_event = calls[0][1]
+    assert calls[0][0] == "log"
+    assert calls[1] == ("enqueue", "你好。")
+    assert segment_event["channel"] == LogChannel.SYSTEM
+    assert segment_event["source"] == "chat.segmenter"
+    assert segment_event["event_type"] == "chat.segmenter.segment_ready"
+    assert segment_event["session_id"] == chat_window._tts_session_id
+    assert segment_event["utterance_id"] == chat_window._current_utterance_id
+    assert segment_event["details"] == {"text": "你好。", "committed_length": len("你好。")}
+    chat_window.close()
+
+
+def test_llm_done_flush_records_segmenter_log(monkeypatch):
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    chat_window = ChatWindow(
+        LLMConfig(),
+        tts_config=TTSConfig(engine="gptsovits", api_url="http://fake:9880"),
+    )
+    recorded = []
+    monkeypatch.setattr(
+        chat_window,
+        "_record_log_event",
+        lambda **kwargs: recorded.append(kwargs),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        chat_window,
+        "_enqueue_tts_segment",
+        lambda _text: None,
+        raising=False,
+    )
+
+    chat_window._on_chunk(ProcessedText(clean_text="没有句号的尾巴", emotion=None))
+    chat_window._on_llm_done()
+
+    event = next(item for item in recorded if item["event_type"] == "chat.segmenter.segment_ready")
+    assert event["source"] == "chat.segmenter"
+    assert event["session_id"] == chat_window._tts_session_id
+    assert event["utterance_id"] == chat_window._current_utterance_id
+    assert event["details"] == {"text": "没有句号的尾巴", "committed_length": len("没有句号的尾巴")}
+    chat_window.close()
+
+
+def test_translation_result_records_completion_log(monkeypatch):
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    chat_window = ChatWindow(
+        LLMConfig(),
+        tts_config=TTSConfig(engine="gptsovits", api_url="http://fake:9880"),
+    )
+    recorded = []
+    monkeypatch.setattr(
+        chat_window,
+        "_record_log_event",
+        lambda **kwargs: recorded.append(kwargs),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        chat_window,
+        "_start_tts_worker",
+        lambda *_args, **_kwargs: None,
+        raising=False,
+    )
+
+    chat_window._handle_translation_result(chat_window._current_utterance_id, 3, "hello there.")
+
+    event = next(item for item in recorded if item["event_type"] == "tts.translation_completed")
+    assert event["channel"] == LogChannel.SYSTEM
+    assert event["source"] == "chat.tts"
+    assert event["session_id"] == chat_window._tts_session_id
+    assert event["utterance_id"] == chat_window._current_utterance_id
+    assert event["details"] == {"segment_id": 3, "translated_preview": "hello there."}
+    chat_window.close()
+
+
 def test_agent_manager_records_conversation_log_for_user_and_reply(monkeypatch):
     llm = _FakeLLMManager("[emotion:开心]收到")
     manager = AgentManager(

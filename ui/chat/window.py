@@ -963,6 +963,18 @@ class ChatWindow(QWidget):
             return
         self._start_tts_worker(self._current_utterance_id, segment_id, text)
 
+    def _record_tts_segment_ready(self, segment: str) -> None:
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="chat.segmenter",
+            event_type="chat.segmenter.segment_ready",
+            session_id=self._tts_session_id,
+            utterance_id=self._current_utterance_id,
+            summary="TTS segment ready",
+            details={"text": segment, "committed_length": len(self._tts_committed_text)},
+        )
+
     def _record_log_event(self, **kwargs) -> None:
         if self._log_service is None:
             return
@@ -1102,6 +1114,16 @@ class ChatWindow(QWidget):
             print(f"[TTS] segment {segment_id} translation failed")
             self._complete_tts_segment(utterance_id, segment_id, None)
             return
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="chat.tts",
+            event_type="tts.translation_completed",
+            session_id=self._tts_session_id,
+            utterance_id=utterance_id,
+            summary=f"segment {segment_id} translation completed",
+            details={"segment_id": segment_id, "translated_preview": translated[:80]},
+        )
         self._tts_pipeline.mark_ready_for_tts((utterance_id, segment_id), text=translated)
         if len(self._active_tts_workers) >= self._max_tts_workers:
             self._pending_tts_segments.append((utterance_id, segment_id, translated))
@@ -1325,6 +1347,7 @@ class ChatWindow(QWidget):
             self._refresh_tts_pending_buffer(current_text)
             for segment in self._extract_tts_segments():
                 self._tts_committed_text += segment
+                self._record_tts_segment_ready(segment)
                 self._enqueue_tts_segment(segment)
         if result.emotion:
             self._sprite_mgr.set_emotion(result.emotion)
@@ -1333,6 +1356,7 @@ class ChatWindow(QWidget):
         if self._tts_adapter is not None:
             for segment in self._extract_tts_segments(flush=True):
                 self._tts_committed_text += segment
+                self._record_tts_segment_ready(segment)
                 self._enqueue_tts_segment(segment)
         self._worker = None
 

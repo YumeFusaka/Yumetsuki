@@ -78,7 +78,8 @@ def chat_window(monkeypatch):
         lambda utterance_id, segment_id, text: window._started_segments.append((utterance_id, segment_id, text)),
         raising=False,
     )
-    return window
+    yield window
+    window.close()
 
 
 def test_launch_chat_passes_tts_config(monkeypatch):
