@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python, PySide6, pytest
 
+**Status:** 已完成。实现已覆盖 LogService 查询辅助、系统日志双视图与滚动保持、对话日志最近会话入口、记忆 / LLM / 切句 / TTS 日志接线，并通过聚焦自动化回归。
+
 ---
 
 ## Planned File Touches
