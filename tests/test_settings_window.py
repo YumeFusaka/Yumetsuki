@@ -1,7 +1,9 @@
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QApplication, QPushButton, QTextEdit
 
 from config.schema import APIConfig
 from config.schema import LLMConfig
+from main import APP_STYLE
 from ui.chat.window import ChatWindow
 import ui.settings.pages.api_page as api_page_module
 from ui.settings.pages.api_page import APIPage
@@ -56,8 +58,24 @@ def test_settings_window_context_menu_uses_sakura_theme():
 
     style = window.styleSheet()
     assert "QMenu" in style
-    assert "background: rgba(255, 250, 252, 0.98)" in style
+    assert "background: #fffafc" in style
     assert "QMenu::item:selected" in style
+    assert "QMenu" in APP_STYLE
+    assert "background: #fffafc" in APP_STYLE
+
+
+def test_settings_window_styles_standard_text_context_menu():
+    _app()
+    window = SettingsWindow()
+    text_edit = QTextEdit(window)
+
+    menu = text_edit.createStandardContextMenu()
+
+    window._apply_menu_theme(menu)
+
+    assert "QMenu" in menu.styleSheet()
+    assert "background: #fffafc" in menu.styleSheet()
+    assert menu.palette().color(QPalette.ColorRole.Window).name() == "#fffafc"
 
 
 def test_launch_chat_binds_current_session_to_conversation_log_page(monkeypatch):

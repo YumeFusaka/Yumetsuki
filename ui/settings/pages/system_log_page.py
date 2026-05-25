@@ -1,8 +1,9 @@
 import json
 from pathlib import Path
+from html import escape as html_escape
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QSizePolicy,
+    QStyledItemDelegate,
 )
 
 
@@ -35,18 +37,19 @@ SOURCE_GROUPS = {
 SOURCE_COLORS = {
     "llm.manager": "#5f6fb2",
     "session.manager": "#3f8f78",
-    "memory.mem0": "#3f8f78",
+    "memory.mem0": "#4c8f3f",
     "chat.segmenter": "#b06a82",
     "chat.tts": "#c56b2c",
-    "tts.gptsovits": "#c56b2c",
+    "tts.gptsovits": "#a86f18",
     "tool.registry": "#8b5fb2",
     "chat.window": "#6b4a5a",
-    "ui.event_bridge": "#6b4a5a",
+    "ui.event_bridge": "#2d7fa3",
     "agent.manager": "#9b3060",
 }
 
 DEFAULT_SOURCE_COLOR = "#4a3040"
-SCROLL_BOTTOM_THRESHOLD = 24
+SCROLL_BOTTOM_THRESHOLD = 2
+COMBO_ARROW_ICON = (Path(__file__).resolve().parents[2] / "assets" / "combo-down.svg").as_posix()
 
 
 PAGE_STYLE = """
@@ -85,12 +88,10 @@ QComboBox::drop-down {
     border-bottom-right-radius: 8px;
 }
 QComboBox::down-arrow {
-    image: none;
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid #9b3060;
+    image: url(__COMBO_ARROW_ICON__);
+    width: 10px;
+    height: 7px;
+    border: none;
     margin-right: 8px;
 }
 QComboBox QAbstractItemView {
@@ -140,7 +141,6 @@ QListWidget::item {
 }
 QListWidget::item:selected {
     background: rgba(255, 222, 232, 0.95);
-    color: #4a3040;
     border: 1px solid rgba(212, 86, 122, 0.35);
 }
 QListWidget::item:hover {
@@ -149,13 +149,26 @@ QListWidget::item:hover {
 """
 
 
+class SourceColorItemDelegate(QStyledItemDelegate):
+    def initStyleOption(self, option, index) -> None:
+        super().initStyleOption(option, index)
+        brush = index.data(Qt.ItemDataRole.ForegroundRole)
+        if brush is None:
+            return
+        color = brush.color()
+        if not color.isValid():
+            return
+        option.palette.setColor(QPalette.ColorRole.Text, color)
+        option.palette.setColor(QPalette.ColorRole.HighlightedText, color)
+
+
 class SystemLogPage(QWidget):
     def __init__(self, log_service, parent=None):
         super().__init__(parent)
         self._log_service = log_service
         self._selected_event: dict | None = None
         self._current_session_id: str | None = None
-        self.setStyleSheet(PAGE_STYLE)
+        self.setStyleSheet(PAGE_STYLE.replace("__COMBO_ARROW_ICON__", COMBO_ARROW_ICON))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(32, 24, 32, 24)
@@ -244,6 +257,7 @@ class SystemLogPage(QWidget):
         layout.addLayout(controls)
 
         self._event_list = QListWidget()
+        self._event_list.setItemDelegate(SourceColorItemDelegate(self._event_list))
         self._event_list.currentRowChanged.connect(self._on_event_selected)
         layout.addWidget(self._event_list, 7)
 
@@ -281,6 +295,7 @@ class SystemLogPage(QWidget):
         self._detail_text.setPlainText(json.dumps(event, ensure_ascii=False, indent=2))
         self._detail_text.show()
         self._restore_scroll_state(self._detail_text, detail_scroll)
+        self._restore_scroll_state_later(self._detail_text, detail_scroll)
 
     def _copy_selected_event_json(self) -> None:
         if self._selected_event is None:
@@ -312,37 +327,43 @@ class SystemLogPage(QWidget):
         self._source_filter.blockSignals(False)
 
     def _refresh_view(self) -> None:
-        session_id = self._current_session_id if self._current_session_only.isChecked() else None
         selected_key = self._event_key(self._selected_event) if self._selected_event is not None else None
         list_scroll = self._capture_scroll_state(self._event_list)
         continuous_scroll = self._capture_scroll_state(self._continuous_text)
         events = self._current_filtered_events()
         self._apply_view_mode()
+        self._event_list.blockSignals(True)
         self._event_list.clear()
         if not events:
+            self._event_list.blockSignals(False)
             self._empty_label.show()
             self._continuous_text.clear()
             self._set_selected_event(None)
             return
         self._empty_label.hide()
+        matched_event = None
+        matched_index = -1
         for event in events:
             item = QListWidgetItem(self._render_event_line_text(event))
             item.setForeground(QColor(self._source_color(event.get("source"))))
             item.setData(256, event)
             self._event_list.addItem(item)
-        self._continuous_text.setPlainText(self._render_continuous_text(events))
+            if selected_key is not None and self._event_key(event) == selected_key:
+                matched_event = event
+                matched_index = self._event_list.count() - 1
+        if matched_index >= 0:
+            self._event_list.setCurrentRow(matched_index)
+        else:
+            self._event_list.setCurrentRow(-1)
+        self._event_list.blockSignals(False)
+        self._continuous_text.setHtml(self._render_continuous_html(events))
         self._restore_scroll_state(self._continuous_text, continuous_scroll)
-        if selected_key is not None:
-            for index in range(self._event_list.count()):
-                item = self._event_list.item(index)
-                event = item.data(256)
-                if self._event_key(event) == selected_key:
-                    self._event_list.setCurrentRow(index)
-                    self._restore_scroll_state(self._event_list, list_scroll)
-                    self._restore_scroll_state_later(self._event_list, list_scroll)
-                    return
+        self._restore_scroll_state_later(self._continuous_text, continuous_scroll)
         self._restore_scroll_state(self._event_list, list_scroll)
         self._restore_scroll_state_later(self._event_list, list_scroll)
+        if matched_event is not None:
+            self._set_selected_event(matched_event)
+            return
         self._set_selected_event(None)
 
     def _choose_export_path(self) -> Path | None:
@@ -421,6 +442,18 @@ class SystemLogPage(QWidget):
 
     def _render_continuous_text(self, events: list[dict]) -> str:
         return "\n\n".join(self._render_event_line_text(event) for event in events)
+
+    def _render_continuous_html(self, events: list[dict]) -> str:
+        blocks = []
+        for event in events:
+            color = self._source_color(event.get("source"))
+            text = html_escape(self._render_event_line_text(event)).replace("\n", "<br>")
+            blocks.append(
+                '<div style="margin: 0 0 12px 0; '
+                f'color: {color}; line-height: 1.55; white-space: pre-wrap;">'
+                f'{text}</div>'
+            )
+        return "".join(blocks)
 
     def _render_event_line_text(self, event: dict) -> str:
         timestamp = event.get("timestamp", "")[11:23]

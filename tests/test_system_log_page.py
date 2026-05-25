@@ -1,6 +1,12 @@
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QStyle
+from PySide6.QtWidgets import QStyleOptionViewItem
 
 from ui.settings.pages.agent_page import AgentPage
+from ui.settings.pages.system_log_page import SOURCE_COLORS
+from ui.settings.pages.system_log_page import SOURCE_GROUPS
 from ui.settings.pages.system_log_page import SystemLogPage
 
 
@@ -296,7 +302,10 @@ def test_system_log_page_styles_combo_and_checkbox_like_theme():
     assert "QCheckBox::indicator" in page.styleSheet()
     assert "background: transparent" in page.styleSheet()
     assert "border-left: 1px" not in page.styleSheet()
-    assert "border-top: 6px solid #9b3060" in page.styleSheet()
+    assert "QComboBox::down-arrow" in page.styleSheet()
+    assert "image: url(" in page.styleSheet()
+    assert "border-top: 6px solid #9b3060" not in page.styleSheet()
+    assert "border-left: 5px solid transparent" not in page.styleSheet()
 
 
 def test_system_log_page_toolbar_keeps_keyword_as_only_responsive_field():
@@ -429,6 +438,44 @@ def test_system_log_page_continuous_text_view_renders_filtered_plain_text():
     assert "chat.tts" in page._continuous_text.toPlainText()
     assert "llm.manager" not in page._continuous_text.toPlainText()
     assert "开始生成回复" not in page._continuous_text.toPlainText()
+
+
+def test_system_log_page_continuous_text_view_colors_each_source():
+    _app()
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "chat.tts",
+                    "session_id": "session-1",
+                    "event_type": "tts.segment_enqueued",
+                    "summary": "发送 TTS",
+                    "details": {"text": "第一句"},
+                },
+                {
+                    "timestamp": "2026-05-24T10:25:40.221",
+                    "level": "info",
+                    "source": "llm.manager",
+                    "session_id": "session-1",
+                    "event_type": "llm.stream_started",
+                    "summary": "开始生成回复",
+                    "details": {},
+                },
+            ]
+
+    page = SystemLogPage(_Service())
+    page._view_mode.setCurrentText("连续文本")
+    page._refresh_view()
+
+    html = page._continuous_text.toHtml().lower()
+    assert SOURCE_COLORS["chat.tts"] in html
+    assert SOURCE_COLORS["llm.manager"] in html
+    assert page._continuous_text.toPlainText().count("session-1") == 2
 
 
 def test_system_log_page_refresh_preserves_detail_scroll_when_selected_event_is_unchanged():
@@ -639,6 +686,124 @@ def test_system_log_page_structured_list_preserves_scroll_when_reading_old_event
     assert bar.value() == preserved_value
 
 
+def test_system_log_page_structured_list_does_not_treat_near_bottom_as_bottom():
+    _app()
+
+    base_events = [
+        {
+            "id": f"event-{i}",
+            "timestamp": f"2026-05-24T10:25:{i % 60:02d}.000",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "conversation.user_input",
+            "summary": f"用户输入 {i}",
+            "details": {"text": f"text {i}"},
+        }
+        for i in range(140)
+    ]
+
+    class _Service:
+        log_root = "."
+
+        def __init__(self):
+            self.events = list(base_events)
+
+        def query_events(self, **kwargs):
+            return list(self.events)
+
+    service = _Service()
+    page = SystemLogPage(service)
+    page.resize(640, 320)
+    page.show()
+    page._refresh_view()
+    QApplication.processEvents()
+
+    bar = page._event_list.verticalScrollBar()
+    bar.setValue(max(0, bar.maximum() - 10))
+    preserved_value = bar.value()
+    assert preserved_value < bar.maximum()
+
+    service.events.append(
+        {
+            "id": "event-140",
+            "timestamp": "2026-05-24T10:26:00.000",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "conversation.user_input",
+            "summary": "用户输入 140",
+            "details": {"text": "text 140"},
+        }
+    )
+
+    page._refresh_view()
+    QApplication.processEvents()
+
+    assert bar.value() == preserved_value
+    assert bar.value() < bar.maximum()
+
+
+def test_system_log_page_refresh_does_not_clear_selected_detail_while_rebuilding_list(monkeypatch):
+    _app()
+
+    base_events = [
+        {
+            "id": f"event-{i}",
+            "timestamp": f"2026-05-24T10:25:{i:02d}.000",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "conversation.user_input",
+            "summary": f"用户输入 {i}",
+            "details": {"text": f"text {i}"},
+        }
+        for i in range(30)
+    ]
+
+    class _Service:
+        log_root = "."
+
+        def __init__(self):
+            self.events = list(base_events)
+
+        def query_events(self, **kwargs):
+            return list(self.events)
+
+    service = _Service()
+    page = SystemLogPage(service)
+    page._refresh_view()
+    page._event_list.setCurrentRow(10)
+    assert page._selected_event["id"] == "event-10"
+
+    calls = []
+    original = page._set_selected_event
+
+    def spy(event):
+        calls.append(None if event is None else event.get("id"))
+        original(event)
+
+    monkeypatch.setattr(page, "_set_selected_event", spy, raising=False)
+    service.events.append(
+        {
+            "id": "event-30",
+            "timestamp": "2026-05-24T10:26:00.000",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "conversation.user_input",
+            "summary": "用户输入 30",
+            "details": {"text": "text 30"},
+        }
+    )
+
+    page._refresh_view()
+
+    assert None not in calls
+    assert page._selected_event["id"] == "event-10"
+    assert not page._detail_text.isHidden()
+
+
 def test_system_log_page_colors_items_by_source():
     _app()
 
@@ -674,3 +839,77 @@ def test_system_log_page_colors_items_by_source():
     second_color = page._event_list.item(1).foreground().color().name()
     assert first_color != second_color
     assert first_color == "#5f6fb2"
+
+
+def test_system_log_page_known_sources_have_unique_colors():
+    known_sources = [
+        source
+        for sources in SOURCE_GROUPS.values()
+        for source in sources
+    ]
+    colors = [SOURCE_COLORS[source] for source in known_sources]
+
+    assert len(colors) == len(set(colors))
+
+
+def test_system_log_page_selected_item_keeps_source_foreground_color():
+    _app()
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "llm.manager",
+                    "session_id": "session-1",
+                    "event_type": "llm.stream_started",
+                    "summary": "开始生成回复",
+                    "details": {},
+                },
+            ]
+
+    page = SystemLogPage(_Service())
+    page._refresh_view()
+    page._event_list.setCurrentRow(0)
+
+    assert "QListWidget::item:selected" in page.styleSheet()
+    assert "QListWidget::item:selected {\n    background" in page.styleSheet()
+    assert "color: #4a3040;\n    border" not in page.styleSheet()
+    assert page._event_list.currentItem().foreground().color().name() == SOURCE_COLORS["llm.manager"]
+
+
+def test_system_log_page_selected_item_paints_highlighted_text_with_source_color():
+    _app()
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "chat.tts",
+                    "session_id": "session-1",
+                    "event_type": "tts.segment_enqueued",
+                    "summary": "发送 TTS",
+                    "details": {},
+                },
+            ]
+
+    page = SystemLogPage(_Service())
+    page._refresh_view()
+    page._event_list.setCurrentRow(0)
+
+    option = QStyleOptionViewItem()
+    option.state |= QStyle.StateFlag.State_Selected
+    index = page._event_list.model().index(0, 0)
+    delegate = page._event_list.itemDelegate()
+    delegate.initStyleOption(option, index)
+
+    assert index.data(Qt.ItemDataRole.ForegroundRole).color().name() == SOURCE_COLORS["chat.tts"]
+    assert option.palette.color(QPalette.ColorRole.Text).name() == SOURCE_COLORS["chat.tts"]
+    assert option.palette.color(QPalette.ColorRole.HighlightedText).name() == SOURCE_COLORS["chat.tts"]

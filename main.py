@@ -1,6 +1,7 @@
 import sys
 from PySide6.QtWidgets import QApplication
 from ui.settings.window import SettingsWindow
+from ui.theme import SAKURA_MENU_STYLE, install_sakura_menu_theme
 
 APP_STYLE = """
 QDialog, QInputDialog, QMessageBox {
@@ -35,12 +36,13 @@ QToolTip {
     border-radius: 4px; padding: 4px 8px;
     font-size: 12px;
 }
-"""
+""" + SAKURA_MENU_STYLE
 
 
 def main():
     app = QApplication(sys.argv)
     app.setStyleSheet(APP_STYLE)
+    install_sakura_menu_theme(app)
     app.setFont(app.font())  # Ensure font size is valid
 
     window = SettingsWindow()
