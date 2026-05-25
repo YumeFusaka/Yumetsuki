@@ -186,14 +186,28 @@ def test_system_log_page_exports_filtered_events(monkeypatch, tmp_path):
     _app()
 
     class _Service:
-        def export_events(self, path, **kwargs):
-            captured["path"] = path
-            captured["kwargs"] = kwargs
-
         def query_events(self, **kwargs):
-            return []
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "tool.registry",
+                    "session_id": "session-1",
+                    "event_type": "tool.call_completed",
+                    "summary": "tool completed",
+                    "details": {"text": "keep me"},
+                },
+                {
+                    "timestamp": "2026-05-24T10:25:40.221",
+                    "level": "error",
+                    "source": "llm.manager",
+                    "session_id": "session-1",
+                    "event_type": "llm.stream_failed",
+                    "summary": "llm failed",
+                    "details": {"text": "drop me"},
+                },
+            ]
 
-    captured = {}
     page = SystemLogPage(_Service())
     monkeypatch.setattr(page, "_choose_export_path", lambda: tmp_path / "system-export.jsonl", raising=False)
     page._source_group_filter.setCurrentText("工具")
@@ -201,8 +215,58 @@ def test_system_log_page_exports_filtered_events(monkeypatch, tmp_path):
 
     page._export_current_view()
 
-    assert captured["path"] == tmp_path / "system-export.jsonl"
-    assert captured["kwargs"]["source"] == "tool.registry"
+    text = (tmp_path / "system-export.jsonl").read_text(encoding="utf-8")
+    assert "tool.call_completed" in text
+    assert "llm.stream_failed" not in text
+
+
+def test_system_log_page_export_matches_level_keyword_and_group_filters(monkeypatch, tmp_path):
+    _app()
+
+    class _Service:
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "chat.tts",
+                    "session_id": "session-1",
+                    "event_type": "tts.segment_enqueued",
+                    "summary": "segment enqueued",
+                    "details": {"text": "目标句子"},
+                },
+                {
+                    "timestamp": "2026-05-24T10:25:40.221",
+                    "level": "warn",
+                    "source": "chat.tts",
+                    "session_id": "session-1",
+                    "event_type": "tts.segment_skipped",
+                    "summary": "segment skipped",
+                    "details": {"text": "目标句子"},
+                },
+                {
+                    "timestamp": "2026-05-24T10:25:41.000",
+                    "level": "info",
+                    "source": "llm.manager",
+                    "session_id": "session-1",
+                    "event_type": "llm.stream_progress",
+                    "summary": "目标句子 from llm",
+                    "details": {},
+                },
+            ]
+
+    page = SystemLogPage(_Service())
+    monkeypatch.setattr(page, "_choose_export_path", lambda: tmp_path / "filtered.jsonl", raising=False)
+    page._source_group_filter.setCurrentText("TTS")
+    page._level_filter.setCurrentText("INFO")
+    page._keyword_filter.setText("目标句子")
+
+    page._export_current_view()
+
+    text = (tmp_path / "filtered.jsonl").read_text(encoding="utf-8")
+    assert "tts.segment_enqueued" in text
+    assert "tts.segment_skipped" not in text
+    assert "llm.stream_progress" not in text
 
 
 def test_system_log_page_opens_system_log_directory(monkeypatch, tmp_path):

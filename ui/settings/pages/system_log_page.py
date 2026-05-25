@@ -278,8 +278,7 @@ class SystemLogPage(QWidget):
         selected_key = self._event_key(self._selected_event) if self._selected_event is not None else None
         list_scroll = self._capture_scroll_state(self._event_list)
         continuous_scroll = self._capture_scroll_state(self._continuous_text)
-        events = self._log_service.query_events(source=None, session_id=session_id)
-        events = self._filter_events(events)
+        events = self._current_filtered_events()
         self._apply_view_mode()
         self._event_list.clear()
         if not events:
@@ -318,9 +317,11 @@ class SystemLogPage(QWidget):
         path = self._choose_export_path()
         if path is None:
             return
-        source = self._selected_source()
-        session_id = self._current_session_id if self._current_session_only.isChecked() else None
-        self._log_service.export_events(path, source=source, session_id=session_id)
+        events = self._current_filtered_events()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as fh:
+            for event in events:
+                fh.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def _open_log_directory(self) -> None:
         self._open_path(self._log_service.log_root / "system")
@@ -360,6 +361,11 @@ class SystemLogPage(QWidget):
                 if keyword in json.dumps(event, ensure_ascii=False).lower()
             ]
         return filtered
+
+    def _current_filtered_events(self) -> list[dict]:
+        session_id = self._current_session_id if self._current_session_only.isChecked() else None
+        events = self._log_service.query_events(source=None, session_id=session_id)
+        return self._filter_events(events)
 
     def _selected_group_sources(self) -> list[str]:
         return list(SOURCE_GROUPS.get(self._source_group_filter.currentData() or "全部", []))

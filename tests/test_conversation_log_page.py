@@ -109,6 +109,32 @@ def test_conversation_log_page_initial_current_scope_uses_selected_recent_sessio
     assert service.queries[-1]["session_id"] == "session-2"
 
 
+def test_conversation_log_page_refresh_preserves_current_session_without_logs():
+    _app()
+
+    class _Service:
+        def __init__(self):
+            self.queries = []
+
+        def list_conversation_sessions(self, limit=20):
+            return [{"session_id": "older-session", "label": "09:15  旧会话"}]
+
+        def query_events(self, **kwargs):
+            self.queries.append(kwargs)
+            return []
+
+    service = _Service()
+    page = ConversationLogPage(service)
+
+    page.set_session_id("new-session")
+    page._refresh_sessions_and_view()
+
+    assert page._scope_selector.currentText() == "当前会话"
+    assert page._current_session_id == "new-session"
+    assert page._session_selector.currentData() == "new-session"
+    assert service.queries[-1]["session_id"] == "new-session"
+
+
 def test_conversation_log_page_switches_between_current_and_all_sessions():
     _app()
 
