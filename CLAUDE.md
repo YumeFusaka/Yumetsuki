@@ -7,7 +7,7 @@
 
 ## 项目一句话
 
-Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段已完成。
+Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段已完成，第五阶段基础能力已落地，当前进入 Phase 5 改进实现准备。
 
 ## 运行环境
 
@@ -77,11 +77,21 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段已完成。
     - 设置中心导航已收口：页面顺序固定为 `API / 角色 / 记忆 / Agent / 插件 / 对话日志 / 平台日志 / 系统`；`API` 使用钥匙图标，`Agent` 保留机器人图标；导航点击目标与高亮状态按页面索引绑定
     - 日志覆盖已补强：记忆检索、短期上下文构建、LLM 流式进度、LLM 本地切句、TTS 入队与翻译完成均有平台日志记录；内部日志 channel 仍为 `system`，`llm.stream_progress` 已做长度阈值节流，避免长回复日志风暴
     - 当前状态为“基础能力完成，已通过聚焦自动化回归，但尚未完成真实服务场景的全面联调验证”
+- 第五阶段：进行中，基础能力已落地，改进设计与实施计划已确认
+  - 显示配置已接入：`SystemConfig.chat_display` 支持聊天字体倍率与气泡倍率，设置中心系统页可编辑，`ChatWindow` 启动时应用到字体、按钮、输入框、边框和气泡尺寸。
+  - 被动互动气泡已接入基础版：主动消息可在独立气泡中短暂停留，并与主对话框输入状态互斥。
+  - STT 配置已接入：`APIConfig.asr` 支持 `engine`、`base_url`、`api_key`、`model`、`language`、录音超时、静音阈值和静音时长。
+  - STT 模块已落地：`stt/` 提供 `STTResult`、`STTAdapter`、`OpenAIWhisperAdapter`、`STTManager`，当前主实现走 OpenAI Whisper 兼容转写接口。
+  - 录音链路已落地：`ui/chat/stt_recorder.py` 使用 Qt 麦克风输入采集 PCM，支持静音检测、超时停止和 WAV 字节生成。
+  - 主链路接入已落地：聊天窗麦克风按钮可启动录音、进入转写 worker，识别文本回到 `_on_send()`，复用 Agent、SessionContext、日志与 TTS 管线；关闭窗口时会治理 recorder 与 worker 生命周期。
+  - 已确认的 Phase 5 改进方向：STT 只保留 faster-whisper 本地服务接口；不再兼容 `openai_whisper`；被动互动改为聊天窗运行态，支持空闲阈值自动进入和右键菜单手动切换；系统页改为系统字体下拉框、独立保存、保存后应用到已打开聊天窗。
+  - 当前边界：基础自动化测试覆盖离线主链路、录音状态和适配器行为；下一步先按新 plan 替换 STT 与被动状态模型，再做真实 faster-whisper 服务、真实麦克风和真实 STT / TTS 互锁联调。
 
 ## 下一步
 
 - 继续推进 Phase 5 / Phase 6：
-  - 桌宠体验、界面和 STT
+  - 按 `docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md` 实施 faster-whisper、本地被动状态和系统设置保存语义改进
+  - 真实麦克风、真实 faster-whisper 服务、真实 STT / TTS / API 场景联调
   - 更多内置插件能力扩展（媒体控制、文件操作等）
   - 平台日志补做真实 API / TTS / 异常场景的全面联调验证
 
@@ -94,3 +104,5 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段已完成。
 - [开发流程](./docs/development.md)
 - [服务端 TTS 对接规范](./docs/service-tts-compatibility.md)
 - [Phase 4-6 路线图设计](./docs/superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md)
+- [Phase 5 改进设计](./docs/superpowers/specs/2026-05-25-phase-5-stt-passive-settings-refinement-design.md)
+- [Phase 5 改进实施计划](./docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md)

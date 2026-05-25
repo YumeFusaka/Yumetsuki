@@ -185,3 +185,269 @@
 - **综合评分**: 94/100
 - **明确建议**: 通过。
 - **审查结论时间戳**: 2026-05-25 16:33:38 +08:00
+
+## Phase 5 实施计划审查报告
+
+生成时间：2026-05-25 16:57:32 +08:00
+
+### 1. 需求字段完整性
+
+- **目标**: 根据 Phase 5 spec 编写可执行实施计划，覆盖桌宠显示体验、被动互动气泡、STT 语音输入与 STT / TTS 状态协调。
+- **范围**: `docs/superpowers/specs/2026-05-24-phase-5-ui-stt-design.md` 对应的计划拆解，不直接修改功能代码。
+- **交付物**:
+  - 计划：`docs/superpowers/plans/2026-05-25-phase-5-ui-stt-implementation.md`
+  - 上下文摘要：`.codex/context-summary-phase-5-ui-stt-plan.md`
+  - 操作记录：`.codex/operations-log.md`
+  - 审查报告：`.codex/verification-report.md`
+- **审查要点**: 任务是否覆盖 spec、文件路径是否明确、测试命令是否可重复、是否包含配置化和真实设备联调边界。
+
+### 2. 原始意图覆盖
+
+- **系统设置与聊天界面优化**: Task 1、Task 2 覆盖配置模型、系统页、API 页、聊天窗显示配置接入。
+- **被动互动气泡**: Task 3 覆盖被动消息气泡、主对话框互斥和用户输入恢复。
+- **STT 模块实现**: Task 4、Task 5 覆盖 STT 适配器、OpenAI Whisper 转写、录音控制器和静音检测。
+- **STT 接入主链路**: Task 6 覆盖麦克风按钮、录音状态、转写结果进入 `_on_send()`。
+- **STT / TTS 打断与状态反馈**: Task 6 覆盖录音开始时调用 `_begin_new_tts_turn()`，并定义录音、识别、失败状态提示。
+- **文档同步和验证**: Task 7 覆盖架构、开发流程、UI 规范、README 和 CLAUDE 更新。
+
+### 3. 依赖与风险评估
+
+- **依赖**: PySide6、Pydantic、pytest、OpenAI Python SDK、现有 Agent / TTS / 配置系统。
+- **兼容性**: 计划要求 STT 文本复用 `_on_send()`，不绕过 Agent、SessionContext 或 TTS 状态机。
+- **性能**: 计划要求录音和转写均放到 Qt worker / 后台流程，避免阻塞主线程。
+- **剩余风险**: 真实麦克风、真实 Whisper 服务和长时间 STT / TTS 互锁体验不能完全用离线 pytest 覆盖，计划已要求写入开发文档并做本地设备联调。
+
+### 4. 本地验证步骤与结果
+
+- `rg -n "TBD|TODO|implement later|fill in details|Add appropriate|add validation|handle edge cases|Similar to Task" docs/superpowers/plans/2026-05-25-phase-5-ui-stt-implementation.md`
+  - 结果：无命中，命令以 `1` 退出符合 `rg` 无匹配语义。
+- `rg -n "Phase 5|STT|被动互动|系统设置|聊天界面|语音输入|字体|字号" docs/superpowers/plans/2026-05-25-phase-5-ui-stt-implementation.md`
+  - 结果：命中计划标题、目标、任务结构、STT 任务、被动互动任务和自检条目，确认关键主题均有覆盖。
+- `git diff --check`
+  - 结果：通过；仅提示 `.codex/operations-log.md` 后续 Git 操作可能发生 LF/CRLF 转换，无空白错误。
+
+### 5. 质量评分
+
+- **代码质量**: 90/100
+  - 本次未写功能代码；计划中的代码片段遵循现有模块边界和命名风格。
+- **测试覆盖**: 91/100
+  - 每个任务均包含红灯测试、通过验证和聚焦回归命令；真实设备联调作为明确剩余风险处理。
+- **规范遵循**: 92/100
+  - 已写入项目本地 `.codex/` 文件，文档和记录使用中文；指定外部工具缺失已记录替代流程。
+- **需求匹配**: 94/100
+  - Phase 5 spec 的目标、范围、配置建议和验收标准均有任务映射。
+- **架构一致**: 93/100
+  - 计划复用 `SystemConfig`、`ASRConfig`、`ChatWindow`、`ProactiveScheduler` 和 TTS 管线，不新增并行主链路。
+- **风险评估**: 90/100
+  - 已明确设备、服务和长时间交互风险，但执行阶段仍需真实联调验证。
+
+### 6. 综合结论
+
+- **综合评分**: 92/100
+- **明确建议**: 通过。
+- **审查结论时间戳**: 2026-05-25 16:57:32 +08:00
+
+## Phase 5 Task 7 文档同步与验证审查报告
+
+生成时间：2026-05-25 18:56:45 +08:00
+
+### 1. 需求字段完整性
+
+- **目标**: 同步 Task 1-6 已落地的 Phase 5 显示配置、被动互动气泡、STT 配置 / 录音 / 转写 / 主链路接入到协作文档、文档入口、架构、开发流程和 UI 规范。
+- **范围**: `CLAUDE.md`、`docs/README.md`、`docs/architecture.md`、`docs/development.md`、`docs/ui-guidelines.md`，并追加 `.codex/operations-log.md` 与 `.codex/verification-report.md`。
+- **交付物映射**:
+  - 协作上下文：`CLAUDE.md`
+  - 文档入口：`docs/README.md`
+  - 架构说明：`docs/architecture.md`
+  - 开发流程与测试策略：`docs/development.md`
+  - UI 交互规范：`docs/ui-guidelines.md`
+  - 操作记录：`.codex/operations-log.md`
+  - 审查报告：`.codex/verification-report.md`
+- **审查要点**: Phase 5 状态是否从“未展开”更新为“进行中，基础能力已落地”；STT / 被动互动 / 显示配置是否均有文档入口；真实麦克风和真实 Whisper 服务联调边界是否明确；是否未触碰 `data/config/agent.yaml`。
+
+### 2. 覆盖原始意图
+
+- **CLAUDE.md 与 docs/README.md**: 已记录第五阶段进行中，基础能力已落地，并列出显示配置、被动互动气泡、STT 配置、录音、转写和主链路接入；已声明真实麦克风和真实 Whisper 服务仍需联调。
+- **docs/architecture.md**: 已在目录结构加入 `stt/`；核心模块新增 `stt/` 与 `ui/chat/stt_recorder.py`；`ui/chat/window.py` 描述已补充显示配置、被动互动气泡和 STT；对话流程已加入“语音输入 → STTRecorder → STTManager → _on_send()”。
+- **docs/development.md**: 当前实施计划已指向 `docs/superpowers/plans/2026-05-25-phase-5-ui-stt-implementation.md`；当前优先级已调整为真实 STT / TTS / API 联调与 Phase 6；配置文件说明已补充 API ASR 字段、`system_config` 的 `chat_display` 与 `passive_interaction`；测试策略已补充 Phase 5 聚焦命令和真实设备联调边界。
+- **docs/ui-guidelines.md**: 已补充显示配置、被动互动气泡规范和 STT 按钮状态规范。
+- **.codex 记录**: 已追加 Task 1-7 实施摘要、工具偏差记录、审查简述和本报告。
+
+### 3. 依赖与风险评估
+
+- **依赖**: Markdown 文档、现有 Phase 5 实现文件、`py_compile`、`rg`、`git diff --check`。
+- **协作风险**: 当前仓库有 Task 1-6 未提交实现，本轮只同步文档并追加 `.codex` 记录，未 revert 其他协作者改动。
+- **配置风险**: 已按要求避开 `data/config/agent.yaml`，未修改任何运行期本地配置。
+- **验证边界**: 本轮运行轻量语法检查与文档扫描；全量 pytest、真实麦克风、真实 Whisper 服务、真实 STT / TTS / API 联调仍需主会话最终验证或设备环境回填。
+
+### 4. 本地验证步骤与结果
+
+- `python -m py_compile ui/chat/window.py ui/chat/stt_recorder.py stt/types.py stt/adapter.py stt/adapters/openai_whisper.py stt/manager.py`
+  - 结果：通过，无输出错误。
+- `rg -n "第五阶段：已确认范围，暂未展开实施计划|暂未展开实施计划|下一轮应基于 Phase 5" CLAUDE.md docs/README.md docs/development.md docs/architecture.md docs/ui-guidelines.md`
+  - 结果：仅命中 `docs/README.md` 中第六阶段“暂未展开实施计划”，未命中第五阶段旧状态。
+- `rg -n "stt/|STTRecorder|STTManager|被动互动气泡|chat_display|passive_interaction|真实 Whisper" CLAUDE.md docs/README.md docs/architecture.md docs/development.md docs/ui-guidelines.md`
+  - 结果：命中目标文档中的 Phase 5 关键主题，确认文档入口已覆盖。
+- `git diff --check -- CLAUDE.md docs/README.md docs/architecture.md docs/development.md docs/ui-guidelines.md .codex/operations-log.md .codex/verification-report.md`
+  - 结果：通过；仅提示工作区 LF/CRLF 转换，无空白错误。
+
+### 5. 评分
+
+- **代码质量**: 91/100
+  - 本轮未修改功能代码；文档描述与已落地模块边界一致。
+- **测试覆盖**: 88/100
+  - 已执行建议的 `py_compile` 和文档扫描；全量 pytest 与真实设备联调留给主会话最终验证。
+- **规范遵循**: 92/100
+  - 输出与文档均为中文，记录追加到项目本地 `.codex/`；外部强制工具缺失已记录替代流程。
+- **需求匹配**: 95/100
+  - 用户列出的 6 项文档要求均已逐项覆盖。
+- **架构一致**: 93/100
+  - STT 文本回到 `_on_send()`，文档强调复用 Agent、SessionContext、日志与 TTS 主链路。
+- **风险评估**: 90/100
+  - 已明确真实麦克风、真实 Whisper 服务和真实 STT / TTS / API 联调为剩余风险。
+
+### 6. 结论
+
+- **综合评分**: 92/100
+- **明确建议**: 通过。
+- **审查结论时间戳**: 2026-05-25 18:56:45 +08:00
+
+## Phase 5 最终实现审查报告
+
+生成时间：2026-05-25 19:15:11 +08:00
+
+### 1. 需求字段完整性
+
+- **目标**: 根据第五阶段 spec 完成显示配置、被动互动气泡、STT 配置、录音、转写和主聊天链路接入，并确保本地验证通过。
+- **范围**: `config/`、`ui/settings/`、`ui/chat/`、`stt/`、相关测试、协作文档和 `.codex/` 记录。
+- **交付物映射**:
+  - 配置模型：`config/schema.py`
+  - 设置页：`ui/settings/pages/api_page.py`、`ui/settings/pages/system_page.py`
+  - 聊天窗：`ui/chat/window.py`
+  - STT 录音：`ui/chat/stt_recorder.py`
+  - STT 适配器：`stt/`
+  - 测试：`tests/test_config.py`、`tests/test_settings_window.py`、`tests/test_chat_window_scale.py`、`tests/test_chat_passive_bubble.py`、`tests/test_chat_stt_flow.py`、`tests/test_stt_adapter.py`、`tests/test_stt_recorder.py`
+  - 文档与记录：`CLAUDE.md`、`docs/`、`.codex/`
+- **审查要点**: STT 文本是否回到 `_on_send()` 主链路；录音、识别、失败和关闭态是否可控；被动气泡是否与主面板互斥；显示配置是否从系统配置传入聊天窗；全量测试是否通过。
+
+### 2. 覆盖原始意图
+
+- **系统设置与聊天界面优化**: 已增加字体、字号、聊天气泡缩放和被动互动配置，并由设置页保存后传入 `ChatWindow`。
+- **被动互动气泡**: 已在主动消息场景中显示轻量气泡，用户发送消息时恢复主对话面板；气泡宽度受配置和窗口可用宽度双重限制。
+- **STT 模块实现**: 已新增 `STTAdapter`、`OpenAIWhisperAdapter`、`STTManager` 和 `STTResult`，并覆盖禁用、未知引擎、空音频、异常和成功转写。
+- **录音控制器**: 已实现 Qt 麦克风录音、PCM16 静音检测、超时、停止、取消和 WAV 封装。
+- **STT 主链路**: 麦克风按钮控制录音，音频 ready 后启动转写 worker，成功文本进入 `_on_send()`；关闭后的迟到结果、错误和音频会被忽略。
+- **TTS / STT 状态协调**: 录音开始前检查 LLM / STT worker 忙碌状态；录音启动成功后才中断当前 TTS 轮次。
+- **Qt 原生崩溃修复**: 已处理全量测试中的 Windows Qt 样式 polish 崩溃，设置窗口应用复杂样式前清理 PySide / Qt 延迟删除事件。
+
+### 3. 依赖与风险评估
+
+- **依赖**: PySide6、QtMultimedia、pytest、OpenAI 兼容音频转写接口、现有配置和聊天链路。
+- **集成风险**: STT 主链路复用 `_on_send()`，不会绕过 Agent、SessionContext 或 TTS 管线；风险主要集中在真实设备和真实服务环境。
+- **性能风险**: 录音轮询和转写均采用 Qt 定时器 / worker，避免阻塞 UI 主线程；全量测试未发现明显回归。
+- **剩余风险**: 真实麦克风权限、真实 Whisper 服务可用性、长时间 STT / TTS 互锁体验仍需本机设备联调。
+
+### 4. 本地验证步骤与结果
+
+- `python -m pytest tests/test_config.py tests/test_settings_window.py -q`
+  - 结果：`31 passed`。
+- `python -m pytest tests/test_chat_window_scale.py tests/test_chat_passive_bubble.py -q`
+  - 结果：`19 passed`。
+- `python -m pytest tests/test_stt_adapter.py tests/test_stt_recorder.py -q`
+  - 结果：`15 passed`。
+- `python -m pytest tests/test_chat_stt_flow.py tests/test_chat_tts_flow.py -q`
+  - 结果：`50 passed in 6.88s`。
+- `python -m pytest tests/ -q`
+  - 结果：`341 passed in 14.60s`。
+- `python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py ui/theme.py stt/types.py stt/adapter.py stt/adapters/openai_whisper.py stt/manager.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py`
+  - 结果：通过，无输出错误。
+- `git diff --check`
+  - 结果：通过；仅有 LF/CRLF 转换提示，无空白错误。
+
+### 5. 评分
+
+- **代码质量**: 93/100
+  - STT 适配器、录音控制器和聊天窗接入保持模块边界清晰；Qt 样式崩溃修复收敛在生命周期清理和菜单主题安装职责上。
+- **测试覆盖**: 94/100
+  - 离线单元和集成测试覆盖配置、设置页、气泡、录音、适配器和 STT 主链路；真实设备联调仍是剩余风险。
+- **规范遵循**: 93/100
+  - 文档、测试描述和记录使用中文；本地验证完整回填；未触碰用户本地配置。
+- **需求匹配**: 95/100
+  - Phase 5 spec 的核心任务均已落地，并完成文档同步。
+- **架构一致**: 94/100
+  - 复用现有配置系统、聊天主链路、TTS 轮次管理和 Qt worker 模式，没有新增平行对话路径。
+- **风险评估**: 91/100
+  - 已记录真实麦克风和真实 Whisper 服务边界，并修复全量测试暴露的 Qt 原生稳定性问题。
+
+### 6. 结论
+
+- **综合评分**: 94/100
+- **明确建议**: 通过。
+- **审查结论时间戳**: 2026-05-25 19:15:11 +08:00
+
+## Phase 5 改进计划审查报告
+
+生成时间：2026-05-25 19:49:56 +08:00
+
+### 1. 需求字段完整性
+
+- **目标**: 将 Phase 5 后续方向修正为 faster-whisper 本地服务 STT、聊天窗运行态被动状态、系统字体下拉框和系统页独立保存。
+- **范围**: 仅编写实施计划并同步项目文档，不在本轮修改功能代码。
+- **交付物映射**:
+  - 设计：`docs/superpowers/specs/2026-05-25-phase-5-stt-passive-settings-refinement-design.md`
+  - 计划：`docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md`
+  - 文档同步：`CLAUDE.md`、`docs/README.md`、`docs/development.md`、`docs/architecture.md`、`docs/ui-guidelines.md`
+  - 操作记录：`.codex/operations-log.md`
+  - 审查报告：`.codex/verification-report.md`
+- **审查要点**: 是否覆盖用户五项反馈；是否明确不再兼容 `openai_whisper`；是否给出可执行 TDD 步骤；是否明确保存语义隔离和本地配置不提交。
+
+### 2. 覆盖原始意图
+
+- **faster-whisper**: 计划要求 `ASRConfig.engine` 默认 `faster_whisper`，新增 `FasterWhisperAdapter`，删除 `OpenAIWhisperAdapter`，本地服务接口为 `{api_url}/transcribe`。
+- **被动状态**: 计划要求 `ChatWindow` 新增 `_is_passive`、空闲计时器、右键菜单切换和用户交互刷新；只有被动状态下主动消息使用气泡。
+- **系统设置布局**: 计划要求系统页拆为基础外观、聊天显示、被动状态、网络四组。
+- **字体下拉框**: 计划要求通过 `QFontDatabase.families()` 填充可编辑 `QComboBox`。
+- **系统页保存**: 计划要求保存按钮在 API 页和系统页显示，文案分流，系统页只保存系统配置并应用到已打开聊天窗。
+
+### 3. 风险评估
+
+- **实现风险**: `ChatWindow` 当前职责较多，被动状态状态机应保持小步 TDD，避免和 STT / TTS worker 生命周期相互污染。
+- **服务风险**: faster-whisper 真实服务协议需按计划中的 multipart `/transcribe` 协议联调；离线 pytest 只能 mock HTTP。
+- **配置风险**: 删除 `openai_whisper` 与 OpenAI SDK 路径是破坏性改动，符合本轮用户明确要求；旧本地配置需要迁移或自动使用默认值。
+- **协作风险**: 当前工作树含本地配置变更，提交时必须排除 `data/config/agent.yaml` 与 `data/config/system_config.yaml`。
+
+### 4. 本地验证步骤与结果
+
+- `rg -n "TBD|TODO|implement later|fill in details|Add appropriate|add validation|handle edge cases|Similar to Task|待定|之后再说" docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md`
+  - 结果：无命中，命令以 `1` 退出符合 `rg` 无匹配语义。
+- `rg -n "faster_whisper|FasterWhisperAdapter|被动状态|保存系统配置|QFontDatabase|openai_whisper|apply_system_config" docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md`
+  - 结果：命中核心任务、测试片段、实现片段和验证步骤。
+- `rg -n "faster-whisper|faster_whisper|被动状态|保存系统配置|系统字体下拉框|Phase 5 改进" CLAUDE.md docs .codex`
+  - 结果：命中新增 spec、plan、文档入口、开发流程、UI 规范和本报告。
+- `git diff --check`
+  - 结果：通过；仅提示工作区 LF/CRLF 转换，无空白错误。
+- `python -m pytest tests/ -q`
+  - 结果：`341 passed in 16.79s`。
+- `python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py ui/theme.py stt/types.py stt/adapter.py stt/adapters/openai_whisper.py stt/manager.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py`
+  - 结果：通过，无输出错误。
+
+### 5. 评分
+
+- **代码质量**: 90/100
+  - 本轮未修改功能代码；计划中的边界和接口符合现有适配器结构。
+- **测试覆盖**: 93/100
+  - 计划为每个行为变化安排了失败测试、聚焦测试和全量验证。
+- **规范遵循**: 93/100
+  - 文档使用中文，设计先于计划，`.codex` 留痕完整。
+- **需求匹配**: 95/100
+  - 用户五项反馈均已映射到计划任务。
+- **架构一致**: 92/100
+  - STT 保持适配器层；被动状态限定在聊天窗运行态；系统页保存不污染 API 配置。
+- **风险评估**: 90/100
+  - 已明确真实 faster-whisper 服务和本地配置提交边界。
+
+### 6. 结论
+
+- **综合评分**: 93/100
+- **明确建议**: 通过。
+- **审查结论时间戳**: 2026-05-25 19:49:56 +08:00

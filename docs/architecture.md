@@ -19,6 +19,7 @@ yumetsuki/
 ├── session/
 ├── llm/
 ├── tts/
+├── stt/
 ├── ui/
 ├── data/
 ├── plugins/
@@ -44,7 +45,7 @@ yumetsuki/
 - `ui/settings/pages/api_page.py`
   API 配置页面
 - `ui/settings/pages/system_page.py`
-  系统设置页面
+  系统设置页面；Phase 5 改进计划会把外观相关配置拆分为基础外观、聊天显示、被动状态和网络区域，并把字体输入改为系统字体下拉框
 - `ui/settings/pages/character_page.py`
   角色页面
 - `ui/settings/pages/plugin_page.py`
@@ -54,7 +55,10 @@ yumetsuki/
 - `ui/settings/pages/system_log_page.py`
   平台日志页面，展示 TTS / LLM / Tool 等运行期系统事件
 - `ui/chat/window.py`
-  桌宠聊天窗（长文本滚动、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend；同时产出 TTS 句段与播放相关系统日志）
+  桌宠聊天窗（长文本滚动、显示配置、被动互动气泡、STT 语音输入、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend；同时产出 TTS 句段与播放相关系统日志）
+  Phase 5 改进计划会把被动互动从系统设置开关改为聊天窗运行态：空闲阈值自动进入、右键菜单手动切换、被动状态下主动消息走气泡
+- `ui/chat/stt_recorder.py`
+  Qt 麦克风录音控制器，负责 PCM 采集、静音检测、超时停止和 WAV 字节生成；录音完成后交由聊天窗的 STT worker 转写
 - `ui/chat/audio_backends.py`
   TTS 播放后端：`PcmStreamPlaybackBackend` 负责 PCM 边收边播；完整 WAV 在当前聊天窗主路径下由共享 `QMediaPlayer` 顺序播放
 - `ui/chat/tts_pipeline.py`
@@ -68,7 +72,8 @@ yumetsuki/
 
 - `config/schema.py`
   Pydantic 配置模型
-  当前已包含 `SessionContextConfig`、`TTSRuntimeConfig` 与 `EventBusRuntimeConfig`
+  当前已包含 `SessionContextConfig`、`TTSRuntimeConfig`、`EventBusRuntimeConfig`、`ChatDisplayConfig`、`PassiveInteractionConfig`，并扩展了 `ASRConfig` 的 Whisper 兼容转写参数
+  Phase 5 改进计划会将 `ASRConfig` 收敛为 faster-whisper 本地服务参数，并将 `PassiveInteractionConfig` 收敛为被动运行态阈值和气泡显示参数
 - `config/manager.py`
   YAML 读写，当前支持：
   - `api.yaml`
@@ -126,6 +131,21 @@ yumetsuki/
   PCM 流式请求现已使用有限读超时，避免 `None` 式无限等待
   `audio_mode=wav + reference_mode=inline` 被实现为桌宠端保底模式：不调用 `set_refer_audio`、不透传 `session_id`、不发送 PCM/流式扩展参数，只保留原版显式参考字段工作流
   `pcm_stream + inline` 被实现为音频扩展：只扩展音频返回方式，不进入当前服务端以 `session_id` 判定的会话扩展路径
+
+### `stt/`
+
+负责语音转文本能力适配。
+
+- `stt/types.py`
+  STT 转写结果模型，统一承载文本、语言和错误信息
+- `stt/adapter.py`
+  STT 适配器抽象，当前统一暴露 `transcribe_wav()`，输入为 WAV 字节
+- `stt/adapters/openai_whisper.py`
+  OpenAI Whisper 兼容接口适配器，通过 `audio.transcriptions.create()` 转写录音内容
+- `stt/manager.py`
+  根据 `ASRConfig.engine` 创建适配器；`none` 表示禁用语音输入，未知引擎返回可展示错误
+
+Phase 5 改进计划会删除 `stt/adapters/openai_whisper.py`，新增 `stt/adapters/faster_whisper.py`，并让 `STTManager` 只识别 `none` 与 `faster_whisper`。`FasterWhisperAdapter` 将 WAV 录音以 multipart 形式发送到本地服务 `{api_url}/transcribe`，返回文本仍通过 `STTResult` 进入聊天窗主链路。
 
 ### `core/`
 
@@ -188,7 +208,11 @@ yumetsuki/
 ## 对话主流程
 
 ```text
-用户输入
+语音输入
+→ STTRecorder 采集麦克风 PCM、检测静音并生成 WAV
+→ STTManager 调用当前 STT 适配器转写
+→ ChatWindow 将识别文本写入输入框并调用 _on_send()
+用户文本输入
 → AgentManager 编排当前轮
 → SessionContextManager 同步更新当前会话短期记忆
 → LLMManager 按“角色提示 → SessionContext 热上下文 → 长期记忆补充 → 当前输入”组装 messages
@@ -207,6 +231,18 @@ yumetsuki/
 → ChatWindow 按句段顺序驱动 `WavPlaybackBackend` 或 `PcmStreamPlaybackBackend`
 → 翻译 worker / TTS worker 受 `AgentConfig.tts_runtime` 限流，超额句段先进入待处理队列
 → Qt 多媒体按句序播放音频；PCM 在首个可播 chunk 到达后尽快起播
+```
+
+Phase 5 改进后的 STT 适配路径将固定为：
+
+```text
+STTRecorder
+→ STTManager
+→ FasterWhisperAdapter
+→ 本地 faster-whisper 服务 /transcribe
+→ STTResult
+→ ChatWindow._on_stt_result()
+→ ChatWindow._on_send()
 ```
 
 已知边界：
@@ -356,10 +392,16 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - 输出语言强约束与句级翻译播报（拟声词 / 语气词优先保留音感）
 - 运行期结构化日志接线与 JSONL 持久化
 - TTS 句段生命周期治理（取消、队列上限、总超时）
+- Phase 5 显示配置基础能力：聊天字体倍率、气泡倍率、设置中心系统页编辑与聊天窗启动应用
+- Phase 5 被动互动气泡：主动消息可独立气泡展示，支持最大宽度、停留时长和主对话框互斥
+- Phase 5 STT 基础链路：API ASR 配置、Qt 麦克风录音、PCM 静音检测、WAV 生成、OpenAI Whisper 兼容转写和 `_on_send()` 主链路接入
+- Phase 5 改进设计与计划已确认：STT 将改为 faster-whisper 本地服务接口；被动互动将改为聊天窗运行态；系统页将改为系统字体下拉框、独立保存和保存后应用
 
 尚未实现：
 
 - 更多内置插件能力扩展（媒体控制、截图等）
+- Phase 5 改进实现：删除 OpenAI Whisper 适配器、接入 faster-whisper 本地服务、重做被动状态与系统页保存语义
+- 真实麦克风、真实 faster-whisper 服务与真实 STT / TTS / API 场景的全面联调验证
 
 ## 已确认的后续演进方向
 
@@ -391,7 +433,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 后续演进重点：
 
 - 日志工作台与结构化可观测性
-- UI 被动互动、STT、视觉与浏览器自由操控在后续阶段中的接入点
+- UI 被动互动和 STT 已进入 Phase 5 基础实现后的方向修正阶段；视觉与浏览器自由操控仍是后续阶段接入重点
 
 ## 记忆系统
 

@@ -1,8 +1,10 @@
 from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QApplication, QPushButton, QTextEdit
 
+from config.manager import ConfigManager
 from config.schema import APIConfig
 from config.schema import LLMConfig
+from config.schema import SystemConfig
 from main import APP_STYLE
 from ui.chat.window import ChatWindow
 import ui.settings.pages.api_page as api_page_module
@@ -12,6 +14,7 @@ import ui.settings.pages.memory_page as memory_page_module
 import ui.settings.pages.plugin_page as plugin_page_module
 import ui.settings.pages.system_page as system_page_module
 from ui.settings.pages.api_page import APIPage
+from ui.settings.pages.system_page import SystemPage
 from ui.settings.pages.system_log_page import PAGE_STYLE as SYSTEM_LOG_PAGE_STYLE
 from ui.settings.window import SettingsWindow
 
@@ -300,6 +303,83 @@ def test_api_page_tts_language_and_ref_audio_apply_and_reset():
     assert page._tts_ref_audio.text() == "E:/samples/reset.wav"
     assert page._tts_prompt_lang.currentText() == "yue"
     assert page._tts_output_lang.currentText() == "ko"
+
+
+def test_api_page_asr_phase5_fields_apply_and_reset():
+    _app()
+    config = APIConfig()
+    page = APIPage(config)
+
+    assert [page._asr_engine.itemText(i) for i in range(page._asr_engine.count())] == ["none", "openai_whisper"]
+
+    page._asr_engine.setCurrentText("openai_whisper")
+    page._asr_base_url.setText("https://api.openai.com/v1")
+    page._asr_api_key.setText("sk-local-test")
+    page._asr_model.setText("whisper-1-large")
+    page._asr_language.setCurrentText("ja")
+    page._asr_record_timeout.setValue(25)
+    page._asr_silence_threshold.setValue(5)
+    page._asr_silence_duration.setValue(1500)
+    page.apply()
+
+    assert config.asr.engine == "openai_whisper"
+    assert config.asr.base_url == "https://api.openai.com/v1"
+    assert config.asr.api_key == "sk-local-test"
+    assert config.asr.model == "whisper-1-large"
+    assert config.asr.language == "ja"
+    assert config.asr.record_timeout_seconds == 25
+    assert config.asr.silence_threshold == 0.05
+    assert config.asr.silence_duration_ms == 1500
+
+    config.asr.engine = "none"
+    config.asr.base_url = ""
+    config.asr.api_key = ""
+    config.asr.model = "whisper-1"
+    config.asr.language = "zh"
+    config.asr.record_timeout_seconds = 20
+    config.asr.silence_threshold = 0.02
+    config.asr.silence_duration_ms = 1200
+    page.reset()
+
+    assert page._asr_engine.currentText() == "none"
+    assert page._asr_base_url.text() == ""
+    assert page._asr_api_key.text() == ""
+    assert page._asr_model.text() == "whisper-1"
+    assert page._asr_language.currentText() == "zh"
+    assert page._asr_record_timeout.value() == 20
+    assert page._asr_silence_threshold.value() == 2
+    assert page._asr_silence_duration.value() == 1200
+
+
+def test_system_page_phase5_display_fields_apply(monkeypatch, tmp_path):
+    _app()
+    monkeypatch.setattr(
+        system_page_module,
+        "ConfigManager",
+        lambda: ConfigManager(config_dir=tmp_path),
+    )
+    config = SystemConfig()
+    page = SystemPage(config)
+
+    page._chat_font_scale.setValue(125)
+    page._bubble_scale.setValue(110)
+    page._passive_enabled.setChecked(True)
+    page._bubble_max_width.setValue(360)
+    page._bubble_duration.setValue(12)
+    page.apply()
+
+    assert config.chat_display.font_scale == 1.25
+    assert config.chat_display.bubble_scale == 1.1
+    assert config.passive_interaction.enabled is True
+    assert config.passive_interaction.bubble_max_width == 360
+    assert config.passive_interaction.bubble_duration_seconds == 12
+
+    reloaded = ConfigManager(config_dir=tmp_path)
+    assert reloaded.system.chat_display.font_scale == 1.25
+    assert reloaded.system.chat_display.bubble_scale == 1.1
+    assert reloaded.system.passive_interaction.enabled is True
+    assert reloaded.system.passive_interaction.bubble_max_width == 360
+    assert reloaded.system.passive_interaction.bubble_duration_seconds == 12
 
 
 class _FakeLLMManager:

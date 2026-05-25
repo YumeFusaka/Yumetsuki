@@ -215,13 +215,46 @@ class APIPage(QWidget):
         asr_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         self._asr_engine = QComboBox()
-        self._asr_engine.addItems(["none", "vosk", "whisper"])
+        self._asr_engine.addItems(["none", "openai_whisper"])
         self._asr_engine.setCurrentText(config.asr.engine)
         asr_form.addRow("引擎:", self._asr_engine)
 
-        self._asr_model = QLineEdit(config.asr.model_path)
-        self._asr_model.setPlaceholderText("模型路径（留空使用默认）")
-        asr_form.addRow("模型路径:", self._asr_model)
+        self._asr_base_url = QLineEdit(config.asr.base_url)
+        self._asr_base_url.setPlaceholderText("OpenAI API Base URL，留空使用官方默认")
+        asr_form.addRow("Base URL:", self._asr_base_url)
+
+        self._asr_api_key = QLineEdit(config.asr.api_key)
+        self._asr_api_key.setEchoMode(QLineEdit.EchoMode.Password)
+        asr_form.addRow("API Key:", self._asr_api_key)
+
+        self._asr_model = QLineEdit(config.asr.model)
+        self._asr_model.setPlaceholderText("whisper-1")
+        asr_form.addRow("模型:", self._asr_model)
+
+        self._asr_language = QComboBox()
+        self._asr_language.setEditable(True)
+        self._asr_language.addItems(self.TTS_LANGUAGE_OPTIONS)
+        self._asr_language.setCurrentText(config.asr.language)
+        self._asr_language.setMaximumWidth(220)
+        asr_form.addRow("语言:", self._asr_language)
+
+        self._asr_record_timeout = RoseSpinBox()
+        self._asr_record_timeout.setRange(3, 120)
+        self._asr_record_timeout.setValue(config.asr.record_timeout_seconds)
+        self._asr_record_timeout.setSuffix(" 秒")
+        asr_form.addRow("录音超时:", self._asr_record_timeout)
+
+        self._asr_silence_threshold = RoseSpinBox()
+        self._asr_silence_threshold.setRange(1, 50)
+        self._asr_silence_threshold.setValue(int(config.asr.silence_threshold * 100))
+        self._asr_silence_threshold.setSuffix("%")
+        asr_form.addRow("静音阈值:", self._asr_silence_threshold)
+
+        self._asr_silence_duration = RoseSpinBox()
+        self._asr_silence_duration.setRange(300, 5000)
+        self._asr_silence_duration.setValue(config.asr.silence_duration_ms)
+        self._asr_silence_duration.setSuffix(" ms")
+        asr_form.addRow("静音结束:", self._asr_silence_duration)
 
         layout.addWidget(asr_group)
         layout.addStretch()
@@ -269,7 +302,13 @@ class APIPage(QWidget):
         self._config.tts.output_lang = self._tts_output_lang.currentText()
         self._config.tts.prompt_text = self._tts_prompt_text.text()
         self._config.asr.engine = self._asr_engine.currentText()
-        self._config.asr.model_path = self._asr_model.text()
+        self._config.asr.base_url = self._asr_base_url.text()
+        self._config.asr.api_key = self._asr_api_key.text()
+        self._config.asr.model = self._asr_model.text()
+        self._config.asr.language = self._asr_language.currentText()
+        self._config.asr.record_timeout_seconds = self._asr_record_timeout.value()
+        self._config.asr.silence_threshold = self._asr_silence_threshold.value() / 100.0
+        self._config.asr.silence_duration_ms = self._asr_silence_duration.value()
 
     def reset(self) -> None:
         self._provider.setCurrentText(self._config.llm.provider)
@@ -289,4 +328,10 @@ class APIPage(QWidget):
         self._tts_output_lang.setCurrentText(self._config.tts.output_lang)
         self._tts_prompt_text.setText(self._config.tts.prompt_text)
         self._asr_engine.setCurrentText(self._config.asr.engine)
-        self._asr_model.setText(self._config.asr.model_path)
+        self._asr_base_url.setText(self._config.asr.base_url)
+        self._asr_api_key.setText(self._config.asr.api_key)
+        self._asr_model.setText(self._config.asr.model)
+        self._asr_language.setCurrentText(self._config.asr.language)
+        self._asr_record_timeout.setValue(self._config.asr.record_timeout_seconds)
+        self._asr_silence_threshold.setValue(int(self._config.asr.silence_threshold * 100))
+        self._asr_silence_duration.setValue(self._config.asr.silence_duration_ms)

@@ -247,3 +247,176 @@
   - 结果：通过，无输出错误。
 - `git diff --check`
   - 结果：通过；仅输出 Windows 换行转换提示，无空白错误。
+
+## 计划编写记录 - Phase 5 桌宠体验、UI 与 STT
+
+时间：2026-05-25 16:57:32 +08:00
+
+### 需求
+
+- 根据 `docs/superpowers/specs/2026-05-24-phase-5-ui-stt-design.md` 编写实施计划。
+- 计划需覆盖系统设置与聊天界面优化、被动互动气泡、STT 模块和 STT / TTS 状态协调。
+
+### 工具偏差记录
+
+- 仓库准则要求的 `sequential-thinking`、`shrimp-task-manager`、`desktop-commander`、`context7`、`github.search_code` 当前没有暴露可调用工具。
+- 已使用 `tool_search` 搜索 `sequential thinking task manager shrimp`，结果为 0 个可用工具。
+- 替代方式：读取本地文档、使用 `rg` 搜索、读取相似实现和测试、用本日志记录替代流程。
+- 只读检索过程中多次遇到 PowerShell 沙箱 `CreateProcessAsUserW failed: 1312`，均按权限规则以只读命令重新请求执行。
+
+### 上下文检查
+
+- 已查阅上下文摘要文件：`.codex/context-summary-phase-5-ui-stt-plan.md`
+- 已分析相似实现：
+  - `config/schema.py`
+  - `ui/settings/pages/system_page.py`
+  - `ui/chat/window.py`
+  - `agent/proactive.py`
+  - `tests/test_chat_tts_flow.py`
+- 将复用以下组件：
+  - `SystemConfig` / `ASRConfig`：承载 Phase 5 新配置。
+  - `SystemPage` / `APIPage`：分别编辑显示配置和 ASR 配置。
+  - `ChatWindow._on_send()`：STT 文本进入既有聊天主链路。
+  - `ChatWindow._begin_new_tts_turn()`：录音或新输入时中断旧 TTS 轮次。
+  - `ProactiveScheduler.proactive_message`：被动气泡的主动消息来源。
+- 确认不重复造轮子：已检查现有 `font_family`、`font_size`、ASR 基础配置、TTS 管线与主动消息调度入口，计划只扩展这些入口。
+
+### 输出
+
+- 新增计划文档：`docs/superpowers/plans/2026-05-25-phase-5-ui-stt-implementation.md`
+- 新增上下文摘要：`.codex/context-summary-phase-5-ui-stt-plan.md`
+- 更新审查报告：`.codex/verification-report.md`
+
+### 验证结果
+
+- `rg -n "TBD|TODO|implement later|fill in details|Add appropriate|add validation|handle edge cases|Similar to Task" docs/superpowers/plans/2026-05-25-phase-5-ui-stt-implementation.md`
+  - 结果：无命中，命令以 `1` 退出符合 `rg` 无匹配语义。
+- `rg -n "Phase 5|STT|被动互动|系统设置|聊天界面|语音输入|字体|字号" docs/superpowers/plans/2026-05-25-phase-5-ui-stt-implementation.md`
+  - 结果：命中计划目标、任务结构、STT、被动互动、显示配置与自检条目。
+- `git diff --check`
+  - 结果：通过；仅提示 `.codex/operations-log.md` 的 LF/CRLF 转换，无空白错误。
+
+## Phase 5 Task 7 文档同步与验证记录
+
+时间：2026-05-25 18:56:45 +08:00
+
+### 任务范围
+
+- 修改 `CLAUDE.md`、`docs/README.md`、`docs/architecture.md`、`docs/development.md`、`docs/ui-guidelines.md`。
+- 追加 `.codex/operations-log.md` 与 `.codex/verification-report.md` 的 Phase 5 实施记录。
+- 明确不触碰 `data/config/agent.yaml`。
+
+### Task 1-7 实施摘要
+
+- Task 1：`config/schema.py` 已扩展 `ASRConfig`，新增 `ChatDisplayConfig` 与 `PassiveInteractionConfig`，并挂入系统配置。
+- Task 2：`ui/settings/pages/system_page.py` 与 `ui/settings/pages/api_page.py` 已接入显示配置、被动互动配置和 ASR / STT 配置。
+- Task 3：`ui/settings/window.py` 已在启动聊天窗时传入 `system_config` 与 `asr_config`。
+- Task 4：`ui/chat/window.py` 已接入显示配置、被动互动气泡、STT 按钮状态、录音 / 转写主链路和关闭态 worker 生命周期治理。
+- Task 5：`stt/` 已新增 `STTResult`、`STTAdapter`、`OpenAIWhisperAdapter`、`STTManager`。
+- Task 6：`ui/chat/stt_recorder.py` 已提供 Qt 麦克风录音、PCM 静音检测和 WAV 生成；`test_chat_passive_bubble.py`、`test_chat_stt_flow.py`、`test_stt_adapter.py`、`test_stt_recorder.py` 已覆盖离线主链路。
+- Task 7：本轮同步协作文档、文档入口、架构、开发流程、UI 规范和审查记录。
+
+### 工具与流程记录
+
+- 仓库准则中提到的 `desktop-commander`、`sequential-thinking`、`shrimp-task-manager`、`context7`、`github.search_code` 当前未暴露为可调用工具。
+- 本轮替代方式：使用 PowerShell 只读检索、`rg` 搜索、`apply_patch` 精确编辑，并在 `.codex/` 中记录工具偏差。
+- 本轮为 Phase 5 实现子代理任务，未修改非任务范围文件，未 revert 其他协作者改动，未触碰 `data/config/agent.yaml`。
+
+### 审查简述
+
+- 文档已把第五阶段从“暂未展开实施计划 / 下一步”更新为“进行中，基础能力已落地”。
+- 架构文档已补充 `stt/`、`ui/chat/stt_recorder.py`、聊天窗 STT / 被动气泡 / 显示配置职责和“语音输入 → STTRecorder → STTManager → _on_send()”流程。
+- 开发文档已指向 Phase 5 实施计划，优先级调整为真实 STT / TTS / API 联调与 Phase 6，并补充 ASR、`chat_display`、`passive_interaction` 配置和聚焦测试命令。
+- UI 规范已补充被动互动气泡和 STT 按钮状态规则。
+- 剩余边界：真实麦克风、真实 Whisper 服务、真实 STT / TTS 互锁体验仍需主会话或本地设备环境回填联调结果。
+
+## Phase 5 最终验证与 Qt 崩溃修复记录
+
+时间：2026-05-25 19:15:11 +08:00
+
+### 问题现象
+
+- 聚焦测试均已通过，但 `python -m pytest tests/ -q` 在 Windows / PySide6 环境中触发原生崩溃。
+- 初始栈显示崩溃位于 `ui/theme.py:111` 的 `QApplication.setStyleSheet()`；移除运行期全局样式追加后，崩溃点推进到 `ui/settings/window.py:120` 的 `SettingsWindow.setStyleSheet()`。
+- 稳定复现序列：
+  - `python -m pytest tests/test_chat_stt_flow.py tests/test_chat_tts_flow.py -q`
+  - `python -m pytest tests/test_chat_passive_bubble.py tests/test_chat_stt_flow.py tests/test_chat_tts_flow.py::test_launch_chat_passes_tts_config -q`
+
+### 根因判断
+
+- 前序 Qt 窗口、计时器和 worker 测试会产生待清理的 PySide / Qt 对象；pytest 未进入完整 Qt 事件循环时，延迟删除事件可能在下一次复杂样式 polish 前仍未处理。
+- `SettingsWindow` 构造时应用较复杂 QSS，会触发 Qt 原生层遍历和 polish 现存对象；在 Windows 环境下该状态可导致 `0xc0000374` 堆损坏或 access violation。
+- `install_sakura_menu_theme()` 同时承担事件过滤器注册与全局 app 样式追加，扩大了运行期全局样式重算范围；菜单已有事件过滤器、主程序 `APP_STYLE` 和窗口级样式覆盖，不需要在设置窗口构造中追加全局样式。
+
+### 修复内容
+
+- `ui/theme.py`
+  - `install_sakura_menu_theme()` 只负责注册 Sakura 菜单事件过滤器，不再在运行期修改 `QApplication` 全局样式表。
+- `ui/settings/window.py`
+  - 新增 `_drain_qt_cleanup_events()`，在设置窗口应用复杂样式前执行 `gc.collect()`、派发 `DeferredDelete` 事件并处理一次 Qt 事件。
+- `ui/chat/window.py`
+  - 关闭窗口时显式停止 `_passive_bubble_timer`，避免被动气泡定时器在关闭路径中继续保留活动状态。
+
+### 最终验证结果
+
+- `python -m pytest tests/test_chat_stt_flow.py tests/test_chat_tts_flow.py -q`
+  - 结果：`50 passed in 6.88s`。
+- `python -m pytest tests/test_chat_passive_bubble.py tests/test_chat_stt_flow.py tests/test_chat_tts_flow.py::test_launch_chat_passes_tts_config -q`
+  - 结果：`20 passed in 6.57s`。
+- `python -m pytest tests/ -q`
+  - 结果：`341 passed in 14.60s`。
+- `python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py ui/theme.py stt/types.py stt/adapter.py stt/adapters/openai_whisper.py stt/manager.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py`
+  - 结果：通过，无输出错误。
+- `git diff --check`
+  - 结果：通过；仅提示工作区 LF/CRLF 转换，无空白错误。
+
+### 注意事项
+
+- 未修改、未暂存 `data/config/agent.yaml`，该文件仍视为用户本地配置改动。
+- 真实麦克风、真实 Whisper 服务和真实 STT / TTS 互锁体验仍属于设备与服务联调边界，不由离线 pytest 完全覆盖。
+
+## Phase 5 改进设计与计划记录
+
+时间：2026-05-25 19:49:56 +08:00
+
+### 需求
+
+- 根据用户反馈修正 Phase 5 方向：
+  - STT 不再兼容 `openai_whisper`，只接入 faster-whisper 本地服务地址接口。
+  - 被动互动改为聊天窗运行态：空闲阈值自动进入，右键菜单手动切换，被动状态下主动消息走气泡。
+  - 系统设置外观区域拆分，避免控件拥挤。
+  - 字体使用系统字体下拉框。
+  - 系统页拥有独立保存按钮，只保存系统配置，保存后应用到已打开聊天窗。
+
+### 输出
+
+- 新增并已提交设计文档：
+  - `docs/superpowers/specs/2026-05-25-phase-5-stt-passive-settings-refinement-design.md`
+  - 提交：`551f62d docs: 记录第五阶段改进设计`
+- 新增实施计划：
+  - `docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md`
+- 已同步文档入口和进度：
+  - `CLAUDE.md`
+  - `docs/README.md`
+  - `docs/development.md`
+  - `docs/architecture.md`
+  - `docs/ui-guidelines.md`
+
+### 工具与流程记录
+
+- 已按 brainstorming 流程先确认设计，再写入 spec。
+- 已按 writing-plans 流程编写 TDD 实施计划。
+- 当前仅编写计划和文档同步，尚未实施代码改进。
+- 提交和 push 前会排除 `data/config/agent.yaml`、`data/config/system_config.yaml` 等本地配置文件。
+
+### 文档自检
+
+- 计划文档无 `TBD`、`TODO`、`implement later`、`fill in details`、`handle edge cases` 等占位式内容。
+- 计划覆盖：
+  - `ASRConfig` faster-whisper 默认值
+  - `APIPage` 本地服务字段
+  - `FasterWhisperAdapter`
+  - `ChatWindow` 被动状态状态机
+  - `SystemPage` 字体下拉框与布局拆分
+  - `SettingsWindow` API / 系统页保存分流
+  - 文档和验证任务

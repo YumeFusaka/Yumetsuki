@@ -25,6 +25,13 @@ class TTSConfig(BaseModel):
 class ASRConfig(BaseModel):
     engine: str = "none"
     model_path: str = ""
+    base_url: str = ""
+    api_key: str = ""
+    model: str = "whisper-1"
+    language: str = "zh"
+    record_timeout_seconds: int = 20
+    silence_threshold: float = 0.02
+    silence_duration_ms: int = 1200
 
 
 class MCPServerConfig(BaseModel):
@@ -53,12 +60,25 @@ class APIConfig(BaseModel):
     asr: ASRConfig = ASRConfig()
 
 
+class ChatDisplayConfig(BaseModel):
+    font_scale: float = 1.0
+    bubble_scale: float = 1.0
+
+
+class PassiveInteractionConfig(BaseModel):
+    enabled: bool = False
+    bubble_max_width: int = 280
+    bubble_duration_seconds: int = 8
+
+
 class SystemConfig(BaseModel):
     language: str = "zh-CN"
     theme: str = "dark"
     font_family: str = "Microsoft YaHei"
     font_size: int = 14
     proxy: str = ""
+    chat_display: ChatDisplayConfig = Field(default_factory=ChatDisplayConfig)
+    passive_interaction: PassiveInteractionConfig = Field(default_factory=PassiveInteractionConfig)
     logging: "LoggingConfig" = Field(default_factory=lambda: LoggingConfig())
 
 

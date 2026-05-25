@@ -107,5 +107,3 @@ def install_sakura_menu_theme(app: QApplication | None = None) -> None:
         event_filter = SakuraMenuEventFilter(app)
         app.installEventFilter(event_filter)
         app._sakura_menu_event_filter = event_filter
-    if "QMenu {" not in app.styleSheet():
-        app.setStyleSheet(app.styleSheet() + "\n" + SAKURA_MENU_STYLE)

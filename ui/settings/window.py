@@ -1,10 +1,11 @@
 from pathlib import Path
+import gc
 import os
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QStackedWidget, QPushButton, QLabel,
 )
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, QThread, Signal, QCoreApplication, QEvent
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QLinearGradient
 from config.manager import ConfigManager
 from ui.settings.pages.api_page import APIPage
@@ -109,6 +110,14 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: t
 """
 
 
+def _drain_qt_cleanup_events() -> None:
+    gc.collect()
+    app = QCoreApplication.instance()
+    if app is not None:
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()
+
+
 class SettingsWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -117,6 +126,7 @@ class SettingsWindow(QMainWindow):
         self.resize(1100, 720)
         self.setWindowIcon(_create_sakura_icon())
         install_sakura_menu_theme()
+        _drain_qt_cleanup_events()
         self.setStyleSheet(f"""
             QMainWindow {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
@@ -346,6 +356,8 @@ class SettingsWindow(QMainWindow):
             settings_window_factory=lambda: self,
             agent_config=self._config.agent,
             tts_config=self._config.api.tts,
+            system_config=self._config.system,
+            asr_config=self._config.api.asr,
             log_service=self._log_service,
         )
         if hasattr(self._conversation_log_page, "set_session_id") and hasattr(self._chat_window, "_tts_session_id"):

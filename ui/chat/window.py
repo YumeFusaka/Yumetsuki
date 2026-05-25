@@ -19,12 +19,15 @@ from agent.manager import AgentManager
 from llm.manager import LLMManager
 from llm.text_processor import ProcessedText
 from llm.adapter import LLMStreamChunk
-from config.schema import AgentConfig, LLMConfig, TTSConfig
+from config.schema import AgentConfig, ASRConfig, LLMConfig, SystemConfig, TTSConfig
 from core.character import load_character, build_system_prompt
 from core.log_types import LogChannel, LogLevel, build_log_event
+from stt.manager import STTManager
+from stt.types import STTResult
 from tts.adapters.gptsovits import GPTSoVITSAdapter
 from tts.types import TTSAudioFormat, TTSStreamEvent
 from ui.chat.audio_backends import PcmStreamPlaybackBackend, WavPlaybackBackend
+from ui.chat.stt_recorder import STTRecorder
 
 
 SENTENCE_ENDINGS = "。！？；\n"
@@ -95,6 +98,22 @@ class TTSReferencePrepareWorker(QThread):
         result = None
         if self._adapter is not None:
             result = self._adapter.prepare_reference()
+        self.result_ready.emit(result)
+
+
+class STTTranscribeWorker(QThread):
+    result_ready = Signal(object)
+
+    def __init__(self, manager: STTManager, audio: bytes):
+        super().__init__()
+        self._manager = manager
+        self._audio = audio
+
+    def run(self):
+        try:
+            result = self._manager.transcribe_wav(self._audio)
+        except Exception as exc:
+            result = STTResult(text="", error=str(exc))
         self.result_ready.emit(result)
 
 
@@ -215,10 +234,19 @@ class ChatWindow(QWidget):
         settings_window_factory=None,
         agent_config = None,
         tts_config: TTSConfig | None = None,
+        system_config: SystemConfig | None = None,
+        asr_config: ASRConfig | None = None,
         log_service=None,
     ):
         super().__init__()
         self._scale = 1.0
+        self._system_config = system_config or SystemConfig()
+        self._asr_config = asr_config or ASRConfig()
+        self._display_font_family = self._system_config.font_family or SystemConfig().font_family
+        self._display_font_size = max(1, int(self._system_config.font_size))
+        self._display_font_scale = max(0.1, float(self._system_config.chat_display.font_scale))
+        self._display_bubble_scale = max(0.1, float(self._system_config.chat_display.bubble_scale))
+        self._speaker_name_color = self.CHARACTER_NAME_COLOR
         self._drag_pos: QPoint | None = None
         self._char_dir = character_dir
         self._settings_window_factory = settings_window_factory
@@ -264,6 +292,11 @@ class ChatWindow(QWidget):
         self._audio_buffer = None
         self._is_audio_playing = False
         self._pending_audio_queue: list[bytes] = []
+        self._stt_manager = STTManager(self._asr_config) if self._is_stt_enabled() else None
+        self._stt_recorder = None
+        self._stt_worker = None
+        self._is_stt_recording = False
+        self._is_closing = False
         self._tts_timeout_timer = QTimer(self)
         self._tts_timeout_timer.setInterval(500)
         self._tts_timeout_timer.timeout.connect(self._poll_tts_timeouts)
@@ -339,6 +372,16 @@ class ChatWindow(QWidget):
         self._sprite_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._root_layout.addWidget(self._sprite_label, 1)
 
+        self._passive_bubble = QLabel(self)
+        self._passive_bubble.setTextFormat(Qt.TextFormat.PlainText)
+        self._passive_bubble.setWordWrap(True)
+        self._passive_bubble.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._passive_bubble.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
+        self._passive_bubble.hide()
+        self._passive_bubble_timer = QTimer(self)
+        self._passive_bubble_timer.setSingleShot(True)
+        self._passive_bubble_timer.timeout.connect(self._hide_passive_bubble)
+
         # Glass panel at bottom
         self._panel = GlassPanel(self)
         panel_layout = QVBoxLayout(self._panel)
@@ -378,11 +421,16 @@ class ChatWindow(QWidget):
         self._input.returnPressed.connect(self._on_send)
         input_row.addWidget(self._input)
 
-        mic_btn = QPushButton("🎤")
-        mic_btn.setFixedSize(34, 34)
-        mic_btn.setStyleSheet(self._circle_btn_style())
-        mic_btn.setToolTip("语音输入")
-        input_row.addWidget(mic_btn)
+        self._mic_btn = QPushButton("🎤")
+        self._mic_btn.setFixedSize(34, 34)
+        self._mic_btn.setStyleSheet(self._circle_btn_style())
+        self._mic_btn.clicked.connect(self._toggle_stt_recording)
+        if self._is_stt_enabled():
+            self._mic_btn.setToolTip("语音输入")
+        else:
+            self._mic_btn.setEnabled(False)
+            self._mic_btn.setToolTip("语音输入未启用")
+        input_row.addWidget(self._mic_btn)
 
         send_btn = QPushButton("➤")
         send_btn.setFixedSize(34, 34)
@@ -413,12 +461,17 @@ class ChatWindow(QWidget):
 
     def _set_speaker_name(self, name: str, is_user: bool = False) -> None:
         color = self.USER_NAME_COLOR if is_user else self.CHARACTER_NAME_COLOR
-        font = int(self.BASE_NAME_FONT * self._scale)
+        self._speaker_name_color = color
+        font = self._scaled_display_font(self.BASE_NAME_FONT)
         self._name_label.setText(name)
         self._name_label.setStyleSheet(f"""
-            color: {color}; font-size: {font}px; font-weight: bold;
+            color: {color}; font-family: "{self._display_font_family}"; font-size: {font}px; font-weight: bold;
             background: transparent;
         """)
+
+    def _scaled_display_font(self, base_font: int) -> int:
+        ratio = base_font / self.BASE_FONT
+        return max(1, int(self._display_font_size * ratio * self._display_font_scale * self._scale))
 
     @staticmethod
     def _scaled_border_widths(scale: float) -> tuple[int, int]:
@@ -435,14 +488,16 @@ class ChatWindow(QWidget):
     def _build_dialog_html(
         text: str,
         font: int,
+        font_family: str | None = None,
         line_height: int = 132,
         paragraph_gap: int = 4,
     ) -> str:
         normalized = ChatWindow._normalize_dialog_text(text)
+        family_style = f" font-family: &quot;{escape(font_family, quote=True)}&quot;;" if font_family else ""
         if not normalized:
             return (
                 f"<div style='line-height: {line_height}%; color: #4a3040; "
-                f"font-size: {font}px; margin:0;'></div>"
+                f"font-size: {font}px;{family_style} margin:0;'></div>"
             )
 
         paragraphs = normalized.split("\n\n")
@@ -454,20 +509,59 @@ class ChatWindow(QWidget):
 
         return (
             f"<div style='line-height: {line_height}%; color: #4a3040; "
-            f"font-size: {font}px;'>{''.join(html_parts)}</div>"
+            f"font-size: {font}px;{family_style}'>{''.join(html_parts)}</div>"
         )
 
     def _set_dialog_text(self, text: str) -> None:
-        font = int(self.BASE_FONT * self._scale)
+        font = self._scaled_display_font(self.BASE_FONT)
         paragraph_gap = max(2, int(4 * self._scale))
         html = self._build_dialog_html(
             text,
             font=font,
+            font_family=self._display_font_family,
             line_height=132,
             paragraph_gap=paragraph_gap,
         )
         self._dialog_box.setText(html)
         self._conversation_pane.scroll_to_top()
+
+    def _hide_passive_bubble(self) -> None:
+        self._passive_bubble_timer.stop()
+        self._passive_bubble.hide()
+        self._panel.show()
+
+    def _show_passive_bubble(self, text: str) -> None:
+        config = self._system_config.passive_interaction
+        self._panel.hide()
+        self._passive_bubble.setText(text)
+        self._passive_bubble.setMaximumWidth(self._passive_bubble_max_width())
+        self._position_passive_bubble()
+        self._passive_bubble.show()
+        self._passive_bubble.raise_()
+        self._passive_bubble_timer.start(max(1, int(config.bubble_duration_seconds)) * 1000)
+
+    def _passive_bubble_max_width(self) -> int:
+        config = self._system_config.passive_interaction
+        configured_width = max(80, int(config.bubble_max_width * self._display_bubble_scale * self._scale))
+        return min(configured_width, self._passive_bubble_available_width())
+
+    def _passive_bubble_margin(self) -> int:
+        return max(8, int(14 * self._scale))
+
+    def _passive_bubble_available_width(self) -> int:
+        margin = self._passive_bubble_margin()
+        return max(1, self.width() - 2 * margin)
+
+    def _position_passive_bubble(self) -> None:
+        max_width = self._passive_bubble_max_width()
+        self._passive_bubble.setMaximumWidth(max_width)
+        self._passive_bubble.adjustSize()
+        width = min(max_width, max(1, self._passive_bubble.sizeHint().width()))
+        height = max(1, self._passive_bubble.sizeHint().height())
+        margin = self._passive_bubble_margin()
+        x = max(margin, (self.width() - width) // 2)
+        y = max(margin, self.height() - height - margin)
+        self._passive_bubble.setGeometry(x, y, width, height)
 
     def _apply_scale(self):
         w = int(self.BASE_WIDTH * self._scale)
@@ -478,13 +572,14 @@ class ChatWindow(QWidget):
         panel_bottom = max(4, int(4 * self._scale))
         self._panel.setGeometry(panel_x, h - panel_h - panel_bottom, w - panel_x * 2, panel_h)
         self._rebuild_stylesheet()
+        self._position_passive_bubble()
         self._reload_sprite()
 
     def _rebuild_stylesheet(self):
         s = self._scale
-        font = int(self.BASE_FONT * s)
-        name_font = int(self.BASE_NAME_FONT * s)
-        input_font = int(self.BASE_INPUT_FONT * s)
+        font = self._scaled_display_font(self.BASE_FONT)
+        name_font = self._scaled_display_font(self.BASE_NAME_FONT)
+        input_font = self._scaled_display_font(self.BASE_INPUT_FONT)
         padding = int(self.BASE_PADDING * s)
         radius = int(self.BASE_RADIUS * s)
         btn_size = int(self.BASE_BTN_SIZE * s)
@@ -494,8 +589,12 @@ class ChatWindow(QWidget):
         self._panel.set_border_style(panel_border, "#d4567a")
 
         self._dialog_box.setStyleSheet(f"""
-            color: #4a3040; font-size: {font}px;
+            color: #4a3040; font-family: "{self._display_font_family}"; font-size: {font}px;
             padding: 1px 0 {max(4, int(6 * s))}px 0; background: transparent;
+        """)
+        self._name_label.setStyleSheet(f"""
+            color: {self._speaker_name_color}; font-family: "{self._display_font_family}"; font-size: {name_font}px; font-weight: bold;
+            background: transparent;
         """)
 
         self._input.setStyleSheet(f"""
@@ -503,7 +602,7 @@ class ChatWindow(QWidget):
                 background: rgba(255, 255, 255, 0.64);
                 border: {control_border}px solid #d4567a;
                 border-radius: {radius}px; padding: {int(8*s)}px {padding}px;
-                color: #4a3040; font-size: {input_font}px;
+                color: #4a3040; font-family: "{self._display_font_family}"; font-size: {input_font}px;
             }}
             QLineEdit:focus {{
                 border-color: #9b3060;
@@ -540,6 +639,22 @@ class ChatWindow(QWidget):
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
             QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
+        """)
+
+        bubble_font = self._scaled_display_font(self.BASE_FONT)
+        bubble_padding_y = max(8, int(10 * s))
+        bubble_padding_x = max(12, int(14 * s))
+        bubble_radius = max(8, int(12 * s))
+        self._passive_bubble.setStyleSheet(f"""
+            QLabel {{
+                background: #fff5fa;
+                border: {control_border}px solid #d4567a;
+                border-radius: {bubble_radius}px;
+                color: #4a3040;
+                font-family: "{self._display_font_family}";
+                font-size: {bubble_font}px;
+                padding: {bubble_padding_y}px {bubble_padding_x}px;
+            }}
         """)
 
     def _reload_sprite(self):
@@ -1317,11 +1432,129 @@ class ChatWindow(QWidget):
             next_audio = self._pending_audio_queue.pop(0)
             self._start_audio_playback(next_audio)
 
+    def _is_stt_enabled(self) -> bool:
+        return (self._asr_config.engine or "none").strip().lower() != "none"
+
+    def _is_stt_worker_busy(self) -> bool:
+        return self._stt_worker is not None and (
+            not hasattr(self._stt_worker, "isRunning") or self._stt_worker.isRunning()
+        )
+
+    def _ensure_stt_recorder(self):
+        if self._stt_recorder is not None:
+            return self._stt_recorder
+        self._stt_recorder = STTRecorder(
+            record_timeout_seconds=self._asr_config.record_timeout_seconds,
+            silence_threshold=self._asr_config.silence_threshold,
+            silence_duration_ms=self._asr_config.silence_duration_ms,
+            parent=self,
+        )
+        self._stt_recorder.audio_ready.connect(
+            self._on_stt_audio_ready,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        self._stt_recorder.error.connect(
+            self._on_stt_recorder_error,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        return self._stt_recorder
+
+    def _toggle_stt_recording(self) -> None:
+        if self._is_stt_recording:
+            self._stop_stt_recording()
+            return
+        self._start_stt_recording()
+
+    def _start_stt_recording(self) -> None:
+        if self._is_closing:
+            return
+        if not self._is_stt_enabled() or self._stt_manager is None:
+            return
+        if self._worker is not None or self._is_stt_worker_busy():
+            return
+        recorder = self._ensure_stt_recorder()
+        recorder.start()
+        if not self._is_stt_recorder_active(recorder):
+            self._is_stt_recording = False
+            self._reset_stt_button()
+            return
+        self._hide_passive_bubble()
+        self._begin_new_tts_turn()
+        self._is_stt_recording = True
+        self._mic_btn.setText("■")
+        self._mic_btn.setToolTip("停止语音输入")
+        self._input.setPlaceholderText("正在听...")
+
+    def _is_stt_recorder_active(self, recorder) -> bool:
+        return getattr(recorder, "_source", None) is not None and getattr(recorder, "_device", None) is not None
+
+    def _stop_stt_recording(self) -> None:
+        if not self._is_stt_recording:
+            return
+        self._is_stt_recording = False
+        self._reset_stt_button()
+        if self._stt_recorder is not None:
+            self._stt_recorder.stop()
+
+    def _reset_stt_button(self) -> None:
+        self._mic_btn.setText("🎤")
+        self._mic_btn.setToolTip("语音输入" if self._is_stt_enabled() else "语音输入未启用")
+
+    def _on_stt_audio_ready(self, audio: bytes) -> None:
+        if self._is_closing:
+            return
+        self._is_stt_recording = False
+        self._reset_stt_button()
+        if not audio:
+            self._input.setPlaceholderText("没有识别到语音")
+            return
+        if self._stt_manager is None or self._is_stt_worker_busy():
+            return
+        self._input.setPlaceholderText("正在识别...")
+        self._stt_worker = self._create_stt_worker(audio)
+        self._stt_worker.result_ready.connect(
+            self._on_stt_result,
+            Qt.ConnectionType.QueuedConnection,
+        )
+        worker = self._stt_worker
+        worker.finished.connect(lambda worker=worker: self._on_stt_worker_finished(worker))
+        self._stt_worker.start()
+
+    def _create_stt_worker(self, audio: bytes) -> STTTranscribeWorker:
+        return STTTranscribeWorker(self._stt_manager, audio)
+
+    def _on_stt_recorder_error(self, message: str) -> None:
+        if self._is_closing:
+            return
+        self._is_stt_recording = False
+        self._reset_stt_button()
+        self._input.setPlaceholderText(f"录音失败：{message}")
+
+    def _on_stt_result(self, result: STTResult) -> None:
+        if self._is_closing:
+            return
+        self._reset_stt_button()
+        if result.error:
+            self._input.setPlaceholderText(f"识别失败：{result.error}")
+            return
+        text = (result.text or "").strip()
+        if not text:
+            self._input.setPlaceholderText("没有识别到语音")
+            return
+        self._input.setText(text)
+        self._on_send()
+
+    def _on_stt_worker_finished(self, worker: STTTranscribeWorker) -> None:
+        if self._stt_worker is worker:
+            self._stt_worker = None
+        worker.deleteLater()
+
     # --- Chat logic ---
     def _on_send(self):
         text = self._input.text().strip()
         if not text or self._worker is not None:
             return
+        self._hide_passive_bubble()
         self._input.clear()
         self._begin_new_tts_turn()
         self._set_speaker_name("我", is_user=True)
@@ -1375,6 +1608,9 @@ class ChatWindow(QWidget):
 
     def _on_proactive_message(self, message: str, source: str):
         """收到主动消息：以角色身份显示。"""
+        if self._system_config.passive_interaction.enabled:
+            self._show_passive_bubble(message)
+            return
         if self._char_name:
             self._set_speaker_name(self._char_name)
         self._set_dialog_text(message)
@@ -1383,8 +1619,15 @@ class ChatWindow(QWidget):
         self._chat_engine.set_memory_store(memory_store)
 
     def closeEvent(self, event):
+        self._is_closing = True
         if self._proactive_scheduler is not None:
             self._proactive_scheduler.stop()
+        if hasattr(self, "_passive_bubble_timer"):
+            self._passive_bubble_timer.stop()
+        if self._stt_recorder is not None:
+            self._stt_recorder.cancel()
+        if self._stt_worker is not None:
+            self._stt_worker.wait(100)
         self._tts_timeout_timer.stop()
         if self._tts_prepare_worker is not None:
             self._tts_prepare_worker.wait(100)

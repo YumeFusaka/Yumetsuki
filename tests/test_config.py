@@ -1,6 +1,6 @@
 from pathlib import Path
 from config.manager import ConfigManager
-from config.schema import MCPServerConfig, SystemConfig
+from config.schema import ASRConfig, MCPServerConfig, SystemConfig
 
 
 def test_load_default_config(tmp_path):
@@ -166,3 +166,45 @@ def test_system_config_exposes_logging_runtime():
     assert cfg.logging.enabled is True
     assert cfg.logging.log_root == "data/logs"
     assert cfg.logging.system_flush_interval_ms == 200
+
+
+def test_system_config_exposes_phase5_display_and_passive_settings():
+    cfg = SystemConfig()
+
+    assert cfg.chat_display.font_scale == 1.0
+    assert cfg.chat_display.bubble_scale == 1.0
+    assert cfg.passive_interaction.enabled is False
+    assert cfg.passive_interaction.bubble_max_width == 280
+    assert cfg.passive_interaction.bubble_duration_seconds == 8
+
+
+def test_save_and_reload_phase5_system_config(tmp_path):
+    mgr = ConfigManager(config_dir=tmp_path)
+    mgr.system.chat_display.font_scale = 1.25
+    mgr.system.chat_display.bubble_scale = 1.1
+    mgr.system.passive_interaction.enabled = True
+    mgr.system.passive_interaction.bubble_max_width = 360
+    mgr.system.passive_interaction.bubble_duration_seconds = 12
+    mgr.save_system()
+
+    mgr2 = ConfigManager(config_dir=tmp_path)
+
+    assert mgr2.system.chat_display.font_scale == 1.25
+    assert mgr2.system.chat_display.bubble_scale == 1.1
+    assert mgr2.system.passive_interaction.enabled is True
+    assert mgr2.system.passive_interaction.bubble_max_width == 360
+    assert mgr2.system.passive_interaction.bubble_duration_seconds == 12
+
+
+def test_asr_config_exposes_phase5_runtime_settings():
+    cfg = ASRConfig()
+
+    assert cfg.engine == "none"
+    assert cfg.model_path == ""
+    assert cfg.base_url == ""
+    assert cfg.api_key == ""
+    assert cfg.model == "whisper-1"
+    assert cfg.language == "zh"
+    assert cfg.record_timeout_seconds == 20
+    assert cfg.silence_threshold == 0.02
+    assert cfg.silence_duration_ms == 1200

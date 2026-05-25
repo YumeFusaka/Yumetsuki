@@ -1,4 +1,44 @@
 import inspect
+from types import SimpleNamespace
+
+from PySide6.QtWidgets import QApplication
+
+from config.schema import ASRConfig, LLMConfig, SystemConfig
+
+
+def _app() -> QApplication:
+    app = QApplication.instance()
+    return app or QApplication([])
+
+
+class _FakeLLMManager:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def set_character(self, *_args, **_kwargs):
+        return None
+
+
+class _FakeAgentManager:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def set_memory_store(self, *_args, **_kwargs):
+        return None
+
+
+class _FakeSpriteManager:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def reload(self, *_args, **_kwargs):
+        return None
+
+    def load_character(self, *_args, **_kwargs):
+        return None
+
+    def set_emotion(self, *_args, **_kwargs):
+        return None
 
 
 def test_panel_height_is_45_percent():
@@ -110,3 +150,69 @@ def test_chat_window_border_widths_scale_with_minimums():
     assert ChatWindow._scaled_border_widths(1.0) == (3, 2)
     assert ChatWindow._scaled_border_widths(0.5) == (2, 1)
     assert ChatWindow._scaled_border_widths(1.8) == (5, 4)
+
+
+def test_chat_window_uses_system_font_scale(monkeypatch):
+    """聊天正文和输入框应使用系统字体与聊天字号倍率。"""
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    system_config = SystemConfig(font_family="Microsoft YaHei", font_size=16)
+    system_config.chat_display.font_scale = 1.25
+    window = None
+    try:
+        from ui.chat.window import ChatWindow
+
+        window = ChatWindow(LLMConfig(), system_config=system_config)
+        window._set_dialog_text("测试文本")
+
+        assert "font-size: 20px" in window._dialog_box.text()
+        assert "font-family: \"Microsoft YaHei\"" in window._dialog_box.styleSheet()
+        assert "font-family: \"Microsoft YaHei\"" in window._input.styleSheet()
+    finally:
+        if window is not None:
+            window.close()
+
+
+def test_launch_chat_passes_system_and_asr_config(monkeypatch):
+    """设置窗启动聊天时应传递系统显示配置和 ASR 配置。"""
+    _app()
+    captured = {}
+
+    class DummyChatWindow:
+        def __init__(self, llm_config, **kwargs):
+            captured["llm"] = llm_config
+            captured["system"] = kwargs.get("system_config")
+            captured["asr"] = kwargs.get("asr_config")
+
+        def show(self):
+            return None
+
+        def set_memory_store(self, memory_store):
+            return None
+
+    monkeypatch.setattr("ui.settings.window.ChatWindow", DummyChatWindow)
+    monkeypatch.setattr("ui.settings.window.PluginHost", lambda *_: SimpleNamespace(load=lambda: None))
+    monkeypatch.setattr("ui.settings.window.MCPHost", lambda *_: SimpleNamespace(connect_all=lambda: None))
+    monkeypatch.setattr("ui.settings.window.ToolRegistry", lambda **_: SimpleNamespace())
+
+    class DummyLoader:
+        def __init__(self, *_args, **_kwargs):
+            self.memory_ready = SimpleNamespace(connect=lambda *_: None)
+            self.memory_failed = SimpleNamespace(connect=lambda *_: None)
+
+        def start(self):
+            return None
+
+    monkeypatch.setattr("ui.settings.window.MemoryLoaderThread", DummyLoader)
+
+    from ui.settings.window import SettingsWindow
+
+    window = SettingsWindow()
+    window._config.api.asr = ASRConfig(engine="whisper")
+    window._launch_chat()
+
+    assert captured["system"] is window._config.system
+    assert captured["asr"] is window._config.api.asr
