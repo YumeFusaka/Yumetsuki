@@ -10,6 +10,8 @@ from core.tool_registry import ToolRegistry
 
 
 class LLMManager:
+    STREAM_PROGRESS_CHAR_INTERVAL = 80
+
     def __init__(
         self,
         config: LLMConfig,
@@ -80,6 +82,7 @@ class LLMManager:
         self._history.append({"role": "user", "content": user_input})
 
         full_response = ""
+        last_progress_log_length: int | None = None
         tools = self._tool_registry.tool_specs() if self._tool_registry and allow_tools else None
         try:
             for _ in range(3):
@@ -90,13 +93,19 @@ class LLMManager:
                             yield ProcessedText(clean_text=full_response, emotion=None, thinking=chunk.thinking)
                         if chunk.content:
                             full_response += chunk.content
-                            self._record_stream_progress(full_response)
+                            last_progress_log_length = self._record_stream_progress(
+                                full_response,
+                                last_progress_log_length,
+                            )
                             yield self._processor.process(full_response)
                         if chunk.tool_calls:
                             tool_calls.extend(chunk.tool_calls)
                         continue
                     full_response += chunk
-                    self._record_stream_progress(full_response)
+                    last_progress_log_length = self._record_stream_progress(
+                        full_response,
+                        last_progress_log_length,
+                    )
                     yield self._processor.process(full_response)
 
                 if not tool_calls:
@@ -112,7 +121,10 @@ class LLMManager:
                     messages.append(self._execute_tool_call(call))
             else:
                 full_response += "\n\n工具调用次数过多，已停止继续执行。"
-                self._record_stream_progress(full_response)
+                last_progress_log_length = self._record_stream_progress(
+                    full_response,
+                    last_progress_log_length,
+                )
                 yield self._processor.process(full_response)
         except Exception as exc:
             self._record_log_event(
@@ -126,6 +138,11 @@ class LLMManager:
             )
             raise
 
+        last_progress_log_length = self._record_stream_progress(
+            full_response,
+            last_progress_log_length,
+            force=True,
+        )
         self._history.append({"role": "assistant", "content": full_response})
         self._record_log_event(
             channel=LogChannel.SYSTEM,
@@ -188,7 +205,21 @@ class LLMManager:
                 return self._tool_registry.call_tool(name, arguments)
         return ""
 
-    def _record_stream_progress(self, full_response: str) -> None:
+    def _record_stream_progress(
+        self,
+        full_response: str,
+        last_logged_length: int | None = None,
+        force: bool = False,
+    ) -> int | None:
+        response_length = len(full_response)
+        if response_length <= 0:
+            return last_logged_length
+        if last_logged_length is not None:
+            advanced_by = response_length - last_logged_length
+            if advanced_by <= 0:
+                return last_logged_length
+            if not force and advanced_by < self.STREAM_PROGRESS_CHAR_INTERVAL:
+                return last_logged_length
         self._record_log_event(
             channel=LogChannel.SYSTEM,
             level=LogLevel.DEBUG,
@@ -197,10 +228,11 @@ class LLMManager:
             session_id=self._session_id,
             summary="LLM stream progress",
             details={
-                "response_length": len(full_response),
+                "response_length": response_length,
                 "tail_preview": full_response[-80:],
             },
         )
+        return response_length
 
     def _record_log_event(self, **kwargs) -> None:
         if self._log_service is None:

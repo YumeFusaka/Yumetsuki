@@ -26,6 +26,12 @@ class _StreamingAdapter:
         yield LLMStreamChunk(content="，世界")
 
 
+class _ManyChunkStreamingAdapter:
+    def stream_chat(self, _messages, tools=None):
+        for _ in range(20):
+            yield LLMStreamChunk(content="啊")
+
+
 class _FakeLLMManager:
     def __init__(self, *args, final_text="[emotion:开心]好的", **kwargs):
         self.final_text = final_text
@@ -252,3 +258,15 @@ def test_llm_manager_records_stream_progress_during_content_accumulation(monkeyp
     assert events[-1].session_id == "s1"
     assert events[-1].details["response_length"] == len("你好，世界")
     assert events[-1].details["tail_preview"] == "你好，世界"
+
+
+def test_llm_manager_throttles_stream_progress_logs(monkeypatch):
+    log_service = _RecordingLogService()
+    monkeypatch.setattr(LLMManager, "_create_adapter", lambda self, _config: _ManyChunkStreamingAdapter())
+    manager = LLMManager(LLMConfig(), log_service=log_service, session_id="s1")
+
+    list(manager.chat_stream("测试输入"))
+
+    events = [item for item in log_service.events if item.event_type == "llm.stream_progress"]
+    assert events
+    assert len(events) < 20
