@@ -394,7 +394,6 @@ def test_system_log_page_refreshes_detail_when_selected_event_payload_changes():
     _app()
 
     repeated_text = "\n".join(f"line {i}" for i in range(200))
-    page = SystemLogPage(_FakeLogService())
     original_event = {
         "id": "same-event",
         "timestamp": "2026-05-24T10:25:39.573",
@@ -416,13 +415,23 @@ def test_system_log_page_refreshes_detail_when_selected_event_payload_changes():
         "details": {"text": repeated_text, "version": 2, "extra": "changed"},
     }
 
-    page._set_selected_event(original_event)
+    class _Service:
+        event = original_event
+
+        def query_events(self, **kwargs):
+            return [self.event]
+
+    service = _Service()
+    page = SystemLogPage(service)
+    page._refresh_view()
+    page._event_list.setCurrentRow(0)
 
     detail_bar = page._detail_text.verticalScrollBar()
     detail_bar.setValue(max(1, detail_bar.maximum() // 2))
     previous_value = detail_bar.value()
 
-    page._set_selected_event(updated_event)
+    service.event = updated_event
+    page._refresh_view()
 
     assert '"version": 2' in page._detail_text.toPlainText()
     assert '"extra": "changed"' in page._detail_text.toPlainText()
