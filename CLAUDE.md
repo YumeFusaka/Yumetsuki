@@ -70,11 +70,12 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段已完成。
     - `python -m pytest tests/ -q` 全量测试通过
     - 关键模块 `py_compile` 语法检查通过
   - 后续配套能力已落地：
-    - 日志工作台基础版：`LogService`、脱敏、JSONL 持久化、`对话日志` / `系统日志` 独立页面
+    - 日志工作台基础版：`LogService`、脱敏、JSONL 持久化、`对话日志` / `平台日志` 独立页面
     - `ChatWindow`、`AgentManager`、`LLMManager`、`ToolRegistry`、`GPTSoVITSAdapter` 已接入结构化运行日志
-    - 日志工作台打磨已完成：系统日志支持业务链路 / 来源两层筛选、结构化列表 / 连续文本双视图、自由选择复制、自动刷新滚动保持、详情区稳定刷新；对话日志改为最近会话选择与当前 / 全部会话切换
-    - 系统日志 UI 细节已收口：已知来源使用唯一配色，结构化列表选中态通过绘制委托保持来源文字色，连续文本视图沿用来源配色，刷新重建时不会把列表、连续文本或详情区强制弹到底部；设置中心右键菜单、标准文本复制 / 粘贴菜单与下拉框箭头已统一为浅色 Sakura 主题
-    - 日志覆盖已补强：记忆检索、短期上下文构建、LLM 流式进度、LLM 本地切句、TTS 入队与翻译完成均有系统日志记录；`llm.stream_progress` 已做长度阈值节流，避免长回复日志风暴
+    - 日志工作台打磨已完成：平台日志支持业务链路 / 来源两层筛选、结构化列表 / 连续文本双视图、自由选择复制、自动刷新滚动保持、详情区稳定刷新；对话日志改为最近会话选择与当前 / 全部会话切换
+    - 平台日志 UI 细节已收口：已知来源使用唯一配色，结构化列表选中态通过绘制委托保持来源文字色，连续文本视图沿用来源配色，刷新重建时不会把列表、连续文本或详情区强制弹到底部；设置中心右键菜单、标准文本复制 / 粘贴菜单与下拉框箭头已统一为浅色 Sakura 主题
+    - 设置中心导航已收口：页面顺序固定为 `API / 角色 / 记忆 / Agent / 插件 / 对话日志 / 平台日志 / 系统`；`API` 使用钥匙图标，`Agent` 保留机器人图标；导航点击目标与高亮状态按页面索引绑定
+    - 日志覆盖已补强：记忆检索、短期上下文构建、LLM 流式进度、LLM 本地切句、TTS 入队与翻译完成均有平台日志记录；内部日志 channel 仍为 `system`，`llm.stream_progress` 已做长度阈值节流，避免长回复日志风暴
     - 当前状态为“基础能力完成，已通过聚焦自动化回归，但尚未完成真实服务场景的全面联调验证”
 
 ## 下一步
@@ -82,7 +83,7 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段已完成。
 - 继续推进 Phase 5 / Phase 6：
   - 桌宠体验、界面和 STT
   - 更多内置插件能力扩展（媒体控制、文件操作等）
-  - 日志工作台补做真实 API / TTS / 异常场景的全面联调验证
+  - 平台日志补做真实 API / TTS / 异常场景的全面联调验证
 
 ## 文档入口
 
@@ -93,6 +94,3 @@ Yumetsuki 是一个 Python 桌宠 AI 伴侣项目，第四阶段已完成。
 - [开发流程](./docs/development.md)
 - [服务端 TTS 对接规范](./docs/service-tts-compatibility.md)
 - [Phase 4-6 路线图设计](./docs/superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md)
-- [日志工作台设计](./docs/superpowers/specs/2026-05-24-logging-workbench-design.md)
-- [日志工作台打磨设计](./docs/superpowers/specs/2026-05-24-logging-workbench-polish-design.md)
-- [日志工作台打磨实施计划](./docs/superpowers/plans/2026-05-24-logging-workbench-polish-implementation.md)

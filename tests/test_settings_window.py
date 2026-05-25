@@ -6,7 +6,13 @@ from config.schema import LLMConfig
 from main import APP_STYLE
 from ui.chat.window import ChatWindow
 import ui.settings.pages.api_page as api_page_module
+import ui.settings.pages.character_page as character_page_module
+import ui.settings.pages.conversation_log_page as conversation_log_page_module
+import ui.settings.pages.memory_page as memory_page_module
+import ui.settings.pages.plugin_page as plugin_page_module
+import ui.settings.pages.system_page as system_page_module
 from ui.settings.pages.api_page import APIPage
+from ui.settings.pages.system_log_page import PAGE_STYLE as SYSTEM_LOG_PAGE_STYLE
 from ui.settings.window import SettingsWindow
 
 
@@ -39,7 +45,7 @@ def test_save_button_only_visible_on_api_page():
     assert save_btn.isHidden()
 
 
-def test_settings_window_navigation_includes_conversation_and_system_logs():
+def test_settings_window_navigation_uses_current_labels_icons_and_order():
     _app()
     window = SettingsWindow()
     labels = [
@@ -48,8 +54,65 @@ def test_settings_window_navigation_includes_conversation_and_system_logs():
         if button.isCheckable()
     ]
 
-    assert "📝  对话日志" in labels
-    assert "🧪  系统日志" in labels
+    assert labels == [
+        "🔑  API",
+        "👤  角色",
+        "🧠  记忆",
+        "🤖  Agent",
+        "🧩  插件",
+        "📝  对话日志",
+        "🧪  平台日志",
+        "⚙  系统",
+    ]
+    assert labels[0][0] != labels[3][0]
+
+
+def test_settings_window_navigation_click_checks_clicked_target_page():
+    _app()
+    window = SettingsWindow()
+    buttons = [
+        button for button in window.findChildren(QPushButton)
+        if button.isCheckable()
+    ]
+    expected_targets = {
+        "🔑  API": 0,
+        "👤  角色": 1,
+        "🧠  记忆": 2,
+        "🤖  Agent": 5,
+        "🧩  插件": 6,
+        "📝  对话日志": 3,
+        "🧪  平台日志": 4,
+        "⚙  系统": 7,
+    }
+
+    for button in buttons:
+        button.click()
+
+        assert window._stack.currentIndex() == expected_targets[button.text()]
+        assert button.isChecked()
+        assert [
+            other.text()
+            for other in buttons
+            if other.isChecked()
+        ] == [button.text()]
+
+
+def test_settings_combo_styles_share_platform_log_combo_style():
+    styles = [
+        api_page_module.FORM_STYLE,
+        memory_page_module.FORM_STYLE,
+        conversation_log_page_module.PAGE_STYLE,
+        system_page_module.FORM_STYLE,
+        character_page_module.DIALOG_STYLE,
+        plugin_page_module.DIALOG_STYLE,
+        SYSTEM_LOG_PAGE_STYLE,
+    ]
+
+    for style in styles:
+        assert "QComboBox::down-arrow" in style
+        assert "image: url(" in style
+        assert "border-top: 6px solid" not in style
+        assert "width: 0px" not in style
 
 
 def test_settings_window_context_menu_uses_sakura_theme():
@@ -165,9 +228,11 @@ def test_api_page_tts_language_combos_have_presets_and_remain_editable():
     assert page._tts_output_lang.isEditable()
     assert prompt_items == ["zh", "ja", "en", "ko", "yue"]
     assert output_items == ["zh", "ja", "en", "ko", "yue"]
-    assert page._tts_prompt_lang_popup_btn.text() == "▼"
-    assert page._tts_output_lang_popup_btn.text() == "▼"
-    assert "QPushButton#comboPopupBtn" in api_page_module.FORM_STYLE
+    assert not hasattr(page, "_tts_prompt_lang_popup_btn")
+    assert not hasattr(page, "_tts_output_lang_popup_btn")
+    assert "QPushButton#comboPopupBtn" not in api_page_module.FORM_STYLE
+    assert page._tts_prompt_lang.maximumWidth() == page._tts_output_lang.maximumWidth()
+    assert page._tts_prompt_lang.maximumWidth() <= 220
 
 
 def test_api_page_tts_reference_mode_apply_and_reset():

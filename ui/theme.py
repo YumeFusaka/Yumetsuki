@@ -1,6 +1,51 @@
+from pathlib import Path
+
 from PySide6.QtCore import QObject, QEvent
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QMenu
+
+
+COMBO_ARROW_ICON = (Path(__file__).resolve().parent / "assets" / "combo-down.svg").as_posix()
+
+SAKURA_COMBO_BOX_STYLE = f"""
+QComboBox {{
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(220, 160, 180, 0.3);
+    border-radius: 8px;
+    padding: 8px 28px 8px 10px;
+    color: #4a3040;
+    font-size: 13px;
+    min-height: 18px;
+    selection-background-color: rgba(255, 210, 224, 0.9);
+    selection-color: #4a3040;
+}}
+QComboBox:focus {{
+    border-color: #d4567a;
+    background: rgba(255, 255, 255, 0.86);
+}}
+QComboBox::drop-down {{
+    border: none;
+    width: 24px;
+    background: transparent;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}}
+QComboBox::down-arrow {{
+    image: url({COMBO_ARROW_ICON});
+    width: 10px;
+    height: 7px;
+    border: none;
+    margin-right: 8px;
+}}
+QComboBox QAbstractItemView {{
+    background: rgba(255, 250, 252, 0.98);
+    border: 1px solid rgba(220, 160, 180, 0.35);
+    selection-background-color: rgba(255, 210, 224, 0.9);
+    selection-color: #4a3040;
+    color: #4a3040;
+    padding: 4px;
+}}
+"""
 
 
 SAKURA_MENU_STYLE = """

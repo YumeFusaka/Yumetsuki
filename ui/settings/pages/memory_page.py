@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from config.manager import ConfigManager
 from config.schema import MemoryConfig
 from ui.settings.feedback import confirm_action, show_feedback
+from ui.theme import SAKURA_COMBO_BOX_STYLE
 from ui.widgets.rose_spin_box import RoseSpinBox
 
 
@@ -57,25 +58,6 @@ QGroupBox {
     background: rgba(255, 255, 255, 0.35);
 }
 QGroupBox::title { subcontrol-origin: margin; left: 16px; padding: 0 6px; }
-QComboBox {
-    background: rgba(255, 255, 255, 0.7);
-    border: 1px solid rgba(220, 160, 180, 0.3);
-    border-radius: 6px; padding: 6px 12px;
-    color: #4a3040; font-size: 13px;
-    min-height: 20px; min-width: 200px;
-    selection-background-color: rgba(212, 86, 122, 0.2);
-}
-QComboBox:focus { border-color: #d4567a; }
-QComboBox::drop-down {
-    border: none; width: 24px;
-}
-QComboBox QAbstractItemView {
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(220, 160, 180, 0.3);
-    border-radius: 6px;
-    color: #4a3040;
-    selection-background-color: rgba(212, 86, 122, 0.2);
-}
 QPushButton#browseBtn, QPushButton#deleteBtn {
     background: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(220, 160, 180, 0.34);
@@ -86,7 +68,7 @@ QPushButton#browseBtn:hover, QPushButton#deleteBtn:hover {
     background: rgba(255, 225, 232, 0.92);
     border-color: rgba(212, 86, 122, 0.44);
 }
-"""
+""" + SAKURA_COMBO_BOX_STYLE
 
 MODELS_DIR = Path("data/models")
 MODEL_MARKERS = ("config.json", "modules.json")

@@ -38,19 +38,21 @@ yumetsuki/
 负责桌面 UI。
 
 - `ui/settings/window.py`
-  设置中心主窗口
+  设置中心主窗口；导航顺序固定为 `API / 角色 / 记忆 / Agent / 插件 / 对话日志 / 平台日志 / 系统`
+- `ui/theme.py`
+  Sakura 主题共享模块，集中提供右键菜单浅色主题、设置中心下拉框样式与公共 UI 资源路径
 - `ui/settings/pages/api_page.py`
   API 配置页面
 - `ui/settings/pages/system_page.py`
   系统设置页面
 - `ui/settings/pages/character_page.py`
-  角色管理页面
+  角色页面
 - `ui/settings/pages/plugin_page.py`
   插件与 MCP 管理页面
 - `ui/settings/pages/conversation_log_page.py`
   对话日志页面，展示会话级结构化事件
 - `ui/settings/pages/system_log_page.py`
-  系统日志页面，展示 TTS / LLM / Tool 等运行期系统事件
+  平台日志页面，展示 TTS / LLM / Tool 等运行期系统事件
 - `ui/chat/window.py`
   桌宠聊天窗（长文本滚动、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend；同时产出 TTS 句段与播放相关系统日志）
 - `ui/chat/audio_backends.py`
@@ -314,8 +316,9 @@ Agent 通过 `EventBus` 发布内部行为事件：
 
 - `对话日志`
   面向聊天回看，突出用户 / 角色主线，并补充时间、情绪、工具、记忆摘要
-- `系统日志`
+- `平台日志`
   面向排障与运行回看，展示完整程序运行时间线；默认上半区为高密度日志流，下半区按选中事件显示详情
+  页面名为“平台日志”，内部日志 channel 与落盘目录仍沿用 `system`
 
 当前边界：
 
@@ -345,7 +348,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - 本地记忆系统（Mem0 OSS + Chroma + 本地向量模型）
 - 异步记忆加载
 - Agent 分层智能（路由、反思、多步推理、主动行为）
-- 日志工作台首版（对话 / 系统双通道、结构化持久化与导出）
+- 日志工作台首版（对话 / 平台双页面，内部 `conversation` / `system` 双通道、结构化持久化与导出）
 - 聊天窗长文本滚动与整体缩放
 - 句级增量 TTS 播报（GPT-SoVITS，支持参考预热与软切分）
 - PCM 流式低延迟播放（`audio_mode=pcm_stream`）

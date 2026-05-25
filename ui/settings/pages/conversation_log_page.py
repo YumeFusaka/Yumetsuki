@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.theme import SAKURA_COMBO_BOX_STYLE
+
 
 PAGE_STYLE = """
 QWidget {
@@ -29,21 +31,6 @@ QTextEdit {
 QLabel {
     color: #8c6b7a;
     font-size: 13px;
-}
-QComboBox {
-    background: rgba(255, 255, 255, 0.78);
-    border: 1px solid rgba(220, 160, 180, 0.3);
-    border-radius: 8px;
-    padding: 8px 10px;
-    color: #4a3040;
-    min-height: 18px;
-}
-QComboBox:focus {
-    border-color: #d4567a;
-}
-QComboBox::drop-down {
-    border: none;
-    width: 22px;
 }
 QPushButton {
     background: rgba(255, 245, 250, 0.88);
@@ -70,7 +57,7 @@ QCheckBox::indicator:checked {
     background: #d4567a;
     border-color: #d4567a;
 }
-"""
+""" + SAKURA_COMBO_BOX_STYLE
 
 
 class ConversationLogPage(QWidget):

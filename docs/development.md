@@ -19,18 +19,18 @@
   - `docs/superpowers/specs/2026-05-24-phase-5-ui-stt-design.md`
   - `docs/superpowers/specs/2026-05-24-phase-6-browser-vision-ecosystem-design.md`
 - 当前新增设计：
-  - `docs/superpowers/specs/2026-05-24-logging-workbench-design.md`
+  - 暂无；已完成的日志工作台专题内容已并入主文档并删除历史 spec / plan
 - 当前实施计划：
-  - `docs/superpowers/plans/2026-05-24-logging-workbench-implementation.md`
+  - 暂无；下一轮应基于 Phase 5 / Phase 6 重新建立任务计划
 - 当前优先级：
-  1. 日志工作台：对话日志 / 系统日志与结构化持久化
-  2. Phase 5：桌宠体验与交互输入输出
-  3. Phase 6：高级代理、插件生态与视觉
+  1. Phase 5：桌宠体验、界面与 STT
+  2. Phase 6：浏览器、视觉与插件生态
+  3. 平台日志真实 API / TTS / 异常场景联调验证
 
 说明：
 
 - Phase 4 已完成，当前不再需要继续把所有设计与实施优先绑定到 Phase 4 收口
-- 日志工作台是后续 Phase 5 / 6 排障与可观测性的推荐前置项
+- 日志工作台基础能力已完成，后续只保留真实服务场景联调与增量体验优化
 - 已完成并被主文档吸收的 Phase 4 细分 spec / plan 应及时删除，避免入口持续指向历史收口材料
 - Phase 4 中短期记忆由 `SessionContext` 负责，`mem0` 继续只做长期记忆
 - 文档默认使用中文撰写；代码标识、路径、命令、配置键名和 git commit message 可保留英文
@@ -57,7 +57,7 @@
   其中 TTS 的 `ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 可能包含本地语音素材路径或私有参考文本，也按本地敏感配置处理
 - `data/config/system_config.yaml`
   系统配置
-  当前也承载 `logging` 运行时配置，如日志根目录与系统日志 flush 间隔
+  当前也承载 `logging` 运行时配置，如日志根目录与平台日志内部 `system` channel 的 flush 间隔
 - `data/config/mcp.yaml`
   MCP 实际配置
 - `data/config/mcp.example.yaml`
@@ -72,7 +72,7 @@
 - `data/logs/`
   日志工作台默认输出目录
   `conversation/` 存放按 `session_id` 分文件的对话日志
-  `system/` 存放按日期切分的系统日志
+  `system/` 存放按日期切分的平台日志；内部 channel 名仍为 `system`
   默认不应提交运行期产物
 
 ## 配置化要求
@@ -156,7 +156,7 @@
 - 日志工作台相关改动优先覆盖：
   - 结构化事件模型与脱敏
   - `LogService` 的筛选、导出与 JSONL 落盘
-  - `SettingsWindow` 下的 `对话日志` / `系统日志` 页面入口
+  - `SettingsWindow` 下的 `对话日志` / `平台日志` 页面入口；内部 channel 仍为 `conversation` / `system`
   - 关键运行链路的日志接线
   - 真实服务场景下的异常日志可见性与 UI 联动
 - `EventBus` 相关改动优先覆盖：

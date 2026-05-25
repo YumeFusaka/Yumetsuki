@@ -175,18 +175,19 @@ class SettingsWindow(QMainWindow):
 
         self._nav_buttons: list[QPushButton] = []
         pages_info = [
-            ("🤖  API 设定", 0),
-            ("👤  角色管理", 1),
+            ("🔑  API", 0),
+            ("👤  角色", 1),
             ("🧠  记忆", 2),
-            ("📝  对话日志", 3),
-            ("🧪  系统日志", 4),
             ("🤖  Agent", 5),
             ("🧩  插件", 6),
+            ("📝  对话日志", 3),
+            ("🧪  平台日志", 4),
             ("⚙  系统", 7),
         ]
         for label, idx in pages_info:
             btn = QPushButton(label)
             btn.setCheckable(True)
+            btn.setProperty("page_index", idx)
             btn.setStyleSheet(NAV_STYLE)
             btn.clicked.connect(lambda checked, i=idx: self._switch_page(i))
             nav_layout.addWidget(btn)
@@ -293,8 +294,8 @@ class SettingsWindow(QMainWindow):
         if current_index == 0 and index != 0:
             self._api_page.reset()
         self._stack.setCurrentIndex(index)
-        for i, btn in enumerate(self._nav_buttons):
-            btn.setChecked(i == index)
+        for btn in self._nav_buttons:
+            btn.setChecked(btn.property("page_index") == index)
         self._save_btn.setVisible(index == 0)
 
     def _apply_and_save_api(self):

@@ -4,24 +4,20 @@ from PySide6.QtWidgets import (
 )
 from config.manager import ConfigManager
 from config.schema import SystemConfig
+from ui.theme import SAKURA_COMBO_BOX_STYLE
 from ui.widgets.rose_spin_box import RoseSpinBox
 
 FORM_STYLE = """
-QLineEdit, QComboBox {
+QLineEdit {
     background: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 6px; padding: 8px 12px;
     color: #4a3040; font-size: 13px;
     min-height: 20px; min-width: 280px;
 }
-QLineEdit:focus, QComboBox:focus {
+QLineEdit:focus {
     border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
-}
-QComboBox::drop-down { border: none; padding-right: 8px; }
-QComboBox QAbstractItemView {
-    background: #fff5f7; border: 1px solid rgba(220, 160, 180, 0.3);
-    color: #4a3040; selection-background-color: rgba(255, 154, 162, 0.3);
 }
 QLabel { color: #6b4a5a; font-size: 13px; }
 QGroupBox {
@@ -31,7 +27,7 @@ QGroupBox {
     background: rgba(255, 255, 255, 0.35);
 }
 QGroupBox::title { subcontrol-origin: margin; left: 16px; padding: 0 6px; }
-"""
+""" + SAKURA_COMBO_BOX_STYLE
 
 
 class SystemPage(QWidget):

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from config.schema import APIConfig
+from ui.theme import SAKURA_COMBO_BOX_STYLE
 from ui.widgets.rose_spin_box import RoseSpinBox
 
 FORM_STYLE = """
@@ -20,29 +21,6 @@ QLineEdit {
 QLineEdit:focus {
     border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
-}
-QComboBox {
-    background: rgba(255, 255, 255, 0.7);
-    border: 1px solid rgba(220, 160, 180, 0.3);
-    border-radius: 6px;
-    padding: 6px 12px;
-    color: #4a3040;
-    font-size: 13px;
-    min-height: 20px;
-    min-width: 200px;
-    selection-background-color: rgba(212, 86, 122, 0.2);
-}
-QComboBox:focus { border-color: #d4567a; }
-QComboBox::drop-down {
-    width: 0px;
-    border: none;
-}
-QComboBox QAbstractItemView {
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(220, 160, 180, 0.3);
-    border-radius: 6px;
-    color: #4a3040;
-    selection-background-color: rgba(212, 86, 122, 0.2);
 }
 QLabel { color: #6b4a5a; font-size: 13px; }
 QGroupBox {
@@ -76,22 +54,7 @@ QPushButton#browseBtn:hover {
     background: rgba(255, 225, 232, 0.92);
     border-color: rgba(212, 86, 122, 0.44);
 }
-QPushButton#comboPopupBtn {
-    background: rgba(255, 245, 248, 0.92);
-    border: 1px solid rgba(220, 160, 180, 0.34);
-    border-radius: 6px;
-    min-width: 28px;
-    max-width: 28px;
-    padding: 0px;
-    color: #9b3060;
-    font-size: 11px;
-    font-weight: bold;
-}
-QPushButton#comboPopupBtn:hover {
-    background: rgba(255, 225, 232, 0.96);
-    border-color: rgba(212, 86, 122, 0.5);
-}
-"""
+""" + SAKURA_COMBO_BOX_STYLE
 
 
 class APIPage(QWidget):
@@ -229,15 +192,15 @@ class APIPage(QWidget):
         self._tts_prompt_lang.setEditable(True)
         self._tts_prompt_lang.addItems(self.TTS_LANGUAGE_OPTIONS)
         self._tts_prompt_lang.setCurrentText(config.tts.prompt_lang)
-        prompt_lang_row, self._tts_prompt_lang_popup_btn = self._build_popup_combo_row(self._tts_prompt_lang)
-        tts_form.addRow("参考语言:", prompt_lang_row)
+        self._tts_prompt_lang.setMaximumWidth(220)
+        tts_form.addRow("参考语言:", self._tts_prompt_lang)
 
         self._tts_output_lang = QComboBox()
         self._tts_output_lang.setEditable(True)
         self._tts_output_lang.addItems(self.TTS_LANGUAGE_OPTIONS)
         self._tts_output_lang.setCurrentText(config.tts.output_lang)
-        output_lang_row, self._tts_output_lang_popup_btn = self._build_popup_combo_row(self._tts_output_lang)
-        tts_form.addRow("输出语言:", output_lang_row)
+        self._tts_output_lang.setMaximumWidth(220)
+        tts_form.addRow("输出语言:", self._tts_output_lang)
 
         self._tts_prompt_text = QLineEdit(config.tts.prompt_text)
         self._tts_prompt_text.setPlaceholderText("参考音频对应文本")
@@ -277,21 +240,6 @@ class APIPage(QWidget):
         )
         if path:
             self._tts_ref_audio.setText(path)
-
-    def _build_popup_combo_row(self, combo: QComboBox) -> tuple[QWidget, QPushButton]:
-        row = QWidget()
-        layout = QHBoxLayout(row)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-        layout.addWidget(combo, 1)
-
-        popup_btn = QPushButton("▼")
-        popup_btn.setObjectName("comboPopupBtn")
-        popup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        popup_btn.setToolTip("展开选项")
-        popup_btn.clicked.connect(combo.showPopup)
-        layout.addWidget(popup_btn)
-        return row, popup_btn
 
     def _set_reference_mode(self, reference_mode: str) -> None:
         index = self._tts_reference_mode.findData(reference_mode or "auto")

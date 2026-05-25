@@ -11,6 +11,7 @@ from core.character import load_character
 from config.manager import ConfigManager
 from llm.adapters.openai_compat import OpenAICompatAdapter
 from ui.settings.feedback import confirm_action, show_feedback
+from ui.theme import SAKURA_COMBO_BOX_STYLE
 import shutil
 import yaml
 
@@ -73,13 +74,13 @@ DIALOG_STYLE = """
         background: #fff5f7; color: #4a3040;
     }
     QLabel { color: #4a3040; font-size: 13px; }
-    QLineEdit, QComboBox {
+    QLineEdit {
         background: rgba(255,255,255,0.8);
         border: 1px solid rgba(220,160,180,0.3);
         border-radius: 6px; padding: 6px 10px;
         color: #4a3040; font-size: 13px;
     }
-    QLineEdit:focus, QComboBox:focus { border-color: #d4567a; }
+    QLineEdit:focus { border-color: #d4567a; }
     QPushButton {
         background: rgba(255,200,210,0.4);
         border: 1px solid rgba(220,160,180,0.3);
@@ -87,12 +88,7 @@ DIALOG_STYLE = """
         color: #6b4a5a; font-size: 13px;
     }
     QPushButton:hover { background: rgba(255,154,162,0.4); }
-    QComboBox::drop-down { border: none; }
-    QComboBox QAbstractItemView {
-        background: #fff5f7; color: #4a3040;
-        selection-background-color: rgba(255,154,162,0.3);
-    }
-"""
+""" + SAKURA_COMBO_BOX_STYLE
 
 # Standard character directory structure
 # 角色名/

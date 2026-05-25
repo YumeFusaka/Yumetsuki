@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
 )
 
+from ui.theme import SAKURA_COMBO_BOX_STYLE
+
 
 SOURCE_GROUPS = {
     "全部": [],
@@ -49,7 +51,6 @@ SOURCE_COLORS = {
 
 DEFAULT_SOURCE_COLOR = "#4a3040"
 SCROLL_BOTTOM_THRESHOLD = 2
-COMBO_ARROW_ICON = (Path(__file__).resolve().parents[2] / "assets" / "combo-down.svg").as_posix()
 
 
 PAGE_STYLE = """
@@ -69,7 +70,7 @@ QLabel {
     color: #8c6b7a;
     font-size: 13px;
 }
-QLineEdit, QComboBox {
+QLineEdit {
     background: rgba(255, 255, 255, 0.78);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 8px;
@@ -77,30 +78,8 @@ QLineEdit, QComboBox {
     color: #4a3040;
     min-height: 18px;
 }
-QLineEdit:focus, QComboBox:focus {
+QLineEdit:focus {
     border-color: #d4567a;
-}
-QComboBox::drop-down {
-    border: none;
-    width: 24px;
-    background: transparent;
-    border-top-right-radius: 8px;
-    border-bottom-right-radius: 8px;
-}
-QComboBox::down-arrow {
-    image: url(__COMBO_ARROW_ICON__);
-    width: 10px;
-    height: 7px;
-    border: none;
-    margin-right: 8px;
-}
-QComboBox QAbstractItemView {
-    background: rgba(255, 250, 252, 0.98);
-    border: 1px solid rgba(220, 160, 180, 0.35);
-    selection-background-color: rgba(255, 210, 224, 0.9);
-    selection-color: #4a3040;
-    color: #4a3040;
-    padding: 4px;
 }
 QPushButton {
     background: rgba(255, 245, 250, 0.88);
@@ -146,7 +125,7 @@ QListWidget::item:selected {
 QListWidget::item:hover {
     background: rgba(255, 238, 244, 0.95);
 }
-"""
+""" + SAKURA_COMBO_BOX_STYLE
 
 
 class SourceColorItemDelegate(QStyledItemDelegate):
@@ -168,7 +147,7 @@ class SystemLogPage(QWidget):
         self._log_service = log_service
         self._selected_event: dict | None = None
         self._current_session_id: str | None = None
-        self.setStyleSheet(PAGE_STYLE.replace("__COMBO_ARROW_ICON__", COMBO_ARROW_ICON))
+        self.setStyleSheet(PAGE_STYLE)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(32, 24, 32, 24)
