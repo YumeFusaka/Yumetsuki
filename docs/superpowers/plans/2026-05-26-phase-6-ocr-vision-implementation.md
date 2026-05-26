@@ -1,6 +1,6 @@
 # Phase 6 OCR Vision Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 增加屏幕 OCR 能力，并让显式触发的视觉文本进入当前会话短期上下文与后续代理回复。
 
@@ -54,7 +54,7 @@
 - Modify: `config/schema.py`
 - Test: `tests/test_config.py`
 
-- [ ] **Step 1: Write failing config tests**
+- [x] **Step 1: Write failing config tests**
 
 Add to `tests/test_config.py`:
 
@@ -72,7 +72,7 @@ def test_vision_config_defaults():
     assert cfg.vision.explicit_trigger_only is True
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 Run:
 
@@ -82,7 +82,7 @@ python -m pytest tests/test_config.py::test_vision_config_defaults -q
 
 Expected: FAIL because `SystemConfig.vision` does not exist.
 
-- [ ] **Step 3: Implement VisionConfig**
+- [x] **Step 3: Implement VisionConfig**
 
 Update `config/schema.py`:
 
@@ -104,7 +104,7 @@ Update `SystemConfig`:
 vision: VisionConfig = Field(default_factory=VisionConfig)
 ```
 
-- [ ] **Step 4: Run config test**
+- [x] **Step 4: Run config test**
 
 Run:
 
@@ -123,7 +123,7 @@ Expected: PASS.
 - Create: `vision/types.py`
 - Test: `tests/test_vision.py`
 
-- [ ] **Step 1: Write failing vision type tests**
+- [x] **Step 1: Write failing vision type tests**
 
 Create `tests/test_vision.py`:
 
@@ -154,7 +154,7 @@ def test_screen_region_as_qt_tuple():
     assert region.as_tuple() == (1, 2, 3, 4)
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -164,7 +164,7 @@ python -m pytest tests/test_vision.py -q
 
 Expected: FAIL because `vision.types` does not exist.
 
-- [ ] **Step 3: Implement vision types**
+- [x] **Step 3: Implement vision types**
 
 Create `vision/__init__.py` as an empty package marker.
 
@@ -212,7 +212,7 @@ class VisualObservation:
         return f"{self.source}: {self.text}"
 ```
 
-- [ ] **Step 4: Run vision type tests**
+- [x] **Step 4: Run vision type tests**
 
 Run:
 
@@ -231,7 +231,7 @@ Expected: PASS.
 - Create: `vision/ocr.py`
 - Test: `tests/test_vision.py`
 
-- [ ] **Step 1: Write failing OCR adapter tests**
+- [x] **Step 1: Write failing OCR adapter tests**
 
 Append to `tests/test_vision.py`:
 
@@ -292,7 +292,7 @@ def test_tesseract_adapter_returns_error_on_failure(monkeypatch, tmp_path):
     assert "missing language" in result.error
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -302,7 +302,7 @@ python -m pytest tests/test_vision.py::test_build_screenshot_path_uses_configure
 
 Expected: FAIL because screenshot and OCR modules do not exist.
 
-- [ ] **Step 3: Implement screenshot path helper and capture function**
+- [x] **Step 3: Implement screenshot path helper and capture function**
 
 Create `vision/screen_capture.py`:
 
@@ -336,7 +336,7 @@ def capture_screen(screenshot_dir: str, region: ScreenRegion | None = None) -> P
     return path
 ```
 
-- [ ] **Step 4: Implement TesseractOCRAdapter**
+- [x] **Step 4: Implement TesseractOCRAdapter**
 
 Create `vision/ocr.py`:
 
@@ -381,7 +381,7 @@ class TesseractOCRAdapter:
         return OCRResult(ok=True, text=(result.stdout or "").strip(), image_path=str(image_path))
 ```
 
-- [ ] **Step 5: Run OCR adapter tests**
+- [x] **Step 5: Run OCR adapter tests**
 
 Run:
 
@@ -399,7 +399,7 @@ Expected: PASS.
 - Create: `vision/manager.py`
 - Test: `tests/test_vision.py`
 
-- [ ] **Step 1: Write failing VisionManager tests**
+- [x] **Step 1: Write failing VisionManager tests**
 
 Append to `tests/test_vision.py`:
 
@@ -438,7 +438,7 @@ def test_vision_manager_captures_and_truncates(monkeypatch, tmp_path):
     assert result.image_path == str(image)
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -448,7 +448,7 @@ python -m pytest tests/test_vision.py::test_vision_manager_returns_disabled_erro
 
 Expected: FAIL because `VisionManager` does not exist.
 
-- [ ] **Step 3: Implement VisionManager**
+- [x] **Step 3: Implement VisionManager**
 
 Create `vision/manager.py`:
 
@@ -483,7 +483,7 @@ class VisionManager:
         )
 ```
 
-- [ ] **Step 4: Run VisionManager tests**
+- [x] **Step 4: Run VisionManager tests**
 
 Run:
 
@@ -505,7 +505,7 @@ Expected: PASS.
 - Test: `tests/test_session_context.py`
 - Test: `tests/test_session_store.py`
 
-- [ ] **Step 1: Write failing session context tests**
+- [x] **Step 1: Write failing session context tests**
 
 Add to `tests/test_session_context.py`:
 
@@ -551,7 +551,7 @@ def test_session_store_roundtrips_visual_observations(tmp_path):
     assert loaded.visual_observations[0].source == "screen_ocr"
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -561,7 +561,7 @@ python -m pytest tests/test_session_context.py::test_session_context_prompt_incl
 
 Expected: FAIL because `SessionContext.visual_observations` does not exist.
 
-- [ ] **Step 3: Add visual observations to SessionContext**
+- [x] **Step 3: Add visual observations to SessionContext**
 
 Update `session/context.py`:
 
@@ -575,7 +575,7 @@ Update `SessionContext`:
 visual_observations: list[VisualObservation] = field(default_factory=list)
 ```
 
-- [ ] **Step 4: Include visual observations in prompt context**
+- [x] **Step 4: Include visual observations in prompt context**
 
 Update `session/policy.py`:
 
@@ -586,7 +586,7 @@ if ctx.visual_observations:
         lines.append(f"  - {obs.to_prompt_line()}")
 ```
 
-- [ ] **Step 5: Add manager method**
+- [x] **Step 5: Add manager method**
 
 Update `session/manager.py`:
 
@@ -601,7 +601,7 @@ def record_visual_observation(self, ctx: SessionContext, observation: VisualObse
         self._store.save(ctx)
 ```
 
-- [ ] **Step 6: Persist visual observations**
+- [x] **Step 6: Persist visual observations**
 
 Update `session/store.py` imports:
 
@@ -641,7 +641,7 @@ Load observations:
 ctx.visual_observations = [VisualObservation(**item) for item in json.loads(row[4] or "[]")]
 ```
 
-- [ ] **Step 7: Run session tests**
+- [x] **Step 7: Run session tests**
 
 Run:
 
@@ -659,7 +659,7 @@ Expected: PASS.
 - Modify: `agent/manager.py`
 - Test: `tests/test_agent_manager.py`
 
-- [ ] **Step 1: Write failing AgentManager vision tests**
+- [x] **Step 1: Write failing AgentManager vision tests**
 
 Add to `tests/test_agent_manager.py`:
 
@@ -711,7 +711,7 @@ def test_agent_manager_does_not_capture_screen_for_normal_chat():
     assert vision.called is False
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -721,7 +721,7 @@ python -m pytest tests/test_agent_manager.py::test_agent_manager_captures_screen
 
 Expected: FAIL because `AgentManager` does not accept `vision_manager`.
 
-- [ ] **Step 3: Add vision manager dependency and trigger helper**
+- [x] **Step 3: Add vision manager dependency and trigger helper**
 
 Update `AgentManager.__init__()` signature:
 
@@ -763,7 +763,7 @@ def _capture_visual_observation(self, session_ctx) -> None:
     )
 ```
 
-- [ ] **Step 4: Capture before building session prompt**
+- [x] **Step 4: Capture before building session prompt**
 
 In `chat_stream()`, after `session_ctx` is created and user input is recorded:
 
@@ -772,7 +772,7 @@ if self._should_capture_screen(user_input):
     self._capture_visual_observation(session_ctx)
 ```
 
-- [ ] **Step 5: Run AgentManager tests**
+- [x] **Step 5: Run AgentManager tests**
 
 Run:
 
@@ -792,7 +792,7 @@ Expected: PASS.
 - Modify: `docs/development.md`
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Create vision docs**
+- [x] **Step 1: Create vision docs**
 
 Create `docs/vision-ocr.md`:
 
@@ -825,7 +825,7 @@ Phase 6 第一版视觉能力只做屏幕 OCR 文本，不做复杂图像语义�
 截图和 OCR 文本来自用户当前屏幕，属于本地敏感运行期数据。`data/vision/` 默认不应提交。
 ```
 
-- [ ] **Step 2: Update existing docs**
+- [x] **Step 2: Update existing docs**
 
 Document these facts:
 
@@ -834,7 +834,7 @@ Document these facts:
 - Agent 只在显式读屏请求下触发 OCR。
 - Tesseract 是本地外部可执行程序，计划不新增 Python OCR 依赖。
 
-- [ ] **Step 3: Run docs scan**
+- [x] **Step 3: Run docs scan**
 
 Run:
 
@@ -851,7 +851,7 @@ Expected: matches in updated docs.
 **Files:**
 - All changed files
 
-- [ ] **Step 1: Focused tests**
+- [x] **Step 1: Focused tests**
 
 Run:
 
@@ -861,7 +861,7 @@ python -m pytest tests/test_config.py tests/test_vision.py tests/test_session_co
 
 Expected: PASS.
 
-- [ ] **Step 2: Syntax check**
+- [x] **Step 2: Syntax check**
 
 Run:
 
@@ -871,7 +871,7 @@ python -m py_compile config/schema.py vision/__init__.py vision/types.py vision/
 
 Expected: exit code 0.
 
-- [ ] **Step 3: Full tests**
+- [x] **Step 3: Full tests**
 
 Run:
 
@@ -881,7 +881,7 @@ python -m pytest tests/ -q
 
 Expected: PASS.
 
-- [ ] **Step 4: Diff check**
+- [x] **Step 4: Diff check**
 
 Run:
 

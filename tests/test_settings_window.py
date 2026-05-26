@@ -7,6 +7,8 @@ from config.schema import APIConfig
 from config.schema import LLMConfig
 from config.schema import MemoryConfig
 from config.schema import SystemConfig
+from core.mcp_host import MCPServerStatus
+from core.plugin_host import PluginStatus
 from core.model_catalog import STT_MODELS_DIR, model_path_key, resolve_model_path
 from main import APP_STYLE
 from ui.chat.window import ChatWindow
@@ -18,6 +20,7 @@ import ui.settings.pages.plugin_page as plugin_page_module
 import ui.settings.pages.system_page as system_page_module
 from ui.settings.pages.api_page import APIPage
 from ui.settings.pages.memory_page import MemoryPage
+from ui.settings.pages.plugin_page import _format_mcp_status_detail, _format_plugin_status_detail
 from ui.settings.pages.system_page import SystemPage
 from ui.settings.pages.system_log_page import PAGE_STYLE as SYSTEM_LOG_PAGE_STYLE
 from ui.settings.window import SettingsWindow
@@ -148,6 +151,43 @@ def test_settings_combo_styles_share_platform_log_combo_style():
         assert "image: url(" in style
         assert "border-top: 6px solid" not in style
         assert "width: 0px" not in style
+
+
+def test_plugin_page_formats_plugin_status_detail():
+    status = PluginStatus(
+        name="demo",
+        path="E:/Project/Yumetsuki/plugins/demo",
+        loaded=True,
+        tools_count=2,
+        description="Demo plugin",
+        message="loaded",
+    )
+
+    text = _format_plugin_status_detail(status)
+
+    assert "名称：demo" in text
+    assert "状态：已加载" in text
+    assert "工具数量：2" in text
+    assert "路径：E:/Project/Yumetsuki/plugins/demo" in text
+
+
+def test_plugin_page_formats_mcp_status_detail():
+    status = MCPServerStatus(
+        server="notes",
+        transport="sse",
+        connected=False,
+        message="boom",
+        error_type="RuntimeError",
+        last_checked_at=1.0,
+        tool_names=[],
+    )
+
+    text = _format_mcp_status_detail(status)
+
+    assert "名称：notes" in text
+    assert "状态：未连接" in text
+    assert "错误类型：RuntimeError" in text
+    assert "boom" in text
 
 
 def test_settings_window_context_menu_uses_sakura_theme():

@@ -1,6 +1,7 @@
 from config.schema import SessionContextConfig
 from session.context import ActiveTask, SessionContext, SessionSummary, SessionTurn, WorkingFact
 from session.policy import SessionPolicy
+from vision.types import VisualObservation
 
 
 def test_session_context_starts_empty():
@@ -12,6 +13,7 @@ def test_session_context_starts_empty():
     assert ctx.recent_turns == []
     assert ctx.working_facts == []
     assert ctx.active_tasks == []
+    assert ctx.visual_observations == []
     assert ctx.summary.current_topic == ""
 
 
@@ -47,6 +49,21 @@ def test_policy_build_prompt_context_contains_recent_turns_and_summary():
     assert "当前会话短期上下文" in prompt_context
     assert "先讨论性能问题" in prompt_context
     assert "好，我们先分析性能。" in prompt_context
+
+
+def test_session_context_prompt_includes_recent_visual_observation():
+    ctx = SessionContext.new(session_id="s1", user_id="u1")
+    ctx.visual_observations.append(VisualObservation(
+        text="屏幕上显示登录失败",
+        source="screen_ocr",
+        image_path="data/vision/a.png",
+        timestamp=1.0,
+    ))
+
+    prompt = SessionPolicy().build_prompt_context(ctx)
+
+    assert "最近视觉信息" in prompt
+    assert "screen_ocr: 屏幕上显示登录失败" in prompt
 
 
 def test_policy_collects_only_stable_mem0_candidates():

@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from agent.manager import AgentManager
 from llm.text_processor import ProcessedText
 from session.context import WorkingFact
+from session.manager import SessionContextManager
+from vision.types import OCRResult
 
 
 @dataclass
@@ -129,6 +131,15 @@ class FakeLLMManager:
         yield ProcessedText(clean_text=self.final_text.replace("[emotion:开心]", ""), emotion="开心")
 
 
+class FakeVisionManager:
+    def __init__(self):
+        self.called = False
+
+    def capture_screen_text(self):
+        self.called = True
+        return OCRResult(ok=True, text="屏幕上显示保存成功", image_path="data/vision/a.png")
+
+
 def test_agent_manager_injects_memories_into_chat():
     manager = AgentManager(
         llm_manager=FakeLLMManager("[emotion:开心]我记得你喜欢樱花"),
@@ -144,6 +155,41 @@ def test_agent_manager_injects_memories_into_chat():
     assert results[-1].clean_text == "我记得你喜欢樱花"
     assert "用户喜欢樱花主题" in manager._llm_manager.calls[0]["extra_context"]
     assert manager._memory_store.add_calls[0]["assistant_text"] == "我记得你喜欢樱花"
+
+
+def test_agent_manager_captures_screen_when_user_explicitly_asks():
+    session_manager = SessionContextManager()
+    vision = FakeVisionManager()
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("知道了"),
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        tool_registry=FakeToolRegistry(),
+        session_manager=session_manager,
+        session_id="s1",
+        vision_manager=vision,
+    )
+
+    list(manager.chat_stream("帮我看看屏幕上写了什么"))
+
+    ctx = session_manager.get_or_create("default-user", "s1")
+    assert vision.called is True
+    assert ctx.visual_observations[0].text == "屏幕上显示保存成功"
+
+
+def test_agent_manager_does_not_capture_screen_for_normal_chat():
+    vision = FakeVisionManager()
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("你好"),
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        tool_registry=FakeToolRegistry(),
+        vision_manager=vision,
+    )
+
+    list(manager.chat_stream("你好呀"))
+
+    assert vision.called is False
 
 
 def test_agent_manager_executes_tool_then_calls_llm():

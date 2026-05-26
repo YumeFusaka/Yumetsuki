@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from time import time
 
+from vision.types import VisualObservation
+
 
 @dataclass
 class SessionTurn:
@@ -67,6 +69,7 @@ class SessionContext:
     recent_turns: list[SessionTurn] = field(default_factory=list)
     working_facts: list[WorkingFact] = field(default_factory=list)
     active_tasks: list[ActiveTask] = field(default_factory=list)
+    visual_observations: list[VisualObservation] = field(default_factory=list)
     summary: SessionSummary = field(default_factory=SessionSummary)
 
     @classmethod

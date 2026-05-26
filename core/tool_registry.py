@@ -15,6 +15,7 @@ class ToolEntry:
     source: str
     qualified_name: str
     schema: dict[str, Any]
+    source_name: str = ""
 
     def as_openai_tool(self) -> dict[str, Any]:
         return {
@@ -57,10 +58,12 @@ class ToolRegistry:
         if self._plugin_host:
             for spec in self._plugin_host.tool_specs():
                 function = spec["function"]
+                qualified_name = function["name"]
                 self._entries.append(ToolEntry(
-                    name=function["name"].split("__", 1)[-1],
+                    name=qualified_name.split("__", 1)[-1],
                     source="plugin",
-                    qualified_name=function["name"],
+                    source_name=qualified_name.split("__", 1)[0],
+                    qualified_name=qualified_name,
                     schema={
                         "description": function.get("description", ""),
                         "parameters": function["parameters"],
@@ -69,10 +72,12 @@ class ToolRegistry:
         if self._mcp_host:
             for spec in self._mcp_host.tool_specs():
                 function = spec["function"]
+                qualified_name = function["name"]
                 self._entries.append(ToolEntry(
-                    name=function["name"].split("__", 1)[-1],
+                    name=qualified_name.split("__", 1)[-1],
                     source="mcp",
-                    qualified_name=function["name"],
+                    source_name=qualified_name.split("__", 1)[0],
+                    qualified_name=qualified_name,
                     schema={
                         "description": function.get("description", ""),
                         "parameters": function["parameters"],

@@ -50,6 +50,42 @@ def test_mcp_host_connects_enabled_servers_and_exposes_tools():
     assert host.call_tool("notes__search", {"query": "today"}) == "notes:search:today"
 
 
+def test_mcp_host_status_includes_tool_names_and_checked_time():
+    host = MCPHost(
+        [MCPServerConfig(name="notes", transport="stdio", command="python server.py")],
+        session_factory=FakeSession,
+    )
+
+    host.connect_all()
+
+    status = host.statuses[0]
+    assert status.connected is True
+    assert status.tool_names == ["search"]
+    assert status.error_type == ""
+    assert status.last_checked_at > 0
+
+
+def test_mcp_host_retries_connection_failures():
+    attempts = {"count": 0}
+
+    class FlakySession(FakeSession):
+        def __init__(self, server: MCPServerConfig):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise RuntimeError("temporary")
+            super().__init__(server)
+
+    host = MCPHost(
+        [MCPServerConfig(name="notes", transport="stdio", command="python server.py", retry_attempts=1)],
+        session_factory=FlakySession,
+    )
+
+    host.connect_all()
+
+    assert attempts["count"] == 2
+    assert host.statuses[0].connected is True
+
+
 def test_mcp_host_records_connection_errors():
     class BrokenSession:
         def __init__(self, server: MCPServerConfig):

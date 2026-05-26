@@ -38,6 +38,32 @@ QPushButton:hover { background: rgba(255,154,162,0.4); }
 """ + SAKURA_COMBO_BOX_STYLE
 
 
+def _format_plugin_status_detail(status) -> str:
+    state = "已加载" if status.loaded else "加载失败"
+    return "\n".join([
+        f"名称：{status.name}",
+        f"状态：{state}",
+        f"工具数量：{status.tools_count}",
+        f"说明：{status.description or '无'}",
+        f"路径：{status.path}",
+        f"消息：{status.message or '无'}",
+    ])
+
+
+def _format_mcp_status_detail(status) -> str:
+    state = "已连接" if status.connected else "未连接"
+    tools = "、".join(status.tool_names or []) or "无"
+    return "\n".join([
+        f"名称：{status.server}",
+        f"状态：{state}",
+        f"传输：{status.transport}",
+        f"工具数量：{status.tools_count}",
+        f"工具：{tools}",
+        f"错误类型：{status.error_type or '无'}",
+        f"消息：{status.message or '无'}",
+    ])
+
+
 def _copy_plugin_dir(src: Path, dest_root: Path) -> Path | None:
     if not src.is_dir() or not (src / "plugin.py").exists():
         return None
@@ -171,8 +197,23 @@ class PluginPage(QWidget):
             QListWidget:focus { border-color: #d4567a; }
         """)
         self._host = PluginHost(Path(__file__).parent.parent.parent.parent / "plugins")
-        self._refresh_plugins()
         layout.addWidget(self._list, 1)
+
+        self._detail = QLabel("选择插件、MCP 服务器或工具查看诊断详情。")
+        self._detail.setWordWrap(True)
+        self._detail.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._detail.setStyleSheet("""
+            QLabel {
+                background: rgba(255,255,255,0.5);
+                border: 1px solid rgba(220, 160, 180, 0.25);
+                border-radius: 8px;
+                padding: 10px 12px;
+                color: #4a3040;
+                font-size: 12px;
+            }
+        """)
+        layout.addWidget(self._detail)
+        self._list.currentItemChanged.connect(self._sync_detail)
 
         btn_row = QHBoxLayout()
         add_plugin_btn = QPushButton("+ 导入插件")
@@ -208,6 +249,7 @@ class PluginPage(QWidget):
         btn_row.addWidget(remove_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
+        self._refresh_plugins()
 
     def _refresh_plugins(self, notify: bool = False) -> None:
         self._list.clear()
@@ -221,38 +263,55 @@ class PluginPage(QWidget):
             f"插件 {counts.get('plugin', 0)}  ·  MCP {counts.get('mcp', 0)}"
         )
 
+        self._detail.setText("选择插件、MCP 服务器或工具查看诊断详情。")
+
         if not self._tool_registry.tool_specs() and not self._host.errors and not self._mcp_host.statuses:
             self._list.addItem("（暂无已配置的插件）")
             return
 
-        if any(entry.source == "plugin" for entry in self._tool_registry.entries()):
+        if self._host.statuses:
             header = self._add_list_item("【本地插件工具】")
             header.setFlags(header.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-        for plugin in self._host.plugins:
-            tools_count = len(plugin.tools())
-            desc = f" — {plugin.description}" if plugin.description else ""
-            item = self._add_list_item(f"已加载：{plugin.name}{desc}（{tools_count} 个工具）")
+        for status in self._host.statuses:
+            if status.loaded:
+                desc = f" — {status.description}" if status.description else ""
+                text = f"已加载：{status.name}{desc}（{status.tools_count} 个工具）"
+            else:
+                text = f"加载失败：{status.name} — {status.message}"
+            item = self._add_list_item(text)
             item.setData(Qt.ItemDataRole.UserRole, {
-                "kind": "plugin",
-                "path": str((self._host._plugins_dir / plugin.name).resolve()),
+                "kind": "plugin_status",
+                "path": status.path,
+                "detail": _format_plugin_status_detail(status),
             })
 
-        if any(entry.source == "mcp" for entry in self._tool_registry.entries()):
+        if self._mcp_host.statuses:
             header = self._add_list_item("【MCP 工具】")
             header.setFlags(header.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-        for error in self._host.errors:
-            self._list.addItem(f"加载失败：{error.plugin} — {error.message}")
-
         for index, status in enumerate(self._mcp_host.statuses):
             state = "已连接" if status.connected else "未连接"
             extra = f" / {status.tools_count} 个工具" if status.connected else ""
             item = self._add_list_item(f"MCP：{status.server} [{status.transport}] {state}{extra} — {status.message}")
-            item.setData(Qt.ItemDataRole.UserRole, {"kind": "mcp", "index": index})
+            item.setData(Qt.ItemDataRole.UserRole, {
+                "kind": "mcp_status",
+                "index": index,
+                "detail": _format_mcp_status_detail(status),
+            })
         for entry in self._tool_registry.entries():
-            self._list.addItem(
-                f"  • {entry.qualified_name} [{entry.source}] — "
+            item = self._add_list_item(
+                f"  • {entry.qualified_name} [{entry.source}:{entry.source_name}] — "
                 f"{entry.schema.get('description', '')}｜参数：{entry.parameter_summary()}"
             )
+            item.setData(Qt.ItemDataRole.UserRole, {
+                "kind": "tool",
+                "detail": "\n".join([
+                    f"工具：{entry.qualified_name}",
+                    f"来源：{entry.source}",
+                    f"来源名称：{entry.source_name}",
+                    f"说明：{entry.schema.get('description', '') or '无'}",
+                    f"参数：{entry.parameter_summary()}",
+                ]),
+            })
         if notify:
             show_feedback(self, "刷新成功", "统一工具目录已刷新。")
 
@@ -289,7 +348,7 @@ class PluginPage(QWidget):
 
     def _toggle_selected_mcp(self) -> None:
         data = self._selected_data()
-        if not data or data.get("kind") != "mcp":
+        if not data or data.get("kind") not in {"mcp", "mcp_status"}:
             self._show_error("请选择一个 MCP 服务器条目。")
             return
         if _toggle_mcp_server_enabled(self._config.mcp.servers, data["index"]):
@@ -304,7 +363,7 @@ class PluginPage(QWidget):
         if not data:
             self._show_error("请先选择一个插件或 MCP 服务器。")
             return
-        if data.get("kind") == "plugin":
+        if data.get("kind") in {"plugin", "plugin_status"} and data.get("path"):
             plugins_root = Path(__file__).parent.parent.parent.parent / "plugins"
             plugin_name = Path(data["path"]).name
             if not confirm_action(self, "确认删除", f"确定删除插件 '{plugin_name}' 吗？"):
@@ -313,7 +372,7 @@ class PluginPage(QWidget):
                 self._refresh_plugins()
                 show_feedback(self, "删除成功", f"插件 '{plugin_name}' 已删除。")
                 return
-        if data.get("kind") == "mcp":
+        if data.get("kind") in {"mcp", "mcp_status"}:
             server_name = self._config.mcp.servers[data["index"]].name
             if not confirm_action(self, "确认删除", f"确定删除 MCP 服务器 '{server_name}' 吗？"):
                 return
@@ -329,6 +388,13 @@ class PluginPage(QWidget):
         if not item:
             return None
         return item.data(Qt.ItemDataRole.UserRole)
+
+    def _sync_detail(self) -> None:
+        data = self._selected_data()
+        if data and data.get("detail"):
+            self._detail.setText(data["detail"])
+        else:
+            self._detail.setText("选择插件、MCP 服务器或工具查看诊断详情。")
 
     def _add_list_item(self, text: str):
         item = self._list.item(self._list.count())

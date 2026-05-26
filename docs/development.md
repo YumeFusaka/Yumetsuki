@@ -60,9 +60,10 @@
   系统配置
   当前也承载 `logging` 运行时配置，如日志根目录与平台日志内部 `system` channel 的 flush 间隔
   当前也承载 `chat_display` 与 `passive_interaction`：前者控制聊天字体倍率和气泡倍率；后者包含空闲阈值、被动气泡最大宽度和停留时长。被动状态属于聊天窗运行态，空闲阈值用于自动进入，不再使用系统级启用开关。
+  当前也承载 `vision`：控制 OCR 是否启用、Tesseract 命令、OCR 语言、截图目录、最大文本长度和显式触发策略。
   当前默认值：`chat_display.font_scale=1.3`，`passive_interaction.bubble_max_width=600`。
 - `data/config/mcp.yaml`
-  MCP 实际配置
+  MCP 实际配置；每个 server 可配置 `connect_timeout_seconds`、`request_timeout_seconds` 和 `retry_attempts`
 - `data/config/mcp.example.yaml`
   MCP 示例模板
 - `data/config/memory.yaml`
@@ -77,6 +78,10 @@
   `conversation/` 存放按 `session_id` 分文件的对话日志
   `system/` 存放按日期切分的平台日志；内部 channel 名仍为 `system`
   默认不应提交运行期产物
+- `data/browser_sessions/`
+  浏览器持续会话相关中间产物目录，默认不应提交
+- `data/vision/`
+  屏幕 OCR 截图中间产物目录，默认不应提交
 
 ## 配置化要求
 
@@ -117,6 +122,23 @@
 - Phase 5 已确认并已落地的改进配置入口：
   - `passive_interaction.idle_threshold_seconds`
   - 删除 `asr.base_url`、`asr.api_key`、`asr.api_url`、`asr.model`、`passive_interaction.enabled`
+- Phase 6 当前已落地的配置入口：
+  - `mcp.servers[].connect_timeout_seconds`
+  - `mcp.servers[].request_timeout_seconds`
+  - `mcp.servers[].retry_attempts`
+  - `web_automation.browser_headless`
+  - `web_automation.browser_timeout_ms`
+  - `web_automation.page_wait_timeout_ms`
+  - `web_automation.session_screenshot_dir`
+  - `web_automation.max_extract_length`
+  - `vision.enabled`
+  - `vision.ocr_engine`
+  - `vision.tesseract_cmd`
+  - `vision.language`
+  - `vision.psm`
+  - `vision.screenshot_dir`
+  - `vision.max_text_chars`
+  - `vision.explicit_trigger_only`
 - 以下类型默认都应朝配置化方向演进：
   - 短期记忆窗口、衰减、摘要预算
   - TTS 超时、并发、回退、队列长度
@@ -192,6 +214,14 @@
   - `STTManager` 与 `FasterWhisperAdapter` 的本地 faster-whisper 库 mock 转写测试
   - STT 识别文本必须回到 `_on_send()`，不得绕过 Agent、SessionContext、日志或 TTS 管线
   - 真实麦克风、真实 faster-whisper 模型转写、真实 STT / TTS 互锁属于本地设备联调边界，不应作为离线 pytest 的硬依赖
+- Phase 6 插件 / MCP / 浏览器 / OCR 相关改动优先覆盖：
+  - `PluginHost` 的插件加载状态、失败消息和工具数量
+  - `MCPHost` 的连接状态、工具名、错误类型、请求超时和重试
+  - `ToolRegistry` 的 `source_name` 与 qualified name 兼容
+  - `web_automation` 既有搜索 / 提取 / 截图工具不回退，持续浏览器会话工具可打开、导航、等待、提取、点击、填写、查看状态和关闭
+  - `VisionManager` 的禁用状态、截图失败、OCR 失败、文本截断和 Tesseract 命令参数
+  - `SessionContext.visual_observations` 的 prompt 注入和 SQLite 快照往返
+  - `AgentManager` 仅在显式读屏请求下触发 OCR，普通聊天不读屏
 - `EventBus` 相关改动优先覆盖：
   - 发布时 handler 快照语义
   - 订阅 / 退订与发布并发下的基本安全性

@@ -17,15 +17,27 @@ class PluginLoadError:
     message: str
 
 
+@dataclass(frozen=True)
+class PluginStatus:
+    name: str
+    path: str
+    loaded: bool
+    tools_count: int = 0
+    description: str = ""
+    message: str = ""
+
+
 class PluginHost:
     def __init__(self, plugins_dir: Path | str):
         self._plugins_dir = Path(plugins_dir)
         self.plugins: list[BasePlugin] = []
         self.errors: list[PluginLoadError] = []
+        self.statuses: list[PluginStatus] = []
 
     def load(self) -> None:
         self.plugins.clear()
         self.errors.clear()
+        self.statuses.clear()
         if not self._plugins_dir.is_dir():
             return
 
@@ -40,8 +52,23 @@ class PluginHost:
                 if not isinstance(plugin, BasePlugin):
                     raise TypeError("Plugin must inherit sdk.base.BasePlugin")
                 self.plugins.append(plugin)
+                self.statuses.append(PluginStatus(
+                    name=plugin.name,
+                    path=str(plugin_dir.resolve()),
+                    loaded=True,
+                    tools_count=len(plugin.tools()),
+                    description=plugin.description,
+                    message="loaded",
+                ))
             except Exception as exc:
-                self.errors.append(PluginLoadError(plugin=plugin_dir.name, message=str(exc)))
+                message = str(exc)
+                self.errors.append(PluginLoadError(plugin=plugin_dir.name, message=message))
+                self.statuses.append(PluginStatus(
+                    name=plugin_dir.name,
+                    path=str(plugin_dir.resolve()),
+                    loaded=False,
+                    message=message,
+                ))
 
     def tool_specs(self) -> list[dict[str, Any]]:
         specs: list[dict[str, Any]] = []

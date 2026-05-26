@@ -5,6 +5,7 @@ import os
 import shlex
 import subprocess
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 
@@ -40,6 +41,9 @@ class MCPServerStatus:
     connected: bool
     tools_count: int = 0
     message: str = ""
+    error_type: str = ""
+    last_checked_at: float = 0.0
+    tool_names: list[str] | None = None
 
 
 class MCPSession(Protocol):
@@ -176,6 +180,7 @@ class MCPHttpSession:
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",
         }
+        self._timeout = max(1, int(server.request_timeout_seconds or 10))
         self._request("initialize", {
             "protocolVersion": MCP_PROTOCOL_VERSION,
             "capabilities": {},
@@ -231,7 +236,7 @@ class MCPHttpSession:
                 "method": method,
                 "params": params,
             },
-            timeout=10,
+            timeout=self._timeout,
         )
         response.raise_for_status()
         message = self._decode_response(response.text, response.headers.get("Content-Type", ""))
@@ -248,7 +253,7 @@ class MCPHttpSession:
                 "method": method,
                 "params": params,
             },
-            timeout=10,
+            timeout=self._timeout,
         ).raise_for_status()
 
     def _decode_response(self, body: str, content_type: str) -> dict[str, Any]:
@@ -283,26 +288,42 @@ class MCPHost:
                     transport=server.transport,
                     connected=False,
                     message="disabled",
+                    last_checked_at=time.time(),
+                    tool_names=[],
                 ))
                 continue
-            try:
-                session = self._create_session(server)
-                tools = session.list_tools()
-                self._sessions[server.name] = session
-                self._tools[server.name] = tools
-                self.statuses.append(MCPServerStatus(
-                    server=server.name,
-                    transport=server.transport,
-                    connected=True,
-                    tools_count=len(tools),
-                    message="connected",
-                ))
-            except Exception as exc:
+
+            attempts = max(0, int(server.retry_attempts)) + 1
+            last_error: Exception | None = None
+            for _ in range(attempts):
+                try:
+                    session = self._create_session(server)
+                    tools = session.list_tools()
+                    self._sessions[server.name] = session
+                    self._tools[server.name] = tools
+                    self.statuses.append(MCPServerStatus(
+                        server=server.name,
+                        transport=server.transport,
+                        connected=True,
+                        tools_count=len(tools),
+                        message="connected",
+                        last_checked_at=time.time(),
+                        tool_names=[tool.name for tool in tools],
+                    ))
+                    last_error = None
+                    break
+                except Exception as exc:
+                    last_error = exc
+
+            if last_error is not None:
                 self.statuses.append(MCPServerStatus(
                     server=server.name,
                     transport=server.transport,
                     connected=False,
-                    message=str(exc),
+                    message=str(last_error),
+                    error_type=last_error.__class__.__name__,
+                    last_checked_at=time.time(),
+                    tool_names=[],
                 ))
 
     def tool_specs(self) -> list[dict[str, Any]]:

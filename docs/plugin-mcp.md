@@ -42,6 +42,7 @@ class Plugin(BasePlugin):
 - 收集工具 schema
 - 调用插件工具
 - 记录加载失败信息
+- 输出结构化加载状态：插件名称、路径、加载状态、工具数量、说明和错误消息
 
 ## MCP 配置
 
@@ -62,6 +63,9 @@ servers:
     command: python path/to/mcp_server.py
     url: ""
     enabled: true
+    connect_timeout_seconds: 10
+    request_timeout_seconds: 10
+    retry_attempts: 0
   - name: web-tools
     transport: sse
     command: ""
@@ -88,6 +92,15 @@ servers:
 - POST JSON-RPC 请求
 - 支持 `application/json`
 - 支持 `text/event-stream`
+- 请求超时使用 `request_timeout_seconds`
+
+### 诊断配置
+
+- `connect_timeout_seconds`：连接阶段超时配置候选，默认 `10`
+- `request_timeout_seconds`：HTTP MCP 请求超时，默认 `10`
+- `retry_attempts`：连接失败后的重试次数，默认 `0`
+
+`MCPHost` 会记录每个 server 的连接状态、工具数量、工具名、错误类型、诊断消息和最后检查时间。
 
 ## 工具目录
 
@@ -102,6 +115,7 @@ servers:
 - 提供 UI 展示条目
 - 调用分发
 - 刷新统计
+- 记录工具来源类型和来源名称；qualified name 仍保持 `plugin__tool` / `server__tool`
 
 ## 设置页支持
 
@@ -114,9 +128,11 @@ servers:
 - 删除 MCP server
 - 刷新统一工具目录
 - 查看工具来源、描述、参数摘要
+- 查看插件加载状态、MCP 连接状态、工具数量、错误类型和诊断消息
 
 ## 当前限制
 
 - 未做真实第三方 MCP 服务端兼容性回归
 - 工具执行日志没有独立面板
 - 暂无插件 marketplace / 安装源
+- 不自动执行第三方 MCP 返回的命令或外部指令；MCP 返回内容仍按不可信输入处理

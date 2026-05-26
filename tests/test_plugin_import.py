@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from config.schema import MCPServerConfig
+from core.plugin_host import PluginHost
 from ui.settings.pages.plugin_page import (
     _copy_plugin_dir,
     _remove_plugin_dir,
@@ -32,6 +33,49 @@ def test_copy_plugin_dir_copies_valid_plugin(tmp_path):
     assert result == dest_root / "hello_plugin"
     assert (result / "plugin.py").exists()
     assert (result / "README.md").read_text(encoding="utf-8") == "hello"
+
+
+def test_plugin_host_records_loaded_plugin_status(tmp_path):
+    plugin_dir = tmp_path / "plugins" / "demo"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "plugin.py").write_text(
+        """
+from sdk.base import BasePlugin, tool
+
+class Plugin(BasePlugin):
+    name = "demo"
+    description = "Demo plugin"
+
+    @tool(description="Echo text")
+    def echo(self, text: str) -> str:
+        return text
+""",
+        encoding="utf-8",
+    )
+
+    host = PluginHost(tmp_path / "plugins")
+    host.load()
+
+    assert len(host.statuses) == 1
+    status = host.statuses[0]
+    assert status.name == "demo"
+    assert status.loaded is True
+    assert status.tools_count == 1
+    assert status.description == "Demo plugin"
+    assert status.message == "loaded"
+
+
+def test_plugin_host_records_failed_plugin_status(tmp_path):
+    plugin_dir = tmp_path / "plugins" / "broken"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "plugin.py").write_text("raise RuntimeError('boom')", encoding="utf-8")
+
+    host = PluginHost(tmp_path / "plugins")
+    host.load()
+
+    assert host.statuses[0].name == "broken"
+    assert host.statuses[0].loaded is False
+    assert "boom" in host.statuses[0].message
 
 
 def test_remove_plugin_dir_requires_existing_plugin_py(tmp_path):

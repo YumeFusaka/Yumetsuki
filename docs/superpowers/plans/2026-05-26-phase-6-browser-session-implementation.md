@@ -1,6 +1,6 @@
 # Phase 6 Browser Session Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 将 `web_automation` 从单次搜索 / 提取 / 截图扩展为具备持续浏览器会话的受控页面操控能力。
 
@@ -41,7 +41,7 @@
 - Modify: `config/schema.py`
 - Test: `tests/test_web_automation.py`
 
-- [ ] **Step 1: Write failing config tests**
+- [x] **Step 1: Write failing config tests**
 
 Update `tests/test_web_automation.py::test_web_automation_config_defaults`:
 
@@ -58,7 +58,7 @@ def test_web_automation_config_defaults():
     assert config.max_extract_length == 4000
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 Run:
 
@@ -68,7 +68,7 @@ python -m pytest tests/test_web_automation.py::test_web_automation_config_defaul
 
 Expected: FAIL because these config fields do not exist.
 
-- [ ] **Step 3: Implement config fields**
+- [x] **Step 3: Implement config fields**
 
 Update `config/schema.py`:
 
@@ -84,7 +84,7 @@ class WebAutomationConfig(BaseModel):
     max_extract_length: int = 4000
 ```
 
-- [ ] **Step 4: Run config test**
+- [x] **Step 4: Run config test**
 
 Run:
 
@@ -102,7 +102,7 @@ Expected: PASS.
 - Create: `plugins/web_automation/session.py`
 - Test: `tests/test_web_automation_session.py`
 
-- [ ] **Step 1: Write failing model tests**
+- [x] **Step 1: Write failing model tests**
 
 Create `tests/test_web_automation_session.py`:
 
@@ -135,7 +135,7 @@ def test_format_state_summary_for_closed_session():
     assert format_state_summary(state) == "浏览器会话未打开。"
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -145,7 +145,7 @@ python -m pytest tests/test_web_automation_session.py -q
 
 Expected: FAIL because `plugins.web_automation.session` does not exist.
 
-- [ ] **Step 3: Implement session result models**
+- [x] **Step 3: Implement session result models**
 
 Create `plugins/web_automation/session.py`:
 
@@ -199,7 +199,7 @@ def format_state_summary(state: BrowserSessionState) -> str:
     return "\n".join(lines)
 ```
 
-- [ ] **Step 4: Run model tests**
+- [x] **Step 4: Run model tests**
 
 Run:
 
@@ -217,7 +217,7 @@ Expected: PASS.
 - Modify: `plugins/web_automation/page.py`
 - Test: `tests/test_web_automation_session.py`
 
-- [ ] **Step 1: Write failing page action tests**
+- [x] **Step 1: Write failing page action tests**
 
 Append to `tests/test_web_automation_session.py`:
 
@@ -268,7 +268,7 @@ def test_extract_current_text_truncates_text():
     assert "内容已截断" in result.text_preview
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -278,7 +278,7 @@ python -m pytest tests/test_web_automation_session.py -q
 
 Expected: FAIL because page action helpers do not exist.
 
-- [ ] **Step 3: Implement page action helpers**
+- [x] **Step 3: Implement page action helpers**
 
 Add to `plugins/web_automation/page.py`:
 
@@ -347,7 +347,7 @@ def extract_current_text(page: Any, max_length: int = 4000) -> BrowserActionResu
         return BrowserActionResult(False, "extract", f"提取失败：{exc}", _current_url(page), _page_title(page))
 ```
 
-- [ ] **Step 4: Run page helper tests**
+- [x] **Step 4: Run page helper tests**
 
 Run:
 
@@ -365,7 +365,7 @@ Expected: PASS.
 - Modify: `plugins/web_automation/browser.py`
 - Test: `tests/test_web_automation_session.py`
 
-- [ ] **Step 1: Write failing controller tests**
+- [x] **Step 1: Write failing controller tests**
 
 Append to `tests/test_web_automation_session.py`:
 
@@ -413,7 +413,7 @@ def test_browser_session_controller_reuses_open_session():
     assert "浏览器会话已打开" in second
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -423,7 +423,7 @@ python -m pytest tests/test_web_automation_session.py::test_browser_session_cont
 
 Expected: FAIL because `BrowserSessionController` does not exist.
 
-- [ ] **Step 3: Implement controller**
+- [x] **Step 3: Implement controller**
 
 Add to `plugins/web_automation/browser.py`:
 
@@ -482,7 +482,7 @@ class BrowserSessionController:
             return ""
 ```
 
-- [ ] **Step 4: Run controller tests**
+- [x] **Step 4: Run controller tests**
 
 Run:
 
@@ -501,7 +501,7 @@ Expected: PASS.
 - Test: `tests/test_web_automation.py`
 - Test: `tests/test_web_automation_session.py`
 
-- [ ] **Step 1: Write failing plugin tool tests**
+- [x] **Step 1: Write failing plugin tool tests**
 
 Add to `tests/test_web_automation.py`:
 
@@ -537,7 +537,7 @@ def test_web_session_tools_call_controller(monkeypatch):
     fake.open.assert_called_once()
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -547,7 +547,7 @@ python -m pytest tests/test_web_automation.py::test_wa_plugin_has_browser_sessio
 
 Expected: FAIL because session tools do not exist.
 
-- [ ] **Step 3: Add controller to Plugin.__init__()**
+- [x] **Step 3: Add controller to Plugin.__init__()**
 
 Update imports in `plugins/web_automation/plugin.py`:
 
@@ -572,7 +572,7 @@ self._max_extract_length = int(config.get("max_extract_length", 4000))
 self._session = BrowserSessionController()
 ```
 
-- [ ] **Step 4: Add session tools**
+- [x] **Step 4: Add session tools**
 
 Add methods to `Plugin`:
 
@@ -642,7 +642,7 @@ def web_session_close(self) -> str:
     return self._session.close()
 ```
 
-- [ ] **Step 5: Run plugin tests**
+- [x] **Step 5: Run plugin tests**
 
 Run:
 
@@ -662,7 +662,7 @@ Expected: PASS.
 - Modify: `docs/development.md`
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Update docs**
+- [x] **Step 1: Update docs**
 
 Document these facts:
 
@@ -672,7 +672,7 @@ Document these facts:
 - 配置项：`browser_headless`、`browser_timeout_ms`、`page_wait_timeout_ms`、`session_screenshot_dir`、`max_extract_length`。
 - 持续会话是 Playwright 控制的浏览器，不复用用户系统默认浏览器窗口。
 
-- [ ] **Step 2: Run docs scan**
+- [x] **Step 2: Run docs scan**
 
 Run:
 
@@ -689,7 +689,7 @@ Expected: matches in updated docs.
 **Files:**
 - All changed files
 
-- [ ] **Step 1: Focused tests**
+- [x] **Step 1: Focused tests**
 
 Run:
 
@@ -699,7 +699,7 @@ python -m pytest tests/test_web_automation.py tests/test_web_automation_session.
 
 Expected: PASS.
 
-- [ ] **Step 2: Syntax check**
+- [x] **Step 2: Syntax check**
 
 Run:
 
@@ -709,7 +709,7 @@ python -m py_compile config/schema.py plugins/web_automation/browser.py plugins/
 
 Expected: exit code 0.
 
-- [ ] **Step 3: Full tests**
+- [x] **Step 3: Full tests**
 
 Run:
 
@@ -719,7 +719,7 @@ python -m pytest tests/ -q
 
 Expected: PASS.
 
-- [ ] **Step 4: Diff check**
+- [x] **Step 4: Diff check**
 
 Run:
 

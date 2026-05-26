@@ -7,9 +7,17 @@ from datetime import datetime
 import yaml
 
 from sdk.base import BasePlugin, tool
-from plugins.web_automation.browser import run_headless, run_visible
+from plugins.web_automation.browser import BrowserSessionController, run_headless, run_visible
 from plugins.web_automation.search import search_bing, search_google, format_results
-from plugins.web_automation.page import extract_text, screenshot
+from plugins.web_automation.page import (
+    click_selector,
+    extract_current_text,
+    extract_text,
+    fill_selector,
+    navigate_current,
+    screenshot,
+    wait_for_selector,
+)
 
 
 class PermissionLevel(IntEnum):
@@ -40,6 +48,11 @@ class Plugin(BasePlugin):
         self._permission_level = _LEVEL_NAMES.get(level_str, PermissionLevel.MEDIUM)
         self._default_engine = config.get("default_engine", "bing")
         self._screenshot_dir = config.get("screenshot_dir", "data/screenshots")
+        self._browser_headless = bool(config.get("browser_headless", False))
+        self._browser_timeout_ms = int(config.get("browser_timeout_ms", 15000))
+        self._page_wait_timeout_ms = int(config.get("page_wait_timeout_ms", 10000))
+        self._max_extract_length = int(config.get("max_extract_length", 4000))
+        self._session = BrowserSessionController()
 
     def _check_permission(self, required: PermissionLevel) -> str | None:
         if self._permission_level >= required:
@@ -114,3 +127,60 @@ class Plugin(BasePlugin):
             return run_headless(lambda page: screenshot(page, url, save_path))
         except Exception as e:
             return f"截图失败：{e}"
+
+    @tool(description="打开一个由 Playwright 控制的持续浏览器会话", params={"headless": "是否无头运行，默认使用配置值"})
+    def web_session_open(self, headless: bool = False) -> str:
+        denied = self._check_permission(PermissionLevel.MEDIUM)
+        if denied:
+            return denied
+        return self._session.open(headless=bool(headless or self._browser_headless), timeout_ms=self._browser_timeout_ms)
+
+    @tool(description="在持续浏览器会话中导航到指定 URL", params={"url": "要打开的 URL"})
+    def web_session_navigate(self, url: str) -> str:
+        denied = self._check_permission(PermissionLevel.MEDIUM)
+        if denied:
+            return denied
+        return navigate_current(self._session.page(), url, timeout_ms=self._browser_timeout_ms).to_text()
+
+    @tool(description="点击当前页面中的 CSS selector 元素", params={"selector": "CSS selector"})
+    def web_session_click(self, selector: str) -> str:
+        denied = self._check_permission(PermissionLevel.HIGH)
+        if denied:
+            return denied
+        return click_selector(self._session.page(), selector, timeout_ms=self._page_wait_timeout_ms).to_text()
+
+    @tool(description="填写当前页面中的 CSS selector 输入框", params={"selector": "CSS selector", "text": "要填写的文本"})
+    def web_session_fill(self, selector: str, text: str) -> str:
+        denied = self._check_permission(PermissionLevel.HIGH)
+        if denied:
+            return denied
+        return fill_selector(self._session.page(), selector, text, timeout_ms=self._page_wait_timeout_ms).to_text()
+
+    @tool(description="等待当前页面出现指定 CSS selector 元素", params={"selector": "CSS selector"})
+    def web_session_wait(self, selector: str) -> str:
+        denied = self._check_permission(PermissionLevel.MEDIUM)
+        if denied:
+            return denied
+        return wait_for_selector(self._session.page(), selector, timeout_ms=self._page_wait_timeout_ms).to_text()
+
+    @tool(description="提取当前浏览器会话页面的可见文本", params={"max_length": "最大返回字符数，默认使用配置值"})
+    def web_session_extract(self, max_length: int = 0) -> str:
+        denied = self._check_permission(PermissionLevel.MEDIUM)
+        if denied:
+            return denied
+        limit = int(max_length or self._max_extract_length)
+        return extract_current_text(self._session.page(), max_length=limit).to_text()
+
+    @tool(description="查看当前持续浏览器会话状态")
+    def web_session_status(self) -> str:
+        denied = self._check_permission(PermissionLevel.LOW)
+        if denied:
+            return denied
+        return self._session.status()
+
+    @tool(description="关闭当前持续浏览器会话")
+    def web_session_close(self) -> str:
+        denied = self._check_permission(PermissionLevel.MEDIUM)
+        if denied:
+            return denied
+        return self._session.close()

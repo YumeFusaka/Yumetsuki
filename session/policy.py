@@ -64,6 +64,10 @@ class SessionPolicy:
             lines.append("- 最近对话:")
             for turn in ctx.recent_turns[-self._config.prompt_turns_limit:]:
                 lines.append(f"  - {turn.role}: {turn.text}")
+        if ctx.visual_observations:
+            lines.append("- 最近视觉信息:")
+            for obs in ctx.visual_observations[-3:]:
+                lines.append(f"  - {obs.to_prompt_line()}")
         return "\n".join(lines)
 
     def collect_mem0_candidates(self, ctx: SessionContext) -> list[WorkingFact]:

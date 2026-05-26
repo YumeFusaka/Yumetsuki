@@ -108,6 +108,38 @@ servers:
     assert mgr2.mcp.servers[1].url == "http://127.0.0.1:8000/sse"
 
 
+def test_mcp_server_config_has_runtime_diagnostics_defaults():
+    cfg = MCPServerConfig(name="tools")
+
+    assert cfg.connect_timeout_seconds == 10
+    assert cfg.request_timeout_seconds == 10
+    assert cfg.retry_attempts == 0
+
+
+def test_load_mcp_runtime_options_from_yaml(tmp_path):
+    mcp_yaml = tmp_path / "mcp.yaml"
+    mcp_yaml.write_text(
+        """
+servers:
+  - name: remote-tools
+    transport: sse
+    url: http://127.0.0.1:8000/mcp
+    enabled: true
+    connect_timeout_seconds: 3
+    request_timeout_seconds: 5
+    retry_attempts: 2
+""",
+        encoding="utf-8",
+    )
+
+    mgr = ConfigManager(tmp_path)
+
+    server = mgr.mcp.servers[0]
+    assert server.connect_timeout_seconds == 3
+    assert server.request_timeout_seconds == 5
+    assert server.retry_attempts == 2
+
+
 def test_save_mcp_does_not_create_api_config(tmp_path):
     mgr = ConfigManager(config_dir=tmp_path)
     mgr.mcp.servers.append(MCPServerConfig(name="tools", command="python server.py"))
@@ -177,6 +209,19 @@ def test_system_config_exposes_phase5_display_and_passive_settings():
     assert cfg.passive_interaction.bubble_max_width == 600
     assert cfg.passive_interaction.bubble_duration_seconds == 8
     assert not hasattr(cfg.passive_interaction, "enabled")
+
+
+def test_vision_config_defaults():
+    cfg = SystemConfig()
+
+    assert cfg.vision.enabled is False
+    assert cfg.vision.ocr_engine == "tesseract"
+    assert cfg.vision.tesseract_cmd == "tesseract"
+    assert cfg.vision.language == "chi_sim+eng"
+    assert cfg.vision.psm == 6
+    assert cfg.vision.screenshot_dir == "data/vision"
+    assert cfg.vision.max_text_chars == 2000
+    assert cfg.vision.explicit_trigger_only is True
 
 
 def test_save_and_reload_phase5_system_config(tmp_path):

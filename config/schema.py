@@ -40,6 +40,9 @@ class MCPServerConfig(BaseModel):
     command: str = ""
     url: str = ""
     enabled: bool = True
+    connect_timeout_seconds: int = 10
+    request_timeout_seconds: int = 10
+    retry_attempts: int = 0
 
 
 class MCPConfig(BaseModel):
@@ -71,6 +74,17 @@ class PassiveInteractionConfig(BaseModel):
     bubble_duration_seconds: int = 8
 
 
+class VisionConfig(BaseModel):
+    enabled: bool = False
+    ocr_engine: str = "tesseract"
+    tesseract_cmd: str = "tesseract"
+    language: str = "chi_sim+eng"
+    psm: int = 6
+    screenshot_dir: str = "data/vision"
+    max_text_chars: int = 2000
+    explicit_trigger_only: bool = True
+
+
 class SystemConfig(BaseModel):
     language: str = "zh-CN"
     theme: str = "dark"
@@ -79,6 +93,7 @@ class SystemConfig(BaseModel):
     proxy: str = ""
     chat_display: ChatDisplayConfig = Field(default_factory=ChatDisplayConfig)
     passive_interaction: PassiveInteractionConfig = Field(default_factory=PassiveInteractionConfig)
+    vision: VisionConfig = Field(default_factory=VisionConfig)
     logging: "LoggingConfig" = Field(default_factory=lambda: LoggingConfig())
 
 
@@ -131,6 +146,11 @@ class WebAutomationConfig(BaseModel):
     permission_level: str = "medium"
     default_engine: str = "bing"
     screenshot_dir: str = "data/screenshots"
+    browser_headless: bool = False
+    browser_timeout_ms: int = 15000
+    page_wait_timeout_ms: int = 10000
+    session_screenshot_dir: str = "data/browser_sessions"
+    max_extract_length: int = 4000
 
 
 class SessionContextConfig(BaseModel):

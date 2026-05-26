@@ -1,6 +1,6 @@
 # Phase 6 Plugin MCP Diagnostics Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 增强插件 / MCP 管理页的状态可视化、错误诊断、工具目录说明和 MCP 连接重试配置。
 
@@ -45,7 +45,7 @@
 - Modify: `config/schema.py`
 - Test: `tests/test_config.py`
 
-- [ ] **Step 1: Write the failing config tests**
+- [x] **Step 1: Write the failing config tests**
 
 Add to `tests/test_config.py`:
 
@@ -82,7 +82,7 @@ servers:
     assert server.retry_attempts == 2
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -92,7 +92,7 @@ python -m pytest tests/test_config.py::test_mcp_server_config_has_runtime_diagno
 
 Expected: FAIL because `MCPServerConfig` does not expose these fields.
 
-- [ ] **Step 3: Implement config fields**
+- [x] **Step 3: Implement config fields**
 
 Update `config/schema.py`:
 
@@ -108,7 +108,7 @@ class MCPServerConfig(BaseModel):
     retry_attempts: int = 0
 ```
 
-- [ ] **Step 4: Run config tests and verify GREEN**
+- [x] **Step 4: Run config tests and verify GREEN**
 
 Run:
 
@@ -126,7 +126,7 @@ Expected: PASS.
 - Modify: `core/plugin_host.py`
 - Test: `tests/test_plugin_import.py`
 
-- [ ] **Step 1: Write the failing PluginHost status tests**
+- [x] **Step 1: Write the failing PluginHost status tests**
 
 Add to `tests/test_plugin_import.py`:
 
@@ -174,7 +174,7 @@ def test_plugin_host_records_failed_plugin_status(tmp_path):
     assert "boom" in host.statuses[0].message
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -184,7 +184,7 @@ python -m pytest tests/test_plugin_import.py::test_plugin_host_records_loaded_pl
 
 Expected: FAIL because `PluginHost.statuses` does not exist.
 
-- [ ] **Step 3: Implement PluginStatus**
+- [x] **Step 3: Implement PluginStatus**
 
 Update `core/plugin_host.py`:
 
@@ -244,7 +244,7 @@ for plugin_dir in sorted(path for path in self._plugins_dir.iterdir() if path.is
         ))
 ```
 
-- [ ] **Step 4: Run PluginHost tests**
+- [x] **Step 4: Run PluginHost tests**
 
 Run:
 
@@ -262,7 +262,7 @@ Expected: PASS.
 - Modify: `core/mcp_host.py`
 - Test: `tests/test_mcp_host.py`
 
-- [ ] **Step 1: Write failing MCP diagnostics tests**
+- [x] **Step 1: Write failing MCP diagnostics tests**
 
 Add to `tests/test_mcp_host.py`:
 
@@ -303,7 +303,7 @@ def test_mcp_host_retries_connection_failures():
     assert host.statuses[0].connected is True
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -313,7 +313,7 @@ python -m pytest tests/test_mcp_host.py::test_mcp_host_status_includes_tool_name
 
 Expected: FAIL because `MCPServerStatus` lacks these fields and `connect_all()` does not retry.
 
-- [ ] **Step 3: Extend MCPServerStatus**
+- [x] **Step 3: Extend MCPServerStatus**
 
 Update `core/mcp_host.py`:
 
@@ -333,7 +333,7 @@ class MCPServerStatus:
     tool_names: list[str] | None = None
 ```
 
-- [ ] **Step 4: Use request timeout in MCPHttpSession**
+- [x] **Step 4: Use request timeout in MCPHttpSession**
 
 Update `MCPHttpSession.__init__()`:
 
@@ -347,7 +347,7 @@ Replace both `timeout=10` arguments in `_request()` and `_notify()`:
 timeout=self._timeout,
 ```
 
-- [ ] **Step 5: Implement retry loop in MCPHost.connect_all()**
+- [x] **Step 5: Implement retry loop in MCPHost.connect_all()**
 
 Replace enabled-server connection block with:
 
@@ -393,7 +393,7 @@ last_checked_at=time.time(),
 tool_names=[],
 ```
 
-- [ ] **Step 6: Run MCP tests**
+- [x] **Step 6: Run MCP tests**
 
 Run:
 
@@ -411,7 +411,7 @@ Expected: PASS.
 - Modify: `core/tool_registry.py`
 - Test: `tests/test_tool_registry.py`
 
-- [ ] **Step 1: Write failing ToolRegistry source-name test**
+- [x] **Step 1: Write failing ToolRegistry source-name test**
 
 Update assertions in `tests/test_tool_registry.py::test_tool_registry_combines_plugin_and_mcp_tools`:
 
@@ -420,7 +420,7 @@ assert registry.entries()[0].source_name == "demo"
 assert registry.entries()[1].source_name == "notes"
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 Run:
 
@@ -430,7 +430,7 @@ python -m pytest tests/test_tool_registry.py::test_tool_registry_combines_plugin
 
 Expected: FAIL because `ToolEntry.source_name` does not exist.
 
-- [ ] **Step 3: Add source_name to ToolEntry**
+- [x] **Step 3: Add source_name to ToolEntry**
 
 Update `core/tool_registry.py`:
 
@@ -462,7 +462,7 @@ self._entries.append(ToolEntry(
 
 When adding MCP entries, use the same `qualified_name.split("__", 1)[0]` source-name logic.
 
-- [ ] **Step 4: Run ToolRegistry tests**
+- [x] **Step 4: Run ToolRegistry tests**
 
 Run:
 
@@ -480,7 +480,7 @@ Expected: PASS.
 - Modify: `ui/settings/pages/plugin_page.py`
 - Test: `tests/test_settings_window.py`
 
-- [ ] **Step 1: Write failing formatting tests**
+- [x] **Step 1: Write failing formatting tests**
 
 Add to `tests/test_settings_window.py`:
 
@@ -530,7 +530,7 @@ from core.plugin_host import PluginStatus
 from ui.settings.pages.plugin_page import _format_mcp_status_detail, _format_plugin_status_detail
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -540,7 +540,7 @@ python -m pytest tests/test_settings_window.py::test_plugin_page_formats_plugin_
 
 Expected: FAIL because formatting helpers do not exist.
 
-- [ ] **Step 3: Add formatting helpers**
+- [x] **Step 3: Add formatting helpers**
 
 Add to `ui/settings/pages/plugin_page.py`:
 
@@ -571,7 +571,7 @@ def _format_mcp_status_detail(status) -> str:
     ])
 ```
 
-- [ ] **Step 4: Add details panel to PluginPage**
+- [x] **Step 4: Add details panel to PluginPage**
 
 In `PluginPage.__init__()`, after creating `self._list`, add:
 
@@ -612,7 +612,7 @@ def _sync_detail(self) -> None:
         self._detail.setText("选择插件、MCP 服务器或工具查看诊断详情。")
 ```
 
-- [ ] **Step 5: Preserve existing delete/toggle behavior**
+- [x] **Step 5: Preserve existing delete/toggle behavior**
 
 In `_remove_selected_item()`, accept both old and new plugin data:
 
@@ -636,7 +636,7 @@ if not data or data.get("kind") not in {"mcp", "mcp_status"}:
     return
 ```
 
-- [ ] **Step 6: Run settings tests**
+- [x] **Step 6: Run settings tests**
 
 Run:
 
@@ -655,7 +655,7 @@ Expected: PASS.
 - Modify: `docs/development.md`
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Update docs**
+- [x] **Step 1: Update docs**
 
 Document these facts:
 
@@ -664,7 +664,7 @@ Document these facts:
 - 工具目录可显示工具来源名称，不改变 tool calling 的 qualified name。
 - 本阶段不实现 marketplace，也不自动执行第三方 MCP 返回的命令。
 
-- [ ] **Step 2: Run docs scan**
+- [x] **Step 2: Run docs scan**
 
 Run:
 
@@ -681,7 +681,7 @@ Expected: matches in updated docs.
 **Files:**
 - All changed files
 
-- [ ] **Step 1: Focused tests**
+- [x] **Step 1: Focused tests**
 
 Run:
 
@@ -691,7 +691,7 @@ python -m pytest tests/test_config.py tests/test_plugin_import.py tests/test_mcp
 
 Expected: PASS.
 
-- [ ] **Step 2: Syntax check**
+- [x] **Step 2: Syntax check**
 
 Run:
 
@@ -701,7 +701,7 @@ python -m py_compile config/schema.py core/plugin_host.py core/mcp_host.py core/
 
 Expected: exit code 0.
 
-- [ ] **Step 3: Full tests**
+- [x] **Step 3: Full tests**
 
 Run:
 
@@ -711,7 +711,7 @@ python -m pytest tests/ -q
 
 Expected: PASS.
 
-- [ ] **Step 4: Diff check**
+- [x] **Step 4: Diff check**
 
 Run:
 

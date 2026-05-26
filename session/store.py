@@ -6,6 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from session.context import ActiveTask, SessionContext, SessionSummary, SessionTurn, WorkingFact
+from vision.types import VisualObservation
 
 
 class SessionContextStore:
@@ -30,14 +31,18 @@ class SessionContextStore:
                 "user_id TEXT, session_id TEXT, turn_id INTEGER, role TEXT, text TEXT, "
                 "PRIMARY KEY(user_id, session_id, turn_id, role))"
             )
+            columns = [row[1] for row in conn.execute("PRAGMA table_info(session_contexts)").fetchall()]
+            if "visual_observations_json" not in columns:
+                conn.execute("ALTER TABLE session_contexts ADD COLUMN visual_observations_json TEXT DEFAULT '[]'")
 
     def save(self, ctx: SessionContext) -> None:
         with self._connect() as conn:
             conn.execute(
                 "REPLACE INTO session_contexts("
-                "user_id, session_id, turn_counter, summary_json, working_facts_json, active_tasks_json"
+                "user_id, session_id, turn_counter, summary_json, working_facts_json, "
+                "active_tasks_json, visual_observations_json"
                 ") "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     ctx.user_id,
                     ctx.session_id,
@@ -45,6 +50,7 @@ class SessionContextStore:
                     json.dumps(asdict(ctx.summary), ensure_ascii=False),
                     json.dumps([asdict(fact) for fact in ctx.working_facts], ensure_ascii=False),
                     json.dumps([asdict(task) for task in ctx.active_tasks], ensure_ascii=False),
+                    json.dumps([asdict(obs) for obs in ctx.visual_observations], ensure_ascii=False),
                 ),
             )
             conn.execute(
@@ -63,7 +69,8 @@ class SessionContextStore:
     def load(self, user_id: str, session_id: str) -> SessionContext | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT turn_counter, summary_json, working_facts_json, active_tasks_json FROM session_contexts "
+                "SELECT turn_counter, summary_json, working_facts_json, active_tasks_json, "
+                "visual_observations_json FROM session_contexts "
                 "WHERE user_id=? AND session_id=?",
                 (user_id, session_id),
             ).fetchone()
@@ -74,6 +81,7 @@ class SessionContextStore:
             ctx.summary = SessionSummary(**json.loads(row[1]))
             ctx.working_facts = [WorkingFact(**item) for item in json.loads(row[2] or "[]")]
             ctx.active_tasks = [ActiveTask(**item) for item in json.loads(row[3] or "[]")]
+            ctx.visual_observations = [VisualObservation(**item) for item in json.loads(row[4] or "[]")]
             turns = conn.execute(
                 "SELECT turn_id, role, text FROM session_turns "
                 "WHERE user_id=? AND session_id=? ORDER BY turn_id ASC",

@@ -4,6 +4,7 @@ from core.log_types import LogChannel, LogLevel, build_log_event
 from session.context import SessionContext
 from session.policy import SessionPolicy
 from session.store import SessionContextStore
+from vision.types import VisualObservation
 
 
 class SessionContextManager:
@@ -33,6 +34,12 @@ class SessionContextManager:
 
     def record_assistant_reply(self, ctx: SessionContext, text: str) -> None:
         self._policy.record_assistant_reply(ctx, text)
+        if self._store:
+            self._store.save(ctx)
+
+    def record_visual_observation(self, ctx: SessionContext, observation: VisualObservation) -> None:
+        ctx.visual_observations.append(observation)
+        ctx.visual_observations = ctx.visual_observations[-3:]
         if self._store:
             self._store.save(ctx)
 

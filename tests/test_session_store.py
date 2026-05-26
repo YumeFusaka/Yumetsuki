@@ -3,6 +3,7 @@ from pathlib import Path
 from session.context import SessionContext
 from session.policy import SessionPolicy
 from session.store import SessionContextStore
+from vision.types import VisualObservation
 
 
 def test_store_round_trips_context_to_sqlite(tmp_path: Path):
@@ -36,3 +37,21 @@ def test_store_round_trips_working_facts(tmp_path: Path):
     assert loaded is not None
     assert len(loaded.working_facts) == 1
     assert loaded.working_facts[0].category == "constraint"
+
+
+def test_session_store_roundtrips_visual_observations(tmp_path: Path):
+    store = SessionContextStore(tmp_path / "session.db")
+    ctx = SessionContext.new(session_id="s1", user_id="u1")
+    ctx.visual_observations.append(VisualObservation(
+        text="屏幕文字",
+        source="screen_ocr",
+        image_path="data/vision/a.png",
+        timestamp=1.0,
+    ))
+
+    store.save(ctx)
+    loaded = store.load("u1", "s1")
+
+    assert loaded is not None
+    assert loaded.visual_observations[0].text == "屏幕文字"
+    assert loaded.visual_observations[0].source == "screen_ocr"

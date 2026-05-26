@@ -83,5 +83,7 @@ data/config/memory.yaml
 data/config/agent.yaml
 data/config/system_config.yaml
 data/screenshots/
+data/browser_sessions/
+data/vision/
 .claude/
 .worktrees/

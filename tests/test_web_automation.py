@@ -8,6 +8,11 @@ def test_web_automation_config_defaults():
     assert config.permission_level == "medium"
     assert config.default_engine == "bing"
     assert config.screenshot_dir == "data/screenshots"
+    assert config.browser_headless is False
+    assert config.browser_timeout_ms == 15000
+    assert config.page_wait_timeout_ms == 10000
+    assert config.session_screenshot_dir == "data/browser_sessions"
+    assert config.max_extract_length == 4000
 
 
 def test_web_automation_config_in_agent_config():
@@ -117,6 +122,20 @@ def test_wa_plugin_has_all_tools():
     assert "web_search_visible" in tool_names
     assert "web_extract" in tool_names
     assert "web_screenshot" in tool_names
+
+
+def test_wa_plugin_has_browser_session_tools():
+    plugin = Plugin()
+    tool_names = [t.name for t in plugin.tools()]
+
+    assert "web_session_open" in tool_names
+    assert "web_session_navigate" in tool_names
+    assert "web_session_click" in tool_names
+    assert "web_session_fill" in tool_names
+    assert "web_session_wait" in tool_names
+    assert "web_session_extract" in tool_names
+    assert "web_session_status" in tool_names
+    assert "web_session_close" in tool_names
 
 
 def test_web_search_visible_description_mentions_automation_window():

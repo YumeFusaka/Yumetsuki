@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from time import time
 from typing import Generator
 
 from agent.executor import AgentExecutor
@@ -43,6 +44,7 @@ class AgentManager:
         session_manager: SessionContextManager | None = None,
         session_id: str = "default-session",
         log_service=None,
+        vision_manager=None,
     ):
         self._config = agent_config or AgentConfig()
         self._llm_manager = llm_manager
@@ -66,6 +68,7 @@ class AgentManager:
         self._session_manager = session_manager or SessionContextManager(log_service=log_service)
         self._session_id = session_id
         self._log_service = log_service
+        self._vision_manager = vision_manager
 
     def chat_stream(self, user_input: str) -> Generator[ProcessedText, None, None]:
         self._record_log_event(
@@ -80,6 +83,8 @@ class AgentManager:
         self._event_bus.publish(AgentEvents.USER_INPUT, {"text": user_input})
         session_ctx = self._session_manager.get_or_create(self._user_id, self._session_id)
         self._session_manager.record_user_input(session_ctx, user_input)
+        if self._should_capture_screen(user_input):
+            self._capture_visual_observation(session_ctx)
 
         memories = self._search_memories(user_input)
         if memories:
@@ -227,6 +232,29 @@ class AgentManager:
             "tool_name": plan.tool_name,
             "needs_multi_step": plan.needs_multi_step,
         }
+
+    def _should_capture_screen(self, user_input: str) -> bool:
+        if self._vision_manager is None:
+            return False
+        text = user_input.strip()
+        triggers = ("看看屏幕", "看一下屏幕", "屏幕上", "读屏幕", "识别屏幕", "这个窗口")
+        return any(trigger in text for trigger in triggers)
+
+    def _capture_visual_observation(self, session_ctx) -> None:
+        result = self._vision_manager.capture_screen_text()
+        if not result.ok or not result.text.strip():
+            return
+        from vision.types import VisualObservation
+
+        self._session_manager.record_visual_observation(
+            session_ctx,
+            VisualObservation(
+                text=result.text,
+                source="screen_ocr",
+                image_path=result.image_path,
+                timestamp=time(),
+            ),
+        )
 
     def _search_memories(self, user_input: str) -> list[str]:
         if not self._memory_store:

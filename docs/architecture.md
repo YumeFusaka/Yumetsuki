@@ -20,6 +20,7 @@ yumetsuki/
 ├── llm/
 ├── tts/
 ├── stt/
+├── vision/
 ├── ui/
 ├── data/
 ├── plugins/
@@ -49,7 +50,7 @@ yumetsuki/
 - `ui/settings/pages/character_page.py`
   角色页面
 - `ui/settings/pages/plugin_page.py`
-  插件与 MCP 管理页面
+  插件与 MCP 管理页面；展示插件加载状态、MCP 连接状态、工具数量、错误类型和诊断详情
 - `ui/settings/pages/conversation_log_page.py`
   对话日志页面，展示会话级结构化事件
 - `ui/settings/pages/system_log_page.py`
@@ -72,7 +73,7 @@ yumetsuki/
 
 - `config/schema.py`
   Pydantic 配置模型
-  当前已包含 `SessionContextConfig`、`TTSRuntimeConfig`、`EventBusRuntimeConfig`、`ChatDisplayConfig`、`PassiveInteractionConfig`，其中 `ASRConfig` 已收敛为本地 faster-whisper 模型目录与录音参数，`PassiveInteractionConfig` 已收敛为被动运行态阈值和气泡显示参数
+  当前已包含 `SessionContextConfig`、`TTSRuntimeConfig`、`EventBusRuntimeConfig`、`ChatDisplayConfig`、`PassiveInteractionConfig`、`VisionConfig`，其中 `ASRConfig` 已收敛为本地 faster-whisper 模型目录与录音参数，`PassiveInteractionConfig` 已收敛为被动运行态阈值和气泡显示参数
 - `config/manager.py`
   YAML 读写，当前支持：
   - `api.yaml`
@@ -99,7 +100,7 @@ yumetsuki/
 负责单会话短期记忆与热路径上下文。
 
 - `session/context.py`
-  `SessionContext`、`SessionTurn`、`WorkingFact`、`ActiveTask`、`SessionSummary`
+  `SessionContext`、`SessionTurn`、`WorkingFact`、`ActiveTask`、`SessionSummary`、最近视觉观察
 - `session/policy.py`
   当前会话工作记忆更新规则、约束提取、热上下文构建，以及保守的 `mem0` 升格候选筛选
 - `session/store.py`
@@ -144,6 +145,19 @@ yumetsuki/
 - `stt/manager.py`
   根据 `ASRConfig.engine` 创建适配器；`none` 表示禁用语音输入，`faster_whisper` 创建 `FasterWhisperAdapter`，未知引擎返回可展示错误
 
+### `vision/`
+
+负责屏幕 OCR 与视觉文本输入。
+
+- `vision/types.py`
+  `ScreenRegion`、`OCRResult`、`VisualObservation`
+- `vision/screen_capture.py`
+  使用 Qt 主屏截图并保存到 `SystemConfig.vision.screenshot_dir`
+- `vision/ocr.py`
+  `TesseractOCRAdapter` 调用本地 `tesseract` 命令输出 OCR 文本
+- `vision/manager.py`
+  `VisionManager.capture_screen_text()` 串联截图、OCR、截断和错误封装
+
 ### `core/`
 
 负责非 UI 的基础能力。
@@ -162,11 +176,11 @@ yumetsuki/
 - `core/character.py`
   角色目录加载
 - `core/plugin_host.py`
-  本地插件发现与调用
+  本地插件发现与调用，并输出插件加载诊断状态
 - `core/mcp_host.py`
-  MCP server 会话、tools/list、tools/call
+  MCP server 会话、tools/list、tools/call、连接状态、工具名、错误类型与重试
 - `core/tool_registry.py`
-  统一聚合本地插件工具和 MCP 工具
+  统一聚合本地插件工具和 MCP 工具，并记录工具来源名称
 
 ### `sdk/`
 
@@ -189,8 +203,8 @@ yumetsuki/
   内部分模块：open.py（打开类）、command.py（命令执行）
   三级权限控制（low/medium/high）
 - `plugins/web_automation/`
-  网页自动化插件：后台搜索、可见自动化搜索、提取文本、截图（Playwright + Edge）
-  内部分模块：browser.py（浏览器管理）、search.py（搜索引擎）、page.py（页面操作）
+  网页自动化插件：后台搜索、可见自动化搜索、提取文本、截图、持续浏览器会话（Playwright + Edge）
+  内部分模块：browser.py（浏览器管理与持续会话）、session.py（会话结果模型）、search.py（搜索引擎）、page.py（页面操作）
   三级权限控制（low/medium/high）
 
 ### `data/`
@@ -212,6 +226,7 @@ yumetsuki/
 用户文本输入
 → AgentManager 编排当前轮
 → SessionContextManager 同步更新当前会话短期记忆
+→ 若用户显式要求读屏，则 VisionManager 采集 OCR 文本并写入 SessionContext.visual_observations
 → LLMManager 按“角色提示 → SessionContext 热上下文 → 长期记忆补充 → 当前输入”组装 messages
 → ToolRegistry 注入 tool schemas
 → OpenAI-compatible API 流式返回
