@@ -15,18 +15,16 @@
 
 - 路线图设计：
   - `docs/superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md`
-- Phase 5 / 6 设计：
-  - `docs/superpowers/specs/2026-05-24-phase-5-ui-stt-design.md`
+- Phase 6 设计：
   - `docs/superpowers/specs/2026-05-24-phase-6-browser-vision-ecosystem-design.md`
-- 当前新增设计：
-  - `docs/superpowers/specs/2026-05-25-phase-5-stt-passive-settings-refinement-design.md`
 - 当前实施计划：
-  - `docs/superpowers/plans/2026-05-25-phase-5-ui-stt-implementation.md`
-  - `docs/superpowers/plans/2026-05-25-phase-5-stt-passive-settings-refinement-implementation.md`
+  - `docs/superpowers/plans/2026-05-26-phase-6-plugin-mcp-diagnostics-implementation.md`
+  - `docs/superpowers/plans/2026-05-26-phase-6-browser-session-implementation.md`
+  - `docs/superpowers/plans/2026-05-26-phase-6-ocr-vision-implementation.md`
 - 当前优先级：
-  1. Phase 5 真实 STT / TTS / API 联调：真实麦克风、真实 faster-whisper 服务、真实 TTS 服务和异常场景串联验证
-  2. Phase 6：浏览器、视觉与插件生态
-  3. 平台日志真实 API / TTS / STT / 异常场景联调验证
+  1. Phase 6：浏览器、视觉与插件生态
+  2. 平台日志真实 API / TTS / STT / 异常场景联调验证
+  3. 更多内置插件能力扩展
 
 说明：
 
@@ -56,11 +54,13 @@
   含 key，不应提交
   其中 TTS 的 `audio_mode`、`ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 控制运行态音频链路与参考策略
   其中 TTS 的 `ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 可能包含本地语音素材路径或私有参考文本，也按本地敏感配置处理
-  其中 ASR / STT 配置位于 `asr`：当前字段为 `engine=faster_whisper`、`api_url`、`model`、`language`、`record_timeout_seconds`、`silence_threshold`、`silence_duration_ms`，通过本地 faster-whisper 服务接口转写
+  其中 ASR / STT 配置位于 `asr`：当前字段为 `engine=faster_whisper`、`model_path`、`device`、`compute_type`、`transcribe_timeout_seconds`、`language`、`record_timeout_seconds`、`silence_threshold`、`silence_duration_ms`，通过本地 faster-whisper 库转写；默认 `device=cpu`、`compute_type=int8`，`device=auto` 也按 CPU 执行，避免无 CUDA 运行库环境误走 GPU
+  Windows 下如使用 pip 安装 `nvidia-*-cu12` 运行库，STT 适配器会在进程内注册并持有对应 DLL 目录句柄，并把目录 prepend 到当前进程 `PATH`，以覆盖 CTranslate2 在真实解码阶段动态加载 `cublas64_12.dll` 的路径需求
 - `data/config/system_config.yaml`
   系统配置
   当前也承载 `logging` 运行时配置，如日志根目录与平台日志内部 `system` channel 的 flush 间隔
   当前也承载 `chat_display` 与 `passive_interaction`：前者控制聊天字体倍率和气泡倍率；后者包含空闲阈值、被动气泡最大宽度和停留时长。被动状态属于聊天窗运行态，空闲阈值用于自动进入，不再使用系统级启用开关。
+  当前默认值：`chat_display.font_scale=1.3`，`passive_interaction.bubble_max_width=600`。
 - `data/config/mcp.yaml`
   MCP 实际配置
 - `data/config/mcp.example.yaml`
@@ -101,9 +101,10 @@
   - `event_bus_runtime.ui_dispatch_throttle_ms`
 - Phase 5 当前已落地的配置入口：
   - `asr.engine`
-  - `asr.base_url`
-  - `asr.api_key`
-  - `asr.model`
+  - `asr.model_path`
+  - `asr.device`
+  - `asr.compute_type`
+  - `asr.transcribe_timeout_seconds`
   - `asr.language`
   - `asr.record_timeout_seconds`
   - `asr.silence_threshold`
@@ -113,10 +114,9 @@
   - `passive_interaction.enabled`
   - `passive_interaction.bubble_max_width`
   - `passive_interaction.bubble_duration_seconds`
-- Phase 5 已确认但待实现的改进配置入口：
-  - `asr.api_url`
+- Phase 5 已确认并已落地的改进配置入口：
   - `passive_interaction.idle_threshold_seconds`
-  - 删除 `asr.base_url`、`asr.api_key`、`passive_interaction.enabled`
+  - 删除 `asr.base_url`、`asr.api_key`、`asr.api_url`、`asr.model`、`passive_interaction.enabled`
 - 以下类型默认都应朝配置化方向演进：
   - 短期记忆窗口、衰减、摘要预算
   - TTS 超时、并发、回退、队列长度
@@ -136,7 +136,7 @@
 
 - 不提交真实 API key
 - 不提交个人本地配置变更，除非明确需要
-- 不提交 `data/models/`（向量模型目录）
+- 不提交 `data/models/`（本地模型目录）；新模型目录优先按 `data/models/embedding/` 与 `data/models/stt/` 分类放置，旧版 `data/models/<模型名>` 直属目录仅作为兼容路径保留；模型下拉框按规范化绝对路径去重，条目右侧 `×` 只移除列表项，不删除磁盘目录
 - 不提交 `data/memory/`（运行时向量数据库）
 - 提交信息沿用：
   - `feat: ...`
@@ -182,13 +182,16 @@
   - 真实服务场景下的异常日志可见性与 UI 联动
 - Phase 5 UI / STT 相关改动优先覆盖：
   - `SystemConfig.chat_display` 和 `SystemConfig.passive_interaction` 的默认值、持久化与设置页编辑
-  - `APIConfig.asr` 的 faster-whisper 本地服务配置、录音超时、静音阈值和静音时长
+  - `APIConfig.asr` 的本地 faster-whisper 模型目录、设备、计算类型、识别超时、录音超时、静音阈值和静音时长
   - 被动状态自动进入、右键菜单切换、被动气泡显示、隐藏、尺寸上限、停留时长和主对话框互斥
+  - 被动状态下拖拽 / 滚轮缩放不退出，点击气泡和右键菜单手动退出可恢复主对话框
+  - 主动消息应基于角色上下文生成，支持 `[emotion:...]` 标签并驱动立绘切换；收到后必须复用普通聊天的切句、TTS 入队和平台日志链路
   - STT 按钮禁用、录音中、识别中、失败恢复和关闭窗口时 recorder / worker 生命周期治理
+  - STT 录音、模型加载、转写、失败、超时和迟到结果忽略必须进入平台日志
   - `STTRecorder` 的无真实设备测试：PCM 静音检测、WAV 生成、超时与取消
-  - `STTManager` 与 `FasterWhisperAdapter` 的本地服务 mock 转写测试
+  - `STTManager` 与 `FasterWhisperAdapter` 的本地 faster-whisper 库 mock 转写测试
   - STT 识别文本必须回到 `_on_send()`，不得绕过 Agent、SessionContext、日志或 TTS 管线
-  - 真实麦克风、真实 faster-whisper 服务、真实 STT / TTS 互锁属于本地设备联调边界，不应作为离线 pytest 的硬依赖
+  - 真实麦克风、真实 faster-whisper 模型转写、真实 STT / TTS 互锁属于本地设备联调边界，不应作为离线 pytest 的硬依赖
 - `EventBus` 相关改动优先覆盖：
   - 发布时 handler 快照语义
   - 订阅 / 退订与发布并发下的基本安全性
@@ -238,7 +241,7 @@
   - `python -m pytest tests/test_tts_pipeline.py tests/test_tts_adapter.py tests/test_chat_tts_flow.py -q`
 - Phase 5 UI / STT：
   - `python -m pytest tests/test_chat_passive_bubble.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py -q`
-  - 当前这些用例主要覆盖无真实设备的配置、气泡、录音、faster-whisper 本地服务 mock、被动状态状态机、带字体预览的系统字体下拉框、系统页保存应用和聊天窗主链路；真实麦克风、真实 faster-whisper 服务和真实 STT / TTS 互锁仍需本地手工联调验证
+  - 当前这些用例主要覆盖无真实设备的配置、气泡、录音、本地 faster-whisper 库 mock、被动状态状态机、带字体预览的系统字体下拉框、系统页保存应用和聊天窗主链路；真实麦克风、真实 faster-whisper 模型转写和真实 STT / TTS 互锁仍需本地手工联调验证
 - 语法检查：
   - Phase 5 当前实现：`python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py stt/types.py stt/adapter.py stt/adapters/faster_whisper.py stt/manager.py`
 

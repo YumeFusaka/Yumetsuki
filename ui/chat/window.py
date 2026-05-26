@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QPushButton, QMenu,
     QApplication, QSizePolicy, QScrollArea,
 )
-from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize, QBuffer, QByteArray, QIODevice, QTimer
+from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize, QBuffer, QByteArray, QIODevice, QTimer, QEvent
 from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush, QPen
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from ui.chat.sprite import SpriteManager
@@ -17,7 +17,7 @@ from ui.chat.tts_pipeline import TTSPipelineController, TTSSegmentStatus
 from core.tool_registry import ToolRegistry
 from agent.manager import AgentManager
 from llm.manager import LLMManager
-from llm.text_processor import ProcessedText
+from llm.text_processor import ProcessedText, TextProcessor
 from llm.adapter import LLMStreamChunk
 from config.schema import AgentConfig, ASRConfig, LLMConfig, SystemConfig, TTSConfig
 from core.character import load_character, build_system_prompt
@@ -28,6 +28,7 @@ from tts.adapters.gptsovits import GPTSoVITSAdapter
 from tts.types import TTSAudioFormat, TTSStreamEvent
 from ui.chat.audio_backends import PcmStreamPlaybackBackend, WavPlaybackBackend
 from ui.chat.stt_recorder import STTRecorder
+from ui.text_metrics import clamped_text_width
 
 
 SENTENCE_ENDINGS = "。！？；\n"
@@ -46,10 +47,14 @@ class LLMWorker(QThread):
     def run(self):
         try:
             for result in self._chat_engine.chat_stream(self._input):
+                if self.isInterruptionRequested():
+                    return
                 self.chunk_received.emit(result)
-            self.finished_signal.emit()
+            if not self.isInterruptionRequested():
+                self.finished_signal.emit()
         except Exception as exc:
-            self.error_signal.emit(str(exc))
+            if not self.isInterruptionRequested():
+                self.error_signal.emit(str(exc))
 
 
 class TTSWorker(QThread):
@@ -66,6 +71,8 @@ class TTSWorker(QThread):
         if self._adapter is None:
             return
         for event in self._adapter.stream_synthesize(self._text):
+            if self.isInterruptionRequested():
+                return
             self.event_ready.emit(self._utterance_id, self._segment_id, event)
 
 
@@ -84,7 +91,8 @@ class TTSTranslationWorker(QThread):
         translated_text = None
         if self._translate_func is not None:
             translated_text = self._translate_func(self._text, self._target_lang)
-        self.result_ready.emit(self._utterance_id, self._segment_id, translated_text)
+        if not self.isInterruptionRequested():
+            self.result_ready.emit(self._utterance_id, self._segment_id, translated_text)
 
 
 class TTSReferencePrepareWorker(QThread):
@@ -98,7 +106,8 @@ class TTSReferencePrepareWorker(QThread):
         result = None
         if self._adapter is not None:
             result = self._adapter.prepare_reference()
-        self.result_ready.emit(result)
+        if not self.isInterruptionRequested():
+            self.result_ready.emit(result)
 
 
 class STTTranscribeWorker(QThread):
@@ -114,7 +123,8 @@ class STTTranscribeWorker(QThread):
             result = self._manager.transcribe_wav(self._audio)
         except Exception as exc:
             result = STTResult(text="", error=str(exc))
-        self.result_ready.emit(result)
+        if not self.isInterruptionRequested():
+            self.result_ready.emit(result)
 
 
 class GlassPanel(QWidget):
@@ -199,6 +209,8 @@ class ChatWindow(QWidget):
 
     BASE_WIDTH = 500
     BASE_HEIGHT = 600
+    THREAD_SHUTDOWN_WAIT_MS = 1000
+    STT_TRANSCRIBE_TIMEOUT_FALLBACK_SECONDS = 120
     MIN_SCALE = 0.5
     MAX_SCALE = 2.0
     BASE_FONT = 17
@@ -208,6 +220,7 @@ class ChatWindow(QWidget):
     BASE_RADIUS = 8
     BASE_BTN_SIZE = 34
     BASE_SCROLLBAR_WIDTH = 6
+    BASE_PASSIVE_BUBBLE_MIN_WIDTH = 240
     CHARACTER_NAME_COLOR = "#9b3060"
     USER_NAME_COLOR = "#5f6fb2"
     TTS_SOFT_MIN_CHARS = 20
@@ -246,6 +259,7 @@ class ChatWindow(QWidget):
         self._display_font_size = max(1, int(self._system_config.font_size))
         self._display_font_scale = max(0.1, float(self._system_config.chat_display.font_scale))
         self._display_bubble_scale = max(0.1, float(self._system_config.chat_display.bubble_scale))
+        self._passive_bubble_chrome_width = 0
         self._speaker_name_color = self.CHARACTER_NAME_COLOR
         self._drag_pos: QPoint | None = None
         self._char_dir = character_dir
@@ -269,6 +283,7 @@ class ChatWindow(QWidget):
             self._tts_adapter._log_service = log_service
         self._tts_output_lang = self._normalize_tts_lang(tts_config.output_lang if tts_config else "")
         self._streamed_assistant_text = ""
+        self._proactive_text_processor = TextProcessor()
         self._tts_committed_text = ""
         self._tts_pending_buffer = ""
         self._current_utterance_id = 0
@@ -292,9 +307,14 @@ class ChatWindow(QWidget):
         self._audio_buffer = None
         self._is_audio_playing = False
         self._pending_audio_queue: list[bytes] = []
-        self._stt_manager = STTManager(self._asr_config) if self._is_stt_enabled() else None
+        self._stt_manager = (
+            STTManager(self._asr_config, log_service=log_service, session_id=self._tts_session_id)
+            if self._is_stt_enabled()
+            else None
+        )
         self._stt_recorder = None
         self._stt_worker = None
+        self._expired_stt_workers = []
         self._is_stt_recording = False
         self._is_closing = False
         self._is_passive = False
@@ -358,10 +378,13 @@ class ChatWindow(QWidget):
 
         if character_dir:
             char = load_character(character_dir)
+            character_prompt = build_system_prompt(char)
             self._char_name = char.name
             self._set_speaker_name(char.name)
             self._sprite_mgr.load_character(char, character_dir)
-            self._llm.set_character(build_system_prompt(char))
+            self._llm.set_character(character_prompt)
+            if self._proactive_scheduler is not None:
+                self._proactive_scheduler.set_character_context(character_prompt)
 
         self._apply_scale()
 
@@ -383,6 +406,7 @@ class ChatWindow(QWidget):
         self._passive_bubble.setWordWrap(True)
         self._passive_bubble.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._passive_bubble.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
+        self._passive_bubble.installEventFilter(self)
         self._passive_bubble.hide()
         self._passive_bubble_timer = QTimer(self)
         self._passive_bubble_timer.setSingleShot(True)
@@ -428,6 +452,7 @@ class ChatWindow(QWidget):
         input_row.addWidget(self._input)
 
         self._mic_btn = QPushButton("🎤")
+        self._mic_btn.setObjectName("micButton")
         self._mic_btn.setFixedSize(34, 34)
         self._mic_btn.setStyleSheet(self._circle_btn_style())
         self._mic_btn.clicked.connect(self._toggle_stt_recording)
@@ -438,7 +463,8 @@ class ChatWindow(QWidget):
             self._mic_btn.setToolTip("语音输入未启用")
         input_row.addWidget(self._mic_btn)
 
-        send_btn = QPushButton("➤")
+        send_btn = QPushButton(">")
+        send_btn.setObjectName("sendButton")
         send_btn.setFixedSize(34, 34)
         send_btn.setStyleSheet(self._circle_btn_style("#ff9aaa", "#ffb0be"))
         send_btn.setToolTip("发送")
@@ -457,13 +483,32 @@ class ChatWindow(QWidget):
             QPushButton {{
                 background: {bg};
                 border: 3px solid #d4567a;
-                border-radius: 17px; color: #6b4a5a; font-size: 14px;
+                border-radius: 17px; color: #6b4a5a; font-size: 11px;
+                font-weight: 700;
             }}
             QPushButton:hover {{
                 background: {hover};
                 border-color: #9b3060;
             }}
+            QPushButton#micButton[recording="true"] {{
+                background: rgba(212, 86, 122, 0.14);
+                color: #d4567a;
+                border-color: #d4567a;
+                font-size: 18px;
+                font-weight: 700;
+            }}
+            QPushButton#micButton[recording="true"]:hover {{
+                background: rgba(212, 86, 122, 0.22);
+                border-color: #9b3060;
+            }}
+            QPushButton#sendButton {{
+                font-size: 15px;
+            }}
         """
+
+    def _set_mic_recording_style(self, recording: bool) -> None:
+        self._mic_btn.setProperty("recording", recording)
+        self._mic_btn.setStyleSheet(self._circle_btn_style())
 
     def _set_speaker_name(self, name: str, is_user: bool = False) -> None:
         color = self.USER_NAME_COLOR if is_user else self.CHARACTER_NAME_COLOR
@@ -534,18 +579,25 @@ class ChatWindow(QWidget):
     def _hide_passive_bubble(self) -> None:
         self._passive_bubble_timer.stop()
         self._passive_bubble.hide()
-        self._panel.show()
+        if not self._is_passive:
+            self._panel.show()
 
-    def _refresh_interaction(self) -> None:
+    def _refresh_interaction(self, exit_passive: bool = True) -> None:
         self._last_interaction_at = time.monotonic()
-        self._exit_passive_state()
+        if exit_passive:
+            self._exit_passive_state()
+
+    def _on_passive_bubble_clicked(self) -> None:
+        self._refresh_interaction(exit_passive=True)
 
     def _enter_passive_state(self) -> None:
         self._is_passive = True
+        self._panel.hide()
 
     def _exit_passive_state(self) -> None:
         self._is_passive = False
         self._hide_passive_bubble()
+        self._panel.show()
 
     def _check_passive_idle(self) -> None:
         threshold = max(1, int(self._system_config.passive_interaction.idle_threshold_seconds))
@@ -556,7 +608,6 @@ class ChatWindow(QWidget):
         config = self._system_config.passive_interaction
         self._panel.hide()
         self._passive_bubble.setText(text)
-        self._passive_bubble.setMaximumWidth(self._passive_bubble_max_width())
         self._position_passive_bubble()
         self._passive_bubble.show()
         self._passive_bubble.raise_()
@@ -567,6 +618,19 @@ class ChatWindow(QWidget):
         configured_width = max(80, int(config.bubble_max_width * self._display_bubble_scale * self._scale))
         return min(configured_width, self._passive_bubble_available_width())
 
+    def _passive_bubble_min_width(self) -> int:
+        configured_width = int(self.BASE_PASSIVE_BUBBLE_MIN_WIDTH * self._display_bubble_scale * self._scale)
+        return min(self._passive_bubble_max_width(), max(1, configured_width))
+
+    def _passive_bubble_text_width(self) -> int:
+        return clamped_text_width(
+            self._passive_bubble,
+            self._passive_bubble.text(),
+            min_width=self._passive_bubble_min_width(),
+            max_width=self._passive_bubble_max_width(),
+            chrome_width=self._passive_bubble_chrome_width,
+        )
+
     def _passive_bubble_margin(self) -> int:
         return max(8, int(14 * self._scale))
 
@@ -575,14 +639,18 @@ class ChatWindow(QWidget):
         return max(1, self.width() - 2 * margin)
 
     def _position_passive_bubble(self) -> None:
-        max_width = self._passive_bubble_max_width()
-        self._passive_bubble.setMaximumWidth(max_width)
+        width = self._passive_bubble_text_width()
+        self._passive_bubble.setMinimumWidth(width)
+        self._passive_bubble.setMaximumWidth(width)
         self._passive_bubble.adjustSize()
-        width = min(max_width, max(1, self._passive_bubble.sizeHint().width()))
-        height = max(1, self._passive_bubble.sizeHint().height())
+        height = self._passive_bubble.heightForWidth(width) if self._passive_bubble.hasHeightForWidth() else 0
+        if height <= 0:
+            height = self._passive_bubble.sizeHint().height()
+        height = max(1, height)
         margin = self._passive_bubble_margin()
         x = max(margin, (self.width() - width) // 2)
-        y = max(margin, self.height() - height - margin)
+        panel_top = self._panel.geometry().top()
+        y = max(margin, min(panel_top, self.height() - height - margin))
         self._passive_bubble.setGeometry(x, y, width, height)
 
     def _apply_scale(self):
@@ -667,6 +735,7 @@ class ChatWindow(QWidget):
         bubble_padding_y = max(8, int(10 * s))
         bubble_padding_x = max(12, int(14 * s))
         bubble_radius = max(8, int(12 * s))
+        self._passive_bubble_chrome_width = bubble_padding_x * 2 + control_border * 2
         self._passive_bubble.setStyleSheet(f"""
             QLabel {{
                 background: #fff5fa;
@@ -688,9 +757,17 @@ class ChatWindow(QWidget):
         self._sprite_mgr.reload(target_size)
 
     # --- Dragging ---
+    def eventFilter(self, watched, event):
+        if watched is self._passive_bubble and event.type() == QEvent.Type.MouseButtonPress:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self._on_passive_bubble_clicked()
+                event.accept()
+                return True
+        return super().eventFilter(watched, event)
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._refresh_interaction()
+            self._refresh_interaction(exit_passive=False)
             self._drag_pos = event.globalPosition().toPoint() - self.pos()
             event.accept()
 
@@ -704,7 +781,7 @@ class ChatWindow(QWidget):
 
     # --- Scaling via scroll wheel ---
     def wheelEvent(self, event):
-        self._refresh_interaction()
+        self._refresh_interaction(exit_passive=False)
         delta = event.angleDelta().y()
         if delta > 0:
             self._scale = min(self.MAX_SCALE, self._scale + 0.1)
@@ -1128,8 +1205,18 @@ class ChatWindow(QWidget):
             return
         self._log_service.record(build_log_event(**kwargs))
 
-    def _start_tts_worker(self, utterance_id: int, segment_id: int, text: str) -> None:
+    def _enqueue_assistant_text_for_tts(self, text: str, *, flush: bool = False) -> None:
         if self._tts_adapter is None:
+            return
+        self._streamed_assistant_text = text
+        self._refresh_tts_pending_buffer(text)
+        for segment in self._extract_tts_segments(flush=flush):
+            self._tts_committed_text += segment
+            self._record_tts_segment_ready(segment)
+            self._enqueue_tts_segment(segment)
+
+    def _start_tts_worker(self, utterance_id: int, segment_id: int, text: str) -> None:
+        if self._is_closing or self._tts_adapter is None:
             return
         self._tts_pipeline.mark_synthesizing((utterance_id, segment_id), started_at=time.monotonic())
         worker = TTSWorker(self._tts_adapter, utterance_id, segment_id, text)
@@ -1139,6 +1226,8 @@ class ChatWindow(QWidget):
         worker.start()
 
     def _start_translation_worker(self, utterance_id: int, segment_id: int, text: str, target_lang: str) -> None:
+        if self._is_closing:
+            return
         if not target_lang:
             self._tts_pipeline.mark_ready_for_tts((utterance_id, segment_id), text=text)
             self._start_tts_worker(utterance_id, segment_id, text)
@@ -1159,20 +1248,26 @@ class ChatWindow(QWidget):
         if worker in self._active_tts_workers:
             self._active_tts_workers.remove(worker)
         worker.deleteLater()
-        self._start_next_pending_tts_worker()
+        if not self._is_closing:
+            self._start_next_pending_tts_worker()
 
     def _on_translation_worker_finished(self, worker: TTSTranslationWorker) -> None:
         if worker in self._active_translation_workers:
             self._active_translation_workers.remove(worker)
         worker.deleteLater()
-        self._start_next_pending_translation_worker()
+        if not self._is_closing:
+            self._start_next_pending_translation_worker()
 
     def _start_next_pending_tts_worker(self) -> None:
+        if self._is_closing:
+            return
         while self._pending_tts_segments and len(self._active_tts_workers) < self._max_tts_workers:
             utterance_id, segment_id, text = self._pending_tts_segments.pop(0)
             self._start_tts_worker(utterance_id, segment_id, text)
 
     def _start_next_pending_translation_worker(self) -> None:
+        if self._is_closing:
+            return
         while (
             self._pending_translation_segments
             and len(self._active_translation_workers) < self._max_translation_workers
@@ -1503,21 +1598,55 @@ class ChatWindow(QWidget):
         if self._is_closing:
             return
         if not self._is_stt_enabled() or self._stt_manager is None:
+            self._record_stt_event(
+                level=LogLevel.WARN,
+                event_type="stt.recording_ignored",
+                summary="STT recording ignored",
+                details={"reason": "disabled"},
+            )
             return
         if self._worker is not None or self._is_stt_worker_busy():
+            self._record_stt_event(
+                level=LogLevel.WARN,
+                event_type="stt.recording_ignored",
+                summary="STT recording ignored",
+                details={
+                    "reason": "busy",
+                    "llm_busy": self._worker is not None,
+                    "stt_busy": self._is_stt_worker_busy(),
+                },
+            )
             return
         recorder = self._ensure_stt_recorder()
         recorder.start()
         if not self._is_stt_recorder_active(recorder):
             self._is_stt_recording = False
             self._reset_stt_button()
+            self._record_stt_event(
+                level=LogLevel.ERROR,
+                event_type="stt.recording_start_failed",
+                summary="STT recording failed to start",
+                details={"engine": self._asr_config.engine},
+            )
             return
         self._hide_passive_bubble()
         self._begin_new_tts_turn()
         self._is_stt_recording = True
-        self._mic_btn.setText("■")
+        self._mic_btn.setText("×")
+        self._set_mic_recording_style(True)
         self._mic_btn.setToolTip("停止语音输入")
         self._input.setPlaceholderText("正在听...")
+        self._record_stt_event(
+            level=LogLevel.INFO,
+            event_type="stt.recording_started",
+            summary="STT recording started",
+            details={
+                "engine": self._asr_config.engine,
+                "record_timeout_seconds": self._asr_config.record_timeout_seconds,
+                "silence_threshold": self._asr_config.silence_threshold,
+                "silence_duration_ms": self._asr_config.silence_duration_ms,
+            },
+        )
 
     def _is_stt_recorder_active(self, recorder) -> bool:
         return getattr(recorder, "_source", None) is not None and getattr(recorder, "_device", None) is not None
@@ -1529,9 +1658,16 @@ class ChatWindow(QWidget):
         self._reset_stt_button()
         if self._stt_recorder is not None:
             self._stt_recorder.stop()
+        self._record_stt_event(
+            level=LogLevel.INFO,
+            event_type="stt.recording_stopped",
+            summary="STT recording stopped by user",
+            details={},
+        )
 
     def _reset_stt_button(self) -> None:
         self._mic_btn.setText("🎤")
+        self._set_mic_recording_style(False)
         self._mic_btn.setToolTip("语音输入" if self._is_stt_enabled() else "语音输入未启用")
 
     def _on_stt_audio_ready(self, audio: bytes) -> None:
@@ -1541,18 +1677,44 @@ class ChatWindow(QWidget):
         self._reset_stt_button()
         if not audio:
             self._input.setPlaceholderText("没有识别到语音")
+            self._record_stt_event(
+                level=LogLevel.WARN,
+                event_type="stt.audio_empty",
+                summary="STT recorder returned empty audio",
+                details={},
+            )
             return
         if self._stt_manager is None or self._is_stt_worker_busy():
+            self._record_stt_event(
+                level=LogLevel.WARN,
+                event_type="stt.audio_ignored",
+                summary="STT audio ignored",
+                details={
+                    "reason": "busy_or_unavailable",
+                    "audio_bytes": len(audio),
+                    "stt_busy": self._is_stt_worker_busy(),
+                },
+            )
             return
         self._input.setPlaceholderText("正在识别...")
         self._stt_worker = self._create_stt_worker(audio)
         self._stt_worker.result_ready.connect(
-            self._on_stt_result,
+            lambda result, worker=self._stt_worker: self._on_stt_result_from_worker(worker, result),
             Qt.ConnectionType.QueuedConnection,
         )
         worker = self._stt_worker
         worker.finished.connect(lambda worker=worker: self._on_stt_worker_finished(worker))
         self._stt_worker.start()
+        self._record_stt_event(
+            level=LogLevel.INFO,
+            event_type="stt.transcribe_worker_started",
+            summary="STT transcribe worker started",
+            details={
+                "audio_bytes": len(audio),
+                "timeout_seconds": self._stt_transcribe_timeout_seconds(),
+            },
+        )
+        self._start_stt_transcribe_watchdog(worker)
 
     def _create_stt_worker(self, audio: bytes) -> STTTranscribeWorker:
         return STTTranscribeWorker(self._stt_manager, audio)
@@ -1563,6 +1725,23 @@ class ChatWindow(QWidget):
         self._is_stt_recording = False
         self._reset_stt_button()
         self._input.setPlaceholderText(f"录音失败：{message}")
+        self._record_stt_event(
+            level=LogLevel.ERROR,
+            event_type="stt.recording_failed",
+            summary="STT recording failed",
+            details={"error": message},
+        )
+
+    def _on_stt_result_from_worker(self, worker: STTTranscribeWorker, result: STTResult) -> None:
+        if self._stt_worker is not worker:
+            self._record_stt_event(
+                level=LogLevel.WARN,
+                event_type="stt.result_ignored",
+                summary="Stale STT result ignored",
+                details={"has_error": bool(result.error), "text_length": len(result.text or "")},
+            )
+            return
+        self._on_stt_result(result)
 
     def _on_stt_result(self, result: STTResult) -> None:
         if self._is_closing:
@@ -1570,18 +1749,93 @@ class ChatWindow(QWidget):
         self._reset_stt_button()
         if result.error:
             self._input.setPlaceholderText(f"识别失败：{result.error}")
+            self._record_stt_event(
+                level=LogLevel.ERROR,
+                event_type="stt.result_failed",
+                summary="STT result failed",
+                details={"error": result.error},
+            )
             return
         text = (result.text or "").strip()
         if not text:
             self._input.setPlaceholderText("没有识别到语音")
+            self._record_stt_event(
+                level=LogLevel.WARN,
+                event_type="stt.result_empty",
+                summary="STT result was empty",
+                details={"language": result.language},
+            )
             return
+        self._record_stt_event(
+            level=LogLevel.INFO,
+            event_type="stt.result_ready",
+            summary="STT result ready",
+            details={"language": result.language, "text_length": len(text)},
+        )
         self._input.setText(text)
         self._on_send()
 
     def _on_stt_worker_finished(self, worker: STTTranscribeWorker) -> None:
+        was_current = self._stt_worker is worker
         if self._stt_worker is worker:
             self._stt_worker = None
+        if worker in self._expired_stt_workers:
+            self._expired_stt_workers.remove(worker)
+        self._record_stt_event(
+            level=LogLevel.INFO,
+            event_type="stt.transcribe_worker_finished",
+            summary="STT transcribe worker finished",
+            details={"was_current": was_current},
+        )
         worker.deleteLater()
+
+    def _stt_transcribe_timeout_seconds(self) -> int:
+        return max(
+            10,
+            int(getattr(self._asr_config, "transcribe_timeout_seconds", self.STT_TRANSCRIBE_TIMEOUT_FALLBACK_SECONDS)),
+        )
+
+    def _start_stt_transcribe_watchdog(self, worker) -> None:
+        QTimer.singleShot(
+            self._stt_transcribe_timeout_seconds() * 1000,
+            lambda worker=worker: self._on_stt_transcribe_timeout(worker),
+        )
+
+    def _on_stt_transcribe_timeout(self, worker) -> None:
+        if self._is_closing or self._stt_worker is not worker:
+            return
+        is_running = not hasattr(worker, "isRunning") or worker.isRunning()
+        if not is_running:
+            return
+        self._request_worker_stop(worker)
+        if worker not in self._expired_stt_workers:
+            self._expired_stt_workers.append(worker)
+        self._stt_worker = None
+        self._reset_stt_button()
+        self._input.setPlaceholderText("识别超时，请查看平台日志或换用更小模型")
+        self._record_stt_event(
+            level=LogLevel.ERROR,
+            event_type="stt.transcribe_timeout",
+            summary="STT transcription timed out",
+            details={
+                "timeout_seconds": self._stt_transcribe_timeout_seconds(),
+                "model_path": getattr(self._asr_config, "model_path", ""),
+                "device": getattr(self._asr_config, "device", ""),
+                "compute_type": getattr(self._asr_config, "compute_type", ""),
+            },
+        )
+
+    def _record_stt_event(self, level: LogLevel, event_type: str, summary: str, details: dict) -> None:
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=level,
+            source="chat.stt",
+            event_type=event_type,
+            session_id=self._tts_session_id,
+            utterance_id=self._current_utterance_id,
+            summary=summary,
+            details=details,
+        )
 
     # --- Chat logic ---
     def _on_send(self):
@@ -1602,6 +1856,9 @@ class ChatWindow(QWidget):
         self._worker.chunk_received.connect(self._on_chunk, Qt.ConnectionType.QueuedConnection)
         self._worker.finished_signal.connect(self._on_llm_done, Qt.ConnectionType.QueuedConnection)
         self._worker.error_signal.connect(self._on_llm_error, Qt.ConnectionType.QueuedConnection)
+        if hasattr(self._worker, "finished"):
+            worker = self._worker
+            worker.finished.connect(lambda worker=worker: self._on_llm_worker_finished(worker))
         self._worker.start()
 
     def _on_chunk(self, result: ProcessedText):
@@ -1609,13 +1866,7 @@ class ChatWindow(QWidget):
             self._set_speaker_name(self._char_name)
         self._set_dialog_text(result.clean_text)
         if self._tts_adapter is not None:
-            self._streamed_assistant_text = result.clean_text
-            current_text = result.clean_text
-            self._refresh_tts_pending_buffer(current_text)
-            for segment in self._extract_tts_segments():
-                self._tts_committed_text += segment
-                self._record_tts_segment_ready(segment)
-                self._enqueue_tts_segment(segment)
+            self._enqueue_assistant_text_for_tts(result.clean_text)
         if result.emotion:
             self._sprite_mgr.set_emotion(result.emotion)
 
@@ -1625,7 +1876,6 @@ class ChatWindow(QWidget):
                 self._tts_committed_text += segment
                 self._record_tts_segment_ready(segment)
                 self._enqueue_tts_segment(segment)
-        self._worker = None
 
     def _on_llm_error(self, error_message: str):
         self._record_log_event(
@@ -1638,16 +1888,43 @@ class ChatWindow(QWidget):
             summary="聊天请求失败",
             details={"error": error_message},
         )
-        self._worker = None
+
+    def _on_llm_worker_finished(self, worker) -> None:
+        if self._worker is worker:
+            self._worker = None
+        if hasattr(worker, "deleteLater"):
+            worker.deleteLater()
 
     def _on_proactive_message(self, message: str, source: str):
         """收到主动消息：以角色身份显示。"""
+        processed = self._proactive_text_processor.process(message)
+        display_text = processed.clean_text
+        self._begin_new_tts_turn()
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="chat.proactive",
+            event_type="chat.proactive_message_received",
+            session_id=self._tts_session_id,
+            utterance_id=self._current_utterance_id,
+            summary="主动消息已进入聊天流程",
+            details={
+                "source": source,
+                "text_length": len(display_text),
+                "emotion": processed.emotion or "",
+                "passive": self._is_passive,
+            },
+        )
+        if processed.emotion:
+            self._sprite_mgr.set_emotion(processed.emotion)
         if self._is_passive:
-            self._show_passive_bubble(message)
+            self._show_passive_bubble(display_text)
+            self._enqueue_assistant_text_for_tts(display_text, flush=True)
             return
         if self._char_name:
             self._set_speaker_name(self._char_name)
-        self._set_dialog_text(message)
+        self._set_dialog_text(display_text)
+        self._enqueue_assistant_text_for_tts(display_text, flush=True)
 
     def apply_system_config(self, config: SystemConfig) -> None:
         self._system_config = config
@@ -1662,6 +1939,52 @@ class ChatWindow(QWidget):
     def set_memory_store(self, memory_store) -> None:
         self._chat_engine.set_memory_store(memory_store)
 
+    def _thread_workers(self) -> list[object]:
+        workers = [
+            self._worker,
+            self._stt_worker,
+            *self._expired_stt_workers,
+            self._tts_prepare_worker,
+            *self._active_tts_workers,
+            *self._active_translation_workers,
+        ]
+        seen: set[int] = set()
+        unique_workers = []
+        for worker in workers:
+            if worker is None:
+                continue
+            worker_id = id(worker)
+            if worker_id in seen:
+                continue
+            seen.add(worker_id)
+            unique_workers.append(worker)
+        return unique_workers
+
+    @staticmethod
+    def _request_worker_stop(worker) -> None:
+        if hasattr(worker, "requestInterruption"):
+            worker.requestInterruption()
+        if hasattr(worker, "quit"):
+            worker.quit()
+
+    @staticmethod
+    def _wait_worker_stopped(worker, timeout_ms: int) -> bool:
+        if hasattr(worker, "isRunning") and not worker.isRunning():
+            return True
+        if not hasattr(worker, "wait"):
+            return True
+        return bool(worker.wait(timeout_ms))
+
+    def _shutdown_thread_workers(self, timeout_ms: int) -> bool:
+        workers = self._thread_workers()
+        for worker in workers:
+            self._request_worker_stop(worker)
+        all_stopped = True
+        for worker in workers:
+            if not self._wait_worker_stopped(worker, timeout_ms):
+                all_stopped = False
+        return all_stopped
+
     def closeEvent(self, event):
         self._is_closing = True
         if self._proactive_scheduler is not None:
@@ -1672,11 +1995,14 @@ class ChatWindow(QWidget):
             self._passive_idle_timer.stop()
         if self._stt_recorder is not None:
             self._stt_recorder.cancel()
-        if self._stt_worker is not None:
-            self._stt_worker.wait(100)
         self._tts_timeout_timer.stop()
-        if self._tts_prepare_worker is not None:
-            self._tts_prepare_worker.wait(100)
+        self._pending_tts_segments.clear()
+        self._pending_translation_segments.clear()
+        if not self._shutdown_thread_workers(self.THREAD_SHUTDOWN_WAIT_MS):
+            event.ignore()
+            self.hide()
+            QTimer.singleShot(200, self.close)
+            return
         self._stop_all_segment_backends()
         self._pending_audio_queue.clear()
         if self._audio_player is not None:

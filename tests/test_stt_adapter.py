@@ -1,4 +1,5 @@
 import pytest
+from types import SimpleNamespace
 
 from config.schema import ASRConfig
 from stt.adapter import STTAdapter
@@ -43,52 +44,117 @@ def test_stt_manager_creates_faster_whisper_adapter_by_default():
     assert manager._adapter.__class__.__name__ == "FasterWhisperAdapter"
 
 
-def test_faster_whisper_adapter_sends_wav_to_local_service(monkeypatch):
+def test_faster_whisper_adapter_transcribes_with_local_library(monkeypatch, tmp_path):
+    model_dir = tmp_path / "faster-whisper"
+    model_dir.mkdir()
     captured = {}
 
-    class _Response:
-        status_code = 200
+    class _FakeWhisperModel:
+        def __init__(self, model_size_or_path, device=None, compute_type=None, local_files_only=None):
+            captured["model_size_or_path"] = model_size_or_path
+            captured["device"] = device
+            captured["compute_type"] = compute_type
+            captured["local_files_only"] = local_files_only
 
-        def raise_for_status(self):
-            return None
+        def transcribe(self, audio, language=None, vad_filter=None, **kwargs):
+            captured["audio"] = audio.read()
+            captured["language"] = language
+            captured["vad_filter"] = vad_filter
+            captured["kwargs"] = kwargs
+            segments = [SimpleNamespace(text="  你好"), SimpleNamespace(text="呀  ")]
+            info = SimpleNamespace(language="zh")
+            return segments, info
 
-        def json(self):
-            return {"text": "  你好呀  ", "language": "zh"}
-
-    def fake_post(url, files=None, data=None, timeout=None):
-        captured["url"] = url
-        captured["files"] = files
-        captured["data"] = data
-        captured["timeout"] = timeout
-        return _Response()
-
-    monkeypatch.setattr("stt.adapters.faster_whisper.requests.post", fake_post)
+    monkeypatch.setattr("stt.adapters.faster_whisper.WhisperModel", _FakeWhisperModel)
 
     result = STTManager(
         ASRConfig(
             engine="faster_whisper",
-            api_url="http://127.0.0.1:9000/",
-            model="small",
+            model_path=str(model_dir),
+            device="cpu",
+            compute_type="int8",
             language="auto",
             record_timeout_seconds=15,
         )
     ).transcribe_wav(b"RIFF....WAVE")
 
-    assert captured["url"] == "http://127.0.0.1:9000/transcribe"
-    assert captured["data"] == {"model": "small", "language": "auto"}
-    assert captured["timeout"] == 25
-    assert captured["files"]["file"][0] == "speech.wav"
-    assert captured["files"]["file"][2] == "audio/wav"
-    assert captured["files"]["file"][1].read() == b"RIFF....WAVE"
+    assert captured["model_size_or_path"] == str(model_dir)
+    assert captured["device"] == "cpu"
+    assert captured["compute_type"] == "int8"
+    assert captured["local_files_only"] is True
+    assert captured["audio"] == b"RIFF....WAVE"
+    assert captured["language"] is None
+    assert captured["vad_filter"] is True
+    assert captured["kwargs"]["beam_size"] == 1
+    assert captured["kwargs"]["best_of"] == 1
+    assert captured["kwargs"]["condition_on_previous_text"] is False
     assert result.text == "你好呀"
     assert result.language == "zh"
 
 
-def test_faster_whisper_adapter_returns_error_for_empty_audio(monkeypatch):
-    def fail_post(*_args, **_kwargs):
-        raise AssertionError("空音频不应请求本地 STT 服务")
+def test_faster_whisper_adapter_treats_auto_device_as_cpu(monkeypatch, tmp_path):
+    model_dir = tmp_path / "faster-whisper"
+    model_dir.mkdir()
+    captured = {}
 
-    monkeypatch.setattr("stt.adapters.faster_whisper.requests.post", fail_post)
+    class _FakeWhisperModel:
+        def __init__(self, _model_size_or_path, device=None, **_kwargs):
+            captured["device"] = device
+
+        def transcribe(self, *_args, **_kwargs):
+            return [SimpleNamespace(text="你好")], SimpleNamespace(language="zh")
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.WhisperModel", _FakeWhisperModel)
+
+    result = STTManager(
+        ASRConfig(engine="faster_whisper", model_path=str(model_dir), device="auto")
+    ).transcribe_wav(b"RIFF....WAVE")
+
+    assert result.text == "你好"
+    assert captured["device"] == "cpu"
+
+
+def test_faster_whisper_adapter_records_platform_logs(monkeypatch, tmp_path):
+    model_dir = tmp_path / "faster-whisper"
+    model_dir.mkdir()
+
+    class _LogService:
+        def __init__(self):
+            self.events = []
+
+        def record(self, event):
+            self.events.append(event)
+
+    class _FakeWhisperModel:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def transcribe(self, *_args, **_kwargs):
+            return [SimpleNamespace(text="你好")], SimpleNamespace(language="zh")
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.WhisperModel", _FakeWhisperModel)
+    log_service = _LogService()
+
+    result = STTManager(
+        ASRConfig(engine="faster_whisper", model_path=str(model_dir)),
+        log_service=log_service,
+        session_id="s1",
+    ).transcribe_wav(b"RIFF....WAVE")
+
+    assert result.text == "你好"
+    event_types = [event.event_type for event in log_service.events]
+    assert "stt.model_load_started" in event_types
+    assert "stt.model_load_completed" in event_types
+    assert "stt.transcribe_started" in event_types
+    assert "stt.transcribe_completed" in event_types
+    assert all(event.session_id == "s1" for event in log_service.events)
+
+
+def test_faster_whisper_adapter_returns_error_for_empty_audio(monkeypatch):
+    def fail_model(*_args, **_kwargs):
+        raise AssertionError("空音频不应加载 STT 模型")
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.WhisperModel", fail_model)
 
     result = STTManager(ASRConfig(engine="faster_whisper")).transcribe_wav(b"")
 
@@ -96,34 +162,94 @@ def test_faster_whisper_adapter_returns_error_for_empty_audio(monkeypatch):
     assert result.error == "录音内容为空"
 
 
-def test_faster_whisper_adapter_returns_error_for_invalid_json(monkeypatch):
-    class _Response:
-        status_code = 200
+def test_faster_whisper_adapter_returns_error_for_missing_model_path():
+    result = STTManager(
+        ASRConfig(engine="faster_whisper", model_path="data/models/not-exists")
+    ).transcribe_wav(b"RIFF....WAVE")
 
-        def raise_for_status(self):
-            return None
+    assert result.text == ""
+    assert "STT 模型目录不存在" in result.error
 
-        def json(self):
-            return {"segments": []}
 
-    monkeypatch.setattr("stt.adapters.faster_whisper.requests.post", lambda *_args, **_kwargs: _Response())
+def test_faster_whisper_adapter_resolves_default_project_model_path(monkeypatch):
+    captured = {}
+
+    class _FakeWhisperModel:
+        def __init__(self, model_size_or_path, **_kwargs):
+            captured["model_size_or_path"] = model_size_or_path
+
+        def transcribe(self, *_args, **_kwargs):
+            return [SimpleNamespace(text="你好")], SimpleNamespace(language="zh")
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.WhisperModel", _FakeWhisperModel)
 
     result = STTManager(ASRConfig(engine="faster_whisper")).transcribe_wav(b"RIFF....WAVE")
 
+    assert result.text == "你好"
+    assert captured["model_size_or_path"].endswith("data\\models\\faster-whisper-large-v3-turbo") or captured[
+        "model_size_or_path"
+    ].endswith("data/models/faster-whisper-large-v3-turbo")
+
+
+def test_faster_whisper_adapter_returns_error_for_empty_transcription(monkeypatch, tmp_path):
+    model_dir = tmp_path / "faster-whisper"
+    model_dir.mkdir()
+
+    class _FakeWhisperModel:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def transcribe(self, *_args, **_kwargs):
+            return [], SimpleNamespace(language="zh")
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.WhisperModel", _FakeWhisperModel)
+
+    result = STTManager(
+        ASRConfig(engine="faster_whisper", model_path=str(model_dir))
+    ).transcribe_wav(b"RIFF....WAVE")
+
     assert result.text == ""
-    assert "返回格式无效" in result.error
+    assert "未识别到语音" in result.error
 
 
-def test_faster_whisper_adapter_returns_error_for_exception(monkeypatch):
-    def fail_post(*_args, **_kwargs):
-        raise RuntimeError("网络失败")
+def test_faster_whisper_adapter_returns_error_for_exception(monkeypatch, tmp_path):
+    model_dir = tmp_path / "faster-whisper"
+    model_dir.mkdir()
 
-    monkeypatch.setattr("stt.adapters.faster_whisper.requests.post", fail_post)
+    class _FakeWhisperModel:
+        def __init__(self, *_args, **_kwargs):
+            pass
 
-    result = STTManager(ASRConfig(engine="faster_whisper")).transcribe_wav(b"RIFF....WAVE")
+        def transcribe(self, *_args, **_kwargs):
+            raise RuntimeError("识别失败")
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.WhisperModel", _FakeWhisperModel)
+
+    result = STTManager(
+        ASRConfig(engine="faster_whisper", model_path=str(model_dir))
+    ).transcribe_wav(b"RIFF....WAVE")
 
     assert result.text == ""
-    assert result.error == "网络失败"
+    assert result.error == "识别失败"
+
+
+def test_faster_whisper_adapter_explains_missing_cuda_runtime(monkeypatch, tmp_path):
+    model_dir = tmp_path / "faster-whisper"
+    model_dir.mkdir()
+
+    class _FakeWhisperModel:
+        def __init__(self, *_args, **_kwargs):
+            raise RuntimeError("Library cublas64_12.dll is not found")
+
+    monkeypatch.setattr("stt.adapters.faster_whisper.WhisperModel", _FakeWhisperModel)
+
+    result = STTManager(
+        ASRConfig(engine="faster_whisper", model_path=str(model_dir), device="cuda")
+    ).transcribe_wav(b"RIFF....WAVE")
+
+    assert result.text == ""
+    assert "CUDA 运行库缺失" in result.error
+    assert "设备改为 cpu" in result.error
 
 
 def test_openai_whisper_is_not_supported():

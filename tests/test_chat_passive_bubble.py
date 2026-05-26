@@ -42,7 +42,7 @@ class _FakeAgentManager:
 
 class _FakeSpriteManager:
     def __init__(self, *args, **kwargs):
-        pass
+        self.emotions = []
 
     def reload(self, *_args, **_kwargs):
         return None
@@ -51,7 +51,7 @@ class _FakeSpriteManager:
         return None
 
     def set_emotion(self, *_args, **_kwargs):
-        return None
+        self.emotions.append(_args[0])
 
 
 def _make_window(monkeypatch, system_config: SystemConfig):
@@ -89,12 +89,13 @@ def test_proactive_message_uses_bubble_in_passive_state(monkeypatch):
     window = _make_window(monkeypatch, config)
     try:
         window._enter_passive_state()
-        window._on_proactive_message("被动提醒", "idle")
+        window._on_proactive_message("[emotion:温柔]被动提醒", "idle")
 
         assert not window._passive_bubble.isHidden()
         assert window._panel.isHidden()
         assert window._passive_bubble.text() == "被动提醒"
         assert window._passive_bubble_timer.isSingleShot()
+        assert window._sprite_mgr.emotions == ["温柔"]
     finally:
         window.close()
 
@@ -126,6 +127,37 @@ def test_idle_timer_enters_passive_state(monkeypatch):
         window._check_passive_idle()
 
         assert window._is_passive is True
+        assert window._panel.isHidden()
+    finally:
+        window.close()
+
+
+def test_passive_state_keeps_main_panel_hidden_after_bubble_timeout(monkeypatch):
+    config = SystemConfig()
+
+    window = _make_window(monkeypatch, config)
+    try:
+        window._enter_passive_state()
+        window._show_passive_bubble("短句")
+        window._hide_passive_bubble()
+
+        assert window._is_passive is True
+        assert window._passive_bubble.isHidden()
+        assert window._panel.isHidden()
+    finally:
+        window.close()
+
+
+def test_exit_passive_state_restores_main_panel(monkeypatch):
+    config = SystemConfig()
+
+    window = _make_window(monkeypatch, config)
+    try:
+        window._enter_passive_state()
+        window._exit_passive_state()
+
+        assert window._is_passive is False
+        assert not window._panel.isHidden()
     finally:
         window.close()
 
@@ -149,6 +181,80 @@ def test_passive_bubble_uses_configured_width_scale_and_duration(monkeypatch):
         assert "#fff5fa" in style
         assert "#d4567a" in style
         assert 'font-family: "Microsoft YaHei"' in style
+    finally:
+        window.close()
+
+
+def test_default_passive_bubble_width_and_font_scale_are_larger():
+    config = SystemConfig()
+
+    assert config.chat_display.font_scale == 1.3
+    assert config.passive_interaction.bubble_max_width == 600
+
+
+def test_drag_and_scale_keep_passive_state(monkeypatch):
+    config = SystemConfig()
+    window = _make_window(monkeypatch, config)
+    try:
+        window._enter_passive_state()
+        window._refresh_interaction(exit_passive=False)
+
+        assert window._is_passive is True
+        assert window._panel.isHidden()
+    finally:
+        window.close()
+
+
+def test_clicking_passive_bubble_exits_passive_state(monkeypatch):
+    config = SystemConfig()
+    window = _make_window(monkeypatch, config)
+    try:
+        window._enter_passive_state()
+        window._show_passive_bubble("点我恢复")
+        window._on_passive_bubble_clicked()
+
+        assert window._is_passive is False
+        assert window._passive_bubble.isHidden()
+        assert not window._panel.isHidden()
+    finally:
+        window.close()
+
+
+def test_passive_bubble_top_aligns_with_dialog_panel(monkeypatch):
+    config = SystemConfig()
+    window = _make_window(monkeypatch, config)
+    try:
+        window._scale = 1.0
+        window._apply_scale()
+        window._enter_passive_state()
+        window._show_passive_bubble("位置测试")
+
+        assert window._passive_bubble.geometry().top() == window._panel.geometry().top()
+    finally:
+        window.close()
+
+
+def test_passive_bubble_expands_to_single_line_text_until_max_width(monkeypatch):
+    config = SystemConfig(font_family="Microsoft YaHei", font_size=18)
+    config.chat_display.bubble_scale = 1.0
+    config.passive_interaction.bubble_max_width = 600
+
+    window = _make_window(monkeypatch, config)
+    try:
+        window._scale = 1.0
+        window._apply_scale()
+        window._enter_passive_state()
+        message = "今天要不要休息一下？"
+        window._show_passive_bubble(message)
+
+        available_width = window._passive_bubble_available_width()
+        geometry = window._passive_bubble.geometry()
+        expected_width = window._passive_bubble_text_width()
+
+        assert geometry.width() == expected_width
+        assert expected_width < window._passive_bubble_max_width()
+        assert geometry.width() <= available_width
+        assert window._passive_bubble.maximumWidth() <= available_width
     finally:
         window.close()
 

@@ -5,7 +5,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from config.schema import APIConfig
+from core.model_catalog import STT_MODELS_DIR, is_stt_model_dir, model_path_key, resolve_model_path, scan_model_dirs
 from ui.theme import SAKURA_COMBO_BOX_STYLE
+from ui.widgets.removable_combo_box import RemovableComboBox
 from ui.widgets.rose_spin_box import RoseSpinBox
 
 FORM_STYLE = """
@@ -70,6 +72,8 @@ class APIPage(QWidget):
         ("启动对话时初始化一次", "session_preload"),
         ("参考由服务端管理", "server_managed"),
     ]
+    ASR_DEVICE_OPTIONS = ["cpu", "auto", "cuda"]
+    ASR_COMPUTE_TYPE_OPTIONS = ["default", "float16", "int8", "int8_float16"]
 
     def __init__(self, config: APIConfig, parent=None):
         super().__init__(parent)
@@ -219,20 +223,49 @@ class APIPage(QWidget):
         self._asr_engine.setCurrentText(config.asr.engine)
         asr_form.addRow("引擎:", self._asr_engine)
 
-        self._asr_url = QLineEdit(config.asr.api_url)
-        self._asr_url.setPlaceholderText("http://127.0.0.1:8000")
-        asr_form.addRow("API URL:", self._asr_url)
+        self._asr_model_path = RemovableComboBox()
+        self._asr_model_path.setEditable(True)
+        self._refresh_asr_model_paths()
+        self._set_asr_model_path(config.asr.model_path)
+        self._asr_model_path.setPlaceholderText("data/models/stt/faster-whisper-large-v3-turbo")
+        self._asr_model_path_browse_btn = QPushButton("浏览...")
+        self._asr_model_path_browse_btn.setObjectName("browseBtn")
+        self._asr_model_path_browse_btn.clicked.connect(self._browse_asr_model_path)
+        model_path_layout = QHBoxLayout()
+        model_path_layout.setContentsMargins(0, 0, 0, 0)
+        model_path_layout.addWidget(self._asr_model_path)
+        model_path_layout.addWidget(self._asr_model_path_browse_btn)
+        asr_form.addRow("模型目录:", model_path_layout)
 
-        self._asr_model = QLineEdit(config.asr.model)
-        self._asr_model.setPlaceholderText("base")
-        asr_form.addRow("模型:", self._asr_model)
+        self._asr_device = QComboBox()
+        self._asr_device.setEditable(True)
+        self._asr_device.addItems(self.ASR_DEVICE_OPTIONS)
+        self._asr_device.setCurrentText(config.asr.device)
+        self._asr_device.setMinimumWidth(220)
+        self._asr_device.setMaximumWidth(220)
+        asr_form.addRow("设备:", self._asr_device)
+
+        self._asr_compute_type = QComboBox()
+        self._asr_compute_type.setEditable(True)
+        self._asr_compute_type.addItems(self.ASR_COMPUTE_TYPE_OPTIONS)
+        self._asr_compute_type.setCurrentText(config.asr.compute_type)
+        self._asr_compute_type.setMinimumWidth(220)
+        self._asr_compute_type.setMaximumWidth(220)
+        asr_form.addRow("计算类型:", self._asr_compute_type)
 
         self._asr_language = QComboBox()
         self._asr_language.setEditable(True)
         self._asr_language.addItems(["auto", *self.TTS_LANGUAGE_OPTIONS])
         self._asr_language.setCurrentText(config.asr.language)
+        self._asr_language.setMinimumWidth(220)
         self._asr_language.setMaximumWidth(220)
         asr_form.addRow("语言:", self._asr_language)
+
+        self._asr_transcribe_timeout = RoseSpinBox()
+        self._asr_transcribe_timeout.setRange(10, 600)
+        self._asr_transcribe_timeout.setValue(config.asr.transcribe_timeout_seconds)
+        self._asr_transcribe_timeout.setSuffix(" 秒")
+        asr_form.addRow("识别超时:", self._asr_transcribe_timeout)
 
         self._asr_timeout = RoseSpinBox()
         self._asr_timeout.setRange(3, 120)
@@ -270,6 +303,41 @@ class APIPage(QWidget):
         if path:
             self._tts_ref_audio.setText(path)
 
+    def _browse_asr_model_path(self) -> None:
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "选择 faster-whisper 模型目录",
+            self._asr_model_path.currentText(),
+        )
+        if path:
+            self._set_asr_model_path(path)
+
+    def _refresh_asr_model_paths(self) -> None:
+        self._asr_model_path.clear()
+        self._asr_model_path.addItems(scan_model_dirs(STT_MODELS_DIR, is_stt_model_dir))
+
+    def _set_asr_model_path(self, path: str) -> None:
+        existing_index = self._find_asr_model_path(path)
+        if path and existing_index < 0:
+            self._asr_model_path.addItem(path)
+            existing_index = self._asr_model_path.count() - 1
+        if existing_index >= 0:
+            self._asr_model_path.setCurrentIndex(existing_index)
+        else:
+            self._asr_model_path.setCurrentText(path)
+        if self._asr_model_path.lineEdit() is not None:
+            self._asr_model_path.lineEdit().setCursorPosition(0)
+
+    def _find_asr_model_path(self, path: str) -> int:
+        if not path:
+            return -1
+        target_key = model_path_key(resolve_model_path(path, STT_MODELS_DIR))
+        for index in range(self._asr_model_path.count()):
+            item_path = resolve_model_path(self._asr_model_path.itemText(index), STT_MODELS_DIR)
+            if model_path_key(item_path) == target_key:
+                return index
+        return -1
+
     def _set_reference_mode(self, reference_mode: str) -> None:
         index = self._tts_reference_mode.findData(reference_mode or "auto")
         if index < 0:
@@ -298,9 +366,11 @@ class APIPage(QWidget):
         self._config.tts.output_lang = self._tts_output_lang.currentText()
         self._config.tts.prompt_text = self._tts_prompt_text.text()
         self._config.asr.engine = self._asr_engine.currentText()
-        self._config.asr.api_url = self._asr_url.text().strip()
-        self._config.asr.model = self._asr_model.text().strip()
+        self._config.asr.model_path = self._asr_model_path.currentText().strip()
+        self._config.asr.device = self._asr_device.currentText().strip()
+        self._config.asr.compute_type = self._asr_compute_type.currentText().strip()
         self._config.asr.language = self._asr_language.currentText().strip()
+        self._config.asr.transcribe_timeout_seconds = self._asr_transcribe_timeout.value()
         self._config.asr.record_timeout_seconds = self._asr_timeout.value()
         self._config.asr.silence_threshold = self._asr_silence_threshold.value() / 100.0
         self._config.asr.silence_duration_ms = self._asr_silence_duration.value()
@@ -323,9 +393,11 @@ class APIPage(QWidget):
         self._tts_output_lang.setCurrentText(self._config.tts.output_lang)
         self._tts_prompt_text.setText(self._config.tts.prompt_text)
         self._asr_engine.setCurrentText(self._config.asr.engine)
-        self._asr_url.setText(self._config.asr.api_url)
-        self._asr_model.setText(self._config.asr.model)
+        self._set_asr_model_path(self._config.asr.model_path)
+        self._asr_device.setCurrentText(self._config.asr.device)
+        self._asr_compute_type.setCurrentText(self._config.asr.compute_type)
         self._asr_language.setCurrentText(self._config.asr.language)
+        self._asr_transcribe_timeout.setValue(self._config.asr.transcribe_timeout_seconds)
         self._asr_timeout.setValue(self._config.asr.record_timeout_seconds)
         self._asr_silence_threshold.setValue(int(self._config.asr.silence_threshold * 100))
         self._asr_silence_duration.setValue(self._config.asr.silence_duration_ms)

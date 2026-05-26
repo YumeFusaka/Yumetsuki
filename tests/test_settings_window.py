@@ -5,7 +5,9 @@ from PySide6.QtWidgets import QApplication, QGroupBox, QLabel, QPushButton, QScr
 from config.manager import ConfigManager
 from config.schema import APIConfig
 from config.schema import LLMConfig
+from config.schema import MemoryConfig
 from config.schema import SystemConfig
+from core.model_catalog import STT_MODELS_DIR, model_path_key, resolve_model_path
 from main import APP_STYLE
 from ui.chat.window import ChatWindow
 import ui.settings.pages.api_page as api_page_module
@@ -15,6 +17,7 @@ import ui.settings.pages.memory_page as memory_page_module
 import ui.settings.pages.plugin_page as plugin_page_module
 import ui.settings.pages.system_page as system_page_module
 from ui.settings.pages.api_page import APIPage
+from ui.settings.pages.memory_page import MemoryPage
 from ui.settings.pages.system_page import SystemPage
 from ui.settings.pages.system_log_page import PAGE_STYLE as SYSTEM_LOG_PAGE_STYLE
 from ui.settings.window import SettingsWindow
@@ -334,52 +337,167 @@ def test_api_page_tts_language_and_ref_audio_apply_and_reset():
     assert page._tts_output_lang.currentText() == "ko"
 
 
-def test_api_page_asr_uses_faster_whisper_local_service_fields():
+def test_api_page_asr_uses_faster_whisper_local_model_fields(monkeypatch):
     _app()
     config = APIConfig()
     page = APIPage(config)
 
     assert [page._asr_engine.itemText(i) for i in range(page._asr_engine.count())] == ["none", "faster_whisper"]
-    assert page._asr_url.placeholderText() == "http://127.0.0.1:8000"
+    assert page._asr_model_path.placeholderText() == "data/models/stt/faster-whisper-large-v3-turbo"
     form_labels = [label.text() for label in page.findChildren(QLabel)]
-    assert "API URL:" in form_labels
-    assert "本地服务:" not in form_labels
+    assert "模型目录:" in form_labels
     assert not hasattr(page, "_asr_base_url")
     assert not hasattr(page, "_asr_api_key")
+    assert not hasattr(page, "_asr_url")
 
     page._asr_engine.setCurrentText("faster_whisper")
-    page._asr_url.setText("http://127.0.0.1:9000")
-    page._asr_model.setText("small")
+    page._asr_model_path.setCurrentText("data/models/stt/faster-whisper-large-v3-turbo")
+    page._asr_device.setCurrentText("cpu")
+    page._asr_compute_type.setCurrentText("int8")
     page._asr_language.setCurrentText("auto")
+    page._asr_transcribe_timeout.setValue(45)
     page._asr_timeout.setValue(15)
     page._asr_silence_threshold.setValue(3)
     page._asr_silence_duration.setValue(900)
     page.apply()
 
     assert config.asr.engine == "faster_whisper"
-    assert config.asr.api_url == "http://127.0.0.1:9000"
-    assert config.asr.model == "small"
+    assert config.asr.model_path == "data/models/stt/faster-whisper-large-v3-turbo"
+    assert config.asr.device == "cpu"
+    assert config.asr.compute_type == "int8"
     assert config.asr.language == "auto"
+    assert config.asr.transcribe_timeout_seconds == 45
     assert config.asr.record_timeout_seconds == 15
     assert config.asr.silence_threshold == 0.03
     assert config.asr.silence_duration_ms == 900
 
     config.asr.engine = "none"
-    config.asr.api_url = "http://127.0.0.1:8001"
-    config.asr.model = "base"
+    config.asr.model_path = "data/models/stt/faster-whisper-large-v3-turbo"
+    config.asr.device = "cpu"
+    config.asr.compute_type = "default"
     config.asr.language = "zh"
+    config.asr.transcribe_timeout_seconds = 120
     config.asr.record_timeout_seconds = 20
     config.asr.silence_threshold = 0.02
     config.asr.silence_duration_ms = 1200
     page.reset()
 
     assert page._asr_engine.currentText() == "none"
-    assert page._asr_url.text() == "http://127.0.0.1:8001"
-    assert page._asr_model.text() == "base"
+    assert model_path_key(resolve_model_path(page._asr_model_path.currentText(), STT_MODELS_DIR)) == model_path_key(
+        resolve_model_path("data/models/stt/faster-whisper-large-v3-turbo", STT_MODELS_DIR)
+    )
+    assert page._asr_device.currentText() == "cpu"
+    assert page._asr_compute_type.currentText() == "default"
     assert page._asr_language.currentText() == "zh"
+    assert page._asr_transcribe_timeout.value() == 120
     assert page._asr_timeout.value() == 20
     assert page._asr_silence_threshold.value() == 2
     assert page._asr_silence_duration.value() == 1200
+
+    monkeypatch.setattr(
+        "ui.settings.pages.api_page.QFileDialog.getExistingDirectory",
+        lambda *_args, **_kwargs: "E:/models/faster-whisper",
+    )
+    page._browse_asr_model_path()
+    assert page._asr_model_path.currentText() == "E:/models/faster-whisper"
+
+
+def test_api_page_scans_stt_models_from_category_and_legacy_dirs(monkeypatch, tmp_path):
+    root = tmp_path / "models"
+    categorized = root / "stt" / "categorized-whisper"
+    legacy = root / "legacy-whisper"
+    embedding = root / "embedding" / "embedding-model"
+    for path in (categorized, legacy, embedding):
+        path.mkdir(parents=True)
+        (path / "config.json").write_text("{}", encoding="utf-8")
+    (categorized / "model.bin").write_bytes(b"model")
+    (legacy / "model.bin").write_bytes(b"model")
+    (embedding / "modules.json").write_text("[]", encoding="utf-8")
+
+    monkeypatch.setattr("core.model_catalog.MODELS_ROOT", root)
+    monkeypatch.setattr("ui.settings.pages.api_page.STT_MODELS_DIR", root / "stt")
+
+    page = APIPage(APIConfig())
+    items = [page._asr_model_path.itemText(i) for i in range(page._asr_model_path.count())]
+
+    assert str(categorized) in items
+    assert str(legacy) in items
+    assert str(embedding) not in items
+
+
+def test_api_page_deduplicates_equivalent_asr_paths(monkeypatch, tmp_path):
+    _app()
+    root = tmp_path / "models"
+    model = root / "faster-whisper"
+    model.mkdir(parents=True)
+    (model / "config.json").write_text("{}", encoding="utf-8")
+    (model / "model.bin").write_bytes(b"model")
+
+    config = APIConfig()
+    config.asr.model_path = str(model).replace("\\", "/")
+
+    monkeypatch.setattr("core.model_catalog.MODELS_ROOT", root)
+    monkeypatch.setattr("ui.settings.pages.api_page.STT_MODELS_DIR", root / "stt")
+
+    page = APIPage(config)
+    equivalent = str(model).replace("/", "\\")
+    page._set_asr_model_path(equivalent)
+    items = [page._asr_model_path.itemText(i) for i in range(page._asr_model_path.count())]
+
+    assert len({item.lower().replace("\\", "/") for item in items}) == len(items)
+    assert page._asr_model_path.count() == 1
+
+
+def test_api_page_default_stt_path_reuses_legacy_model_dir(monkeypatch, tmp_path):
+    _app()
+    root = tmp_path / "models"
+    legacy = root / "faster-whisper-large-v3-turbo"
+    legacy.mkdir(parents=True)
+    (legacy / "config.json").write_text("{}", encoding="utf-8")
+    (legacy / "model.bin").write_bytes(b"model")
+
+    monkeypatch.setattr("core.model_catalog.MODELS_ROOT", root)
+    monkeypatch.setattr("ui.settings.pages.api_page.STT_MODELS_DIR", root / "stt")
+
+    page = APIPage(APIConfig())
+    items = [page._asr_model_path.itemText(i) for i in range(page._asr_model_path.count())]
+
+    assert items == [str(legacy)]
+
+
+def test_api_page_model_combo_items_can_be_removed():
+    _app()
+    page = APIPage(APIConfig())
+    page._asr_model_path.clear()
+    page._asr_model_path.addItems(["data/models/a", "data/models/b"])
+
+    page._asr_model_path.remove_item_at(0)
+
+    items = [page._asr_model_path.itemText(i) for i in range(page._asr_model_path.count())]
+    assert items == ["data/models/b"]
+
+
+def test_memory_page_scans_embedding_models_from_category_and_legacy_dirs(monkeypatch, tmp_path):
+    root = tmp_path / "models"
+    categorized = root / "embedding" / "categorized-embedding"
+    legacy = root / "legacy-embedding"
+    stt = root / "stt" / "stt-model"
+    for path in (categorized, legacy, stt):
+        path.mkdir(parents=True)
+        (path / "config.json").write_text("{}", encoding="utf-8")
+    (categorized / "modules.json").write_text("[]", encoding="utf-8")
+    (legacy / "modules.json").write_text("[]", encoding="utf-8")
+    (stt / "model.bin").write_bytes(b"model")
+
+    monkeypatch.setattr("core.model_catalog.MODELS_ROOT", root)
+    monkeypatch.setattr("ui.settings.pages.memory_page.EMBEDDING_MODELS_DIR", root / "embedding")
+
+    page = MemoryPage(MemoryConfig())
+    items = [page._model_combo.itemText(i) for i in range(page._model_combo.count())]
+
+    assert str(categorized) in items
+    assert str(legacy) in items
+    assert str(stt) not in items
 
 
 def test_system_page_phase5_display_fields_apply(tmp_path):
@@ -402,10 +520,10 @@ def test_system_page_phase5_display_fields_apply(tmp_path):
     assert not hasattr(config.passive_interaction, "enabled")
 
     reloaded = ConfigManager(config_dir=tmp_path)
-    assert reloaded.system.chat_display.font_scale == 1.0
+    assert reloaded.system.chat_display.font_scale == 1.3
     assert reloaded.system.chat_display.bubble_scale == 1.0
     assert reloaded.system.passive_interaction.idle_threshold_seconds == 300
-    assert reloaded.system.passive_interaction.bubble_max_width == 280
+    assert reloaded.system.passive_interaction.bubble_max_width == 600
     assert reloaded.system.passive_interaction.bubble_duration_seconds == 8
 
 

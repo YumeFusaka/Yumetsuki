@@ -44,6 +44,14 @@ class _FakeAgentManager:
         return None
 
 
+class _RecordingLogService:
+    def __init__(self):
+        self.events = []
+
+    def record(self, event):
+        self.events.append(event)
+
+
 class _FakeSpriteManager:
     def __init__(self, *args, **kwargs):
         pass
@@ -86,8 +94,10 @@ class _ManualRecorder(QObject):
 class _FakeSTTManager:
     instances = []
 
-    def __init__(self, config):
+    def __init__(self, config, *args, **kwargs):
         self.config = config
+        self.args = args
+        self.kwargs = kwargs
         self.audios = []
         _FakeSTTManager.instances.append(self)
 
@@ -139,6 +149,7 @@ def _make_window(
     asr_config=None,
     patch_stt_manager=True,
     patch_llm_worker=False,
+    log_service=None,
 ):
     _patch_window_dependencies(
         monkeypatch,
@@ -149,6 +160,7 @@ def _make_window(
         LLMConfig(),
         tts_config=TTSConfig(engine="gptsovits", api_url="http://fake:9880"),
         asr_config=asr_config or ASRConfig(),
+        log_service=log_service,
     )
     return window
 
@@ -240,7 +252,8 @@ def test_stt_start_interrupts_current_tts(monkeypatch):
 
         assert calls == ["bubble", "tts"]
         assert recorder.start_count == 1
-        assert window._mic_btn.text() == "■"
+        assert window._mic_btn.text() == "×"
+        assert window._mic_btn.property("recording") is True
         assert window._input.placeholderText() == "正在听..."
     finally:
         _close_window(window)
@@ -275,7 +288,7 @@ def test_toggle_stt_recording_stops_active_recorder(monkeypatch):
     recorder = _ManualRecorder()
     window._stt_recorder = recorder
     window._is_stt_recording = True
-    window._mic_btn.setText("■")
+    window._mic_btn.setText("×")
     window._mic_btn.setToolTip("停止语音输入")
     try:
         window._toggle_stt_recording()
@@ -284,6 +297,7 @@ def test_toggle_stt_recording_stops_active_recorder(monkeypatch):
         assert recorder.start_count == 0
         assert window._is_stt_recording is False
         assert window._mic_btn.text() == "🎤"
+        assert window._mic_btn.property("recording") is False
         assert window._mic_btn.toolTip() == "语音输入"
     finally:
         _close_window(window)
@@ -355,10 +369,78 @@ def test_close_event_cancels_recorder_and_waits_briefly_for_stt_worker(monkeypat
         window.closeEvent(QCloseEvent())
 
         assert recorder.cancel_count == 1
-        assert worker.waits == [100]
+        assert worker.waits == [1000]
     finally:
         window._stt_recorder = None
         window._stt_worker = None
+        _close_window(window)
+
+
+def test_llm_logical_done_keeps_worker_until_qthread_finished(monkeypatch):
+    window = _make_window(monkeypatch)
+
+    class _Worker:
+        def __init__(self):
+            self.delete_count = 0
+
+        def deleteLater(self):
+            self.delete_count += 1
+
+    worker = _Worker()
+    window._worker = worker
+    try:
+        window._on_llm_done()
+
+        assert window._worker is worker
+
+        window._on_llm_worker_finished(worker)
+
+        assert window._worker is None
+        assert worker.delete_count == 1
+    finally:
+        _close_window(window)
+
+
+def test_close_event_waits_for_llm_tts_and_translation_workers(monkeypatch):
+    window = _make_window(monkeypatch)
+
+    class _WaitingWorker:
+        def __init__(self):
+            self.waits = []
+            self.interrupts = 0
+
+        def requestInterruption(self):
+            self.interrupts += 1
+
+        def isRunning(self):
+            return True
+
+        def wait(self, timeout):
+            self.waits.append(timeout)
+            return True
+
+        def deleteLater(self):
+            return None
+
+    llm_worker = _WaitingWorker()
+    tts_worker = _WaitingWorker()
+    translation_worker = _WaitingWorker()
+    window._worker = llm_worker
+    window._active_tts_workers = [tts_worker]
+    window._active_translation_workers = [translation_worker]
+    try:
+        window.closeEvent(QCloseEvent())
+
+        assert llm_worker.waits == [1000]
+        assert tts_worker.waits == [1000]
+        assert translation_worker.waits == [1000]
+        assert llm_worker.interrupts == 1
+        assert tts_worker.interrupts == 1
+        assert translation_worker.interrupts == 1
+    finally:
+        window._worker = None
+        window._active_tts_workers = []
+        window._active_translation_workers = []
         _close_window(window)
 
 
@@ -383,7 +465,8 @@ def test_stt_transcribe_worker_calls_manager_with_audio(monkeypatch):
 
 
 def test_stt_audio_ready_starts_transcribe_worker(monkeypatch):
-    window = _make_window(monkeypatch)
+    log_service = _RecordingLogService()
+    window = _make_window(monkeypatch, log_service=log_service)
 
     class _Worker:
         def __init__(self, audio):
@@ -422,6 +505,61 @@ def test_stt_audio_ready_starts_transcribe_worker(monkeypatch):
         assert worker.start_count == 1
         assert window._stt_worker is worker
         assert window._input.placeholderText() == "正在识别..."
+        event_types = [event.event_type for event in log_service.events]
+        assert "stt.transcribe_worker_started" in event_types
+    finally:
+        _close_window(window)
+
+
+def test_stt_timeout_releases_current_worker_and_logs(monkeypatch):
+    log_service = _RecordingLogService()
+    config = ASRConfig(transcribe_timeout_seconds=10)
+    window = _make_window(monkeypatch, config, log_service=log_service)
+
+    class _Worker:
+        result_ready = _FakeSignal()
+        finished = _FakeSignal()
+
+        def __init__(self):
+            self.interrupted = False
+            self.deleted = False
+
+        def isRunning(self):
+            return True
+
+        def requestInterruption(self):
+            self.interrupted = True
+
+        def quit(self):
+            return None
+
+        def deleteLater(self):
+            self.deleted = True
+
+    worker = _Worker()
+    window._stt_worker = worker
+    try:
+        window._on_stt_transcribe_timeout(worker)
+
+        assert worker.interrupted is True
+        assert window._stt_worker is None
+        assert worker in window._expired_stt_workers
+        assert "识别超时" in window._input.placeholderText()
+        assert any(event.event_type == "stt.transcribe_timeout" for event in log_service.events)
+    finally:
+        window._expired_stt_workers.clear()
+        _close_window(window)
+
+
+def test_stale_stt_result_is_ignored_and_logged(monkeypatch):
+    log_service = _RecordingLogService()
+    window = _make_window(monkeypatch, log_service=log_service)
+    worker = object()
+    try:
+        window._on_stt_result_from_worker(worker, STTResult(text="迟到结果"))
+
+        assert window._input.text() == ""
+        assert any(event.event_type == "stt.result_ignored" for event in log_service.events)
     finally:
         _close_window(window)
 

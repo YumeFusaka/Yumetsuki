@@ -53,7 +53,7 @@ yumetsuki/
 - `ui/settings/pages/conversation_log_page.py`
   对话日志页面，展示会话级结构化事件
 - `ui/settings/pages/system_log_page.py`
-  平台日志页面，展示 TTS / LLM / Tool 等运行期系统事件
+  平台日志页面，展示 TTS / LLM / STT / Tool 等运行期系统事件
 - `ui/chat/window.py`
   桌宠聊天窗（长文本滚动、显示配置、被动互动气泡、STT 语音输入、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend；同时产出 TTS 句段与播放相关系统日志）
   被动互动已从系统设置开关改为聊天窗运行态：空闲阈值自动进入、右键菜单手动切换、被动状态下主动消息走气泡
@@ -72,7 +72,7 @@ yumetsuki/
 
 - `config/schema.py`
   Pydantic 配置模型
-  当前已包含 `SessionContextConfig`、`TTSRuntimeConfig`、`EventBusRuntimeConfig`、`ChatDisplayConfig`、`PassiveInteractionConfig`，其中 `ASRConfig` 已收敛为 faster-whisper 本地服务参数，`PassiveInteractionConfig` 已收敛为被动运行态阈值和气泡显示参数
+  当前已包含 `SessionContextConfig`、`TTSRuntimeConfig`、`EventBusRuntimeConfig`、`ChatDisplayConfig`、`PassiveInteractionConfig`，其中 `ASRConfig` 已收敛为本地 faster-whisper 模型目录与录音参数，`PassiveInteractionConfig` 已收敛为被动运行态阈值和气泡显示参数
 - `config/manager.py`
   YAML 读写，当前支持：
   - `api.yaml`
@@ -140,7 +140,7 @@ yumetsuki/
 - `stt/adapter.py`
   STT 适配器抽象，当前统一暴露 `transcribe_wav()`，输入为 WAV 字节
 - `stt/adapters/faster_whisper.py`
-  faster-whisper 本地 HTTP 服务适配器，将 WAV 录音以 multipart 形式发送到 `{api_url}/transcribe`
+  本地 faster-whisper 库适配器，懒加载 `ASRConfig.model_path` 指向的模型目录，并直接转写录音生成的 WAV 字节；默认使用 `cpu/int8`，`device=auto` 在桌宠端按 CPU 执行，只有显式 `cuda` 才走 GPU；模型加载、转写开始、完成、失败和空结果会写入平台日志
 - `stt/manager.py`
   根据 `ASRConfig.engine` 创建适配器；`none` 表示禁用语音输入，`faster_whisper` 创建 `FasterWhisperAdapter`，未知引擎返回可展示错误
 
@@ -236,7 +236,7 @@ Phase 5 改进后的 STT 适配路径将固定为：
 STTRecorder
 → STTManager
 → FasterWhisperAdapter
-→ 本地 faster-whisper 服务 /transcribe
+→ 本地 faster-whisper 库与模型目录
 → STTResult
 → ChatWindow._on_stt_result()
 → ChatWindow._on_send()
@@ -312,6 +312,8 @@ Agent 层采用分层智能架构，核心设计原则：**简单对话零开销
 - 自定义事件：可注册触发器（如工作提醒）
 - 全局冷却 + 事件独立冷却 + 活跃时段过滤
 - 所有参数可在设置中心配置
+- 主动发言会注入当前角色上下文和情绪标签规则；闲置越久越倾向不安、撒娇、赌气、委屈或生气等更强情绪，但仍必须贴合角色
+- 聊天窗收到主动消息后复用 `TextProcessor` 剥离 `[emotion:...]`，驱动立绘情绪切换，并作为新一轮角色回复进入普通切句、TTS 入队和平台日志链路；被动状态只改变显示为气泡，不绕过 TTS
 
 ### Agent 事件日志
 
@@ -390,14 +392,14 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - 运行期结构化日志接线与 JSONL 持久化
 - TTS 句段生命周期治理（取消、队列上限、总超时）
 - Phase 5 显示配置基础能力：聊天字体倍率、气泡倍率、设置中心系统页编辑与聊天窗启动应用
-- Phase 5 被动互动气泡：主动消息可独立气泡展示，支持最大宽度、停留时长和主对话框互斥
-- Phase 5 STT 链路：API ASR 配置、Qt 麦克风录音、PCM 静音检测、WAV 生成、faster-whisper 本地服务转写和 `_on_send()` 主链路接入
-- Phase 5 改进实现：STT 已改为 faster-whisper 本地服务接口；被动互动已改为聊天窗运行态；系统页已改为系统字体下拉框、独立保存和保存后应用
+- Phase 5 被动互动气泡：主动消息可独立气泡展示，支持默认 `600px` 最大宽度、停留时长、主对话框互斥、顶部与主对话框上边缘对齐，以及随整体缩放响应
+- Phase 5 STT 链路：API ASR 配置、Qt 麦克风录音、PCM 静音检测、WAV 生成、本地 faster-whisper 模型转写和 `_on_send()` 主链路接入；默认 CPU/int8 降低 CUDA 环境依赖，识别超时会释放当前 UI 状态并记录平台日志，迟到结果会被忽略
+- Phase 5 改进实现：STT 已改为本地 faster-whisper 库与模型目录；被动互动已改为聊天窗运行态；系统页已改为系统字体下拉框、独立保存和保存后应用
 
 尚未实现：
 
 - 更多内置插件能力扩展（媒体控制、截图等）
-- 真实麦克风、真实 faster-whisper 服务与真实 STT / TTS / API 场景的全面联调验证
+- 真实麦克风、真实 faster-whisper 模型转写与真实 STT / TTS / API 场景的全面联调验证
 
 ## 已确认的后续演进方向
 

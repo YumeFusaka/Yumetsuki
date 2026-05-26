@@ -17,6 +17,13 @@ from PySide6.QtWidgets import (
 
 from config.manager import ConfigManager
 from config.schema import MemoryConfig
+from core.model_catalog import (
+    EMBEDDING_MODELS_DIR,
+    is_embedding_model_dir,
+    model_path_key,
+    resolve_model_path,
+    scan_model_dirs,
+)
 from ui.settings.feedback import confirm_action, show_feedback
 from ui.theme import SAKURA_COMBO_BOX_STYLE
 from ui.widgets.rose_spin_box import RoseSpinBox
@@ -70,23 +77,12 @@ QPushButton#browseBtn:hover, QPushButton#deleteBtn:hover {
 }
 """ + SAKURA_COMBO_BOX_STYLE
 
-MODELS_DIR = Path("data/models")
-MODEL_MARKERS = ("config.json", "modules.json")
-
-
 def _is_valid_model_dir(path: Path) -> bool:
-    if not path.is_dir():
-        return False
-    return any((path / m).exists() for m in MODEL_MARKERS)
+    return is_embedding_model_dir(path)
 
 
 def _scan_local_models() -> list[str]:
-    if not MODELS_DIR.exists():
-        return []
-    return [
-        str(p) for p in sorted(MODELS_DIR.iterdir())
-        if _is_valid_model_dir(p)
-    ]
+    return scan_model_dirs(EMBEDDING_MODELS_DIR, is_embedding_model_dir)
 
 
 class MemoryPage(QWidget):
@@ -118,7 +114,7 @@ class MemoryPage(QWidget):
         self._model_combo.setPlaceholderText("请选择向量模型...")
         self._refresh_model_list()
         if config.embedding_model_path:
-            idx = self._model_combo.findText(config.embedding_model_path)
+            idx = self._find_model_path(config.embedding_model_path)
             if idx >= 0:
                 self._model_combo.setCurrentIndex(idx)
             else:
@@ -169,7 +165,7 @@ class MemoryPage(QWidget):
         self._model_combo.addItems(models)
         # 记录哪些是 data/models 扫描的（不可删除）
         self._local_model_count = self._model_combo.count()
-        if current and current not in models:
+        if current and self._find_model_path(current) < 0:
             self._model_combo.addItem(current)
         if current:
             self._model_combo.setCurrentText(current)
@@ -188,9 +184,21 @@ class MemoryPage(QWidget):
         if not _is_valid_model_dir(Path(path)):
             show_feedback(self, "无效模型", "所选目录不是有效的向量模型（缺少 config.json 或 modules.json）", success=False)
             return
-        if self._model_combo.findText(path) < 0:
+        existing_index = self._find_model_path(path)
+        if existing_index < 0:
             self._model_combo.addItem(path)
-        self._model_combo.setCurrentText(path)
+            existing_index = self._model_combo.count() - 1
+        self._model_combo.setCurrentIndex(existing_index)
+
+    def _find_model_path(self, path: str) -> int:
+        if not path:
+            return -1
+        target_key = model_path_key(resolve_model_path(path, EMBEDDING_MODELS_DIR))
+        for index in range(self._model_combo.count()):
+            item_path = resolve_model_path(self._model_combo.itemText(index), EMBEDDING_MODELS_DIR)
+            if model_path_key(item_path) == target_key:
+                return index
+        return -1
 
     def _delete_model(self) -> None:
         idx = self._model_combo.currentIndex()

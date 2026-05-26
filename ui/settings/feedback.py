@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.text_metrics import clamped_text_width
+
 
 class ConfirmDialog(QDialog):
     def __init__(self, title: str, message: str, parent: QWidget | None = None):
@@ -113,8 +115,13 @@ class ConfirmDialog(QDialog):
 
 class ToastMessage(QFrame):
     MAX_WIDTH = 700
+    MIN_WIDTH = 220
     MARGIN = 14
     GAP = 8
+    OUTER_MARGIN_X = 8
+    CARD_MARGIN_X = 14
+    DOT_WIDTH = 8
+    BODY_SPACING = 10
 
     def __init__(self, message: str, success: bool, host: QWidget):
         super().__init__(host)
@@ -122,8 +129,6 @@ class ToastMessage(QFrame):
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.ToolTip)
-        self.setMinimumWidth(220)
-        self.setMaximumWidth(self.MAX_WIDTH)
 
         accent = "#67b36b" if success else "#e06a7d"
         self.setStyleSheet(f"""
@@ -140,7 +145,7 @@ class ToastMessage(QFrame):
         """)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setContentsMargins(self.OUTER_MARGIN_X, 8, self.OUTER_MARGIN_X, 8)
         outer.setSpacing(0)
 
         card = QFrame()
@@ -154,8 +159,8 @@ class ToastMessage(QFrame):
         card.setGraphicsEffect(shadow)
 
         layout = QHBoxLayout(card)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(self.CARD_MARGIN_X, 10, self.CARD_MARGIN_X, 10)
+        layout.setSpacing(self.BODY_SPACING)
 
         dot = QFrame()
         dot.setFixedSize(8, 8)
@@ -165,9 +170,30 @@ class ToastMessage(QFrame):
         body_label = QLabel(message)
         body_label.setObjectName("bodyLabel")
         body_label.setWordWrap(True)
-        body_label.setMaximumWidth(self.MAX_WIDTH - 54)
         layout.addWidget(body_label, 1)
-        self.setFixedSize(self.sizeHint())
+
+        chrome_width = self._chrome_width()
+        max_width = self._available_max_width(host)
+        width = clamped_text_width(
+            body_label,
+            message,
+            min_width=min(self.MIN_WIDTH, max_width),
+            max_width=max_width,
+            chrome_width=chrome_width,
+        )
+        body_width = max(1, width - chrome_width)
+        body_label.setMinimumWidth(body_width)
+        body_label.setMaximumWidth(body_width)
+        self.setFixedSize(width, self.sizeHint().height())
+
+    @classmethod
+    def _chrome_width(cls) -> int:
+        return cls.OUTER_MARGIN_X * 2 + cls.CARD_MARGIN_X * 2 + cls.DOT_WIDTH + cls.BODY_SPACING
+
+    @classmethod
+    def _available_max_width(cls, host: QWidget) -> int:
+        host_width = host.width() if host is not None else cls.MAX_WIDTH
+        return max(1, min(cls.MAX_WIDTH, host_width - cls.MARGIN * 2))
 
     def show_toast(self) -> None:
         toasts = _toast_list(self._host)

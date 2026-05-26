@@ -24,8 +24,10 @@ class TTSConfig(BaseModel):
 
 class ASRConfig(BaseModel):
     engine: str = "faster_whisper"
-    api_url: str = "http://127.0.0.1:8000"
-    model: str = "base"
+    model_path: str = "data/models/stt/faster-whisper-large-v3-turbo"
+    device: str = "cpu"
+    compute_type: str = "int8"
+    transcribe_timeout_seconds: int = 120
     language: str = "zh"
     record_timeout_seconds: int = 20
     silence_threshold: float = 0.02
@@ -59,13 +61,13 @@ class APIConfig(BaseModel):
 
 
 class ChatDisplayConfig(BaseModel):
-    font_scale: float = 1.0
+    font_scale: float = 1.3
     bubble_scale: float = 1.0
 
 
 class PassiveInteractionConfig(BaseModel):
     idle_threshold_seconds: int = 300
-    bubble_max_width: int = 280
+    bubble_max_width: int = 600
     bubble_duration_seconds: int = 8
 
 

@@ -171,10 +171,10 @@ def test_system_config_exposes_logging_runtime():
 def test_system_config_exposes_phase5_display_and_passive_settings():
     cfg = SystemConfig()
 
-    assert cfg.chat_display.font_scale == 1.0
+    assert cfg.chat_display.font_scale == 1.3
     assert cfg.chat_display.bubble_scale == 1.0
     assert cfg.passive_interaction.idle_threshold_seconds == 300
-    assert cfg.passive_interaction.bubble_max_width == 280
+    assert cfg.passive_interaction.bubble_max_width == 600
     assert cfg.passive_interaction.bubble_duration_seconds == 8
     assert not hasattr(cfg.passive_interaction, "enabled")
 
@@ -197,16 +197,19 @@ def test_save_and_reload_phase5_system_config(tmp_path):
     assert mgr2.system.passive_interaction.bubble_duration_seconds == 12
 
 
-def test_asr_config_defaults_to_faster_whisper_local_service():
+def test_asr_config_defaults_to_faster_whisper_local_model():
     cfg = ASRConfig()
 
     assert cfg.engine == "faster_whisper"
-    assert cfg.api_url == "http://127.0.0.1:8000"
-    assert cfg.model == "base"
+    assert cfg.model_path == "data/models/stt/faster-whisper-large-v3-turbo"
+    assert cfg.device == "cpu"
+    assert cfg.compute_type == "int8"
+    assert cfg.transcribe_timeout_seconds == 120
     assert cfg.language == "zh"
     assert not hasattr(cfg, "base_url")
     assert not hasattr(cfg, "api_key")
-    assert not hasattr(cfg, "model_path")
+    assert not hasattr(cfg, "api_url")
+    assert not hasattr(cfg, "model")
     assert cfg.record_timeout_seconds == 20
     assert cfg.silence_threshold == 0.02
     assert cfg.silence_duration_ms == 1200
@@ -216,6 +219,6 @@ def test_passive_interaction_config_uses_idle_threshold_not_enable_switch():
     cfg = SystemConfig()
 
     assert cfg.passive_interaction.idle_threshold_seconds == 300
-    assert cfg.passive_interaction.bubble_max_width == 280
+    assert cfg.passive_interaction.bubble_max_width == 600
     assert cfg.passive_interaction.bubble_duration_seconds == 8
     assert not hasattr(cfg.passive_interaction, "enabled")

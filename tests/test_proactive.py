@@ -72,6 +72,56 @@ def test_proactive_idle_triggers(qapp):
     assert len(received) == 1
     assert received[0][1] == "idle_chat"
     assert received[0][0] == "好久不见呀"
+    assert "任选一个具体角度" in scheduler._llm.calls[-1]["user"]
+    assert "不要总是打招呼" in scheduler._llm.calls[-1]["user"]
+
+
+def test_proactive_prompt_includes_character_context_and_emotion_rule(qapp):
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=0,
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+        ),
+        llm_helper=FakeLLMHelper("[emotion:温柔]我在。"),
+    )
+    scheduler.set_character_context("角色名：杏铃\n说话方式：嘴硬但关心用户。")
+    scheduler._last_interaction_time = time.time() - 100
+
+    scheduler._tick()
+
+    call = scheduler._llm.calls[-1]
+    assert "角色名：杏铃" in call["system"]
+    assert "必须完全基于给定“角色”" in call["system"]
+    assert "[emotion:情绪名]" in call["system"]
+
+
+def test_proactive_idle_prompt_varies_mood_by_idle_duration(qapp):
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=0,
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+        ),
+        llm_helper=FakeLLMHelper("哼。"),
+    )
+
+    scheduler._last_interaction_time = time.time() - 4 * 60 * 60
+    scheduler._tick()
+
+    prompt = scheduler._llm.calls[-1]["user"]
+    assert "很久没被理" in prompt
+    assert "委屈" in prompt
+    assert "生气" in prompt
+    assert "不要每次都说同一种句式" in prompt
 
 
 def test_proactive_cooldown_blocks(qapp):

@@ -13,7 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 # 主动消息生成 prompt
-_PROACTIVE_SYSTEM_PROMPT = """你是这个桌宠角色。根据下面的场景描述，生成一句简短自然的主动发言（不超过30字），不要解释你在做什么，直接说话即可。"""
+_PROACTIVE_SYSTEM_PROMPT = """你必须完全基于给定“角色”说话，像角色本人在桌面旁主动开口。生成一句有角色感的主动发言，不超过48字。
+要求：
+- 像真实陪伴里的自然插话，不要解释你在做什么。
+- 避免连续使用“在吗”“好久不见”“要不要聊聊”这类泛泛问候。
+- 不要固定成健康提醒，不要反复让用户喝水、休息或汇报状态。
+- 可以带一点观察、关心、轻微自我暴露、撒娇、赌气或具体小提议。
+- 情绪要随场景变化，允许温柔、不安、委屈、撒娇、赌气、生气，但不能脱离角色。
+- 语气要贴合角色，不要像系统通知。"""
 
 
 class ProactiveScheduler(QObject):
@@ -38,6 +45,7 @@ class ProactiveScheduler(QObject):
         # 自定义事件触发器 (event_name -> condition_callable)
         self._custom_triggers: dict[str, Callable[[], bool]] = {}
         self._worker: _SchedulerWorker | None = None
+        self._character_context = ""
 
     def start(self) -> None:
         """启动调度器后台线程。"""
@@ -72,6 +80,10 @@ class ProactiveScheduler(QObject):
             self.start()
         elif not config.enabled and was_enabled:
             self.stop()
+
+    def set_character_context(self, context: str) -> None:
+        """更新主动消息使用的角色上下文。"""
+        self._character_context = (context or "").strip()
 
     # --- 内部方法（供 worker 调用）---
 
@@ -131,10 +143,46 @@ class ProactiveScheduler(QObject):
 
     def _fire_idle_chat(self) -> None:
         """触发闲置主动闲聊。"""
-        prompt = "用户已经一段时间没和你说话了。用一句温柔自然的话主动打个招呼或分享一个小想法。"
+        idle_minutes = max(1, int((time.time() - self._last_interaction_time) / 60))
+        hour = datetime.now().hour
+        if 5 <= hour < 11:
+            period = "早上"
+        elif 11 <= hour < 14:
+            period = "中午"
+        elif 14 <= hour < 18:
+            period = "下午"
+        elif 18 <= hour < 23:
+            period = "晚上"
+        else:
+            period = "深夜"
+        prompt = (
+            f"用户已经约 {idle_minutes} 分钟没有互动，现在是{period}。"
+            f"{self._idle_mood_guidance(idle_minutes)}"
+            "任选一个具体角度生成一句主动陪伴发言："
+            "注意到安静、想念用户、分享一个刚冒出来的小念头、撒娇地要一点回应、"
+            "赌气地抱怨被冷落、轻轻试探用户是不是还在、说一句带角色口癖的小抱怨。"
+            "不要总是打招呼，不要催促用户回复，不要每次都说同一种句式。"
+            "本次不要提喝水、休息、活动身体、早点睡这类固定照顾模板。"
+        )
         message = self._generate_message(prompt)
         if message:
             self._emit_message(message, "idle_chat")
+
+    def _idle_mood_guidance(self, idle_minutes: int) -> str:
+        if idle_minutes >= 180:
+            return (
+                "闲置程度：很久没被理。情绪可以更强烈：委屈、生气、赌气、需要被安抚，"
+                "但仍要保留角色本来的表达方式。"
+            )
+        if idle_minutes >= 60:
+            return (
+                "闲置程度：已经有一阵子。情绪可以是不安、想念、撒娇、轻微赌气，"
+                "像在试探用户还在不在。"
+            )
+        return (
+            "闲置程度：刚安静一会儿。情绪以温柔、好奇、轻声关心或轻微撒娇为主，"
+            "不要显得过度焦虑。"
+        )
 
     def _fire_event(self, event: ProactiveEventConfig) -> None:
         """触发自定义事件。"""
@@ -147,7 +195,15 @@ class ProactiveScheduler(QObject):
         """调用 LLM 生成主动消息。失败返回空字符串。"""
         if not self._llm:
             return ""
-        return self._llm.judge(_PROACTIVE_SYSTEM_PROMPT, prompt, max_tokens=80)
+        system_prompt = _PROACTIVE_SYSTEM_PROMPT
+        if self._character_context:
+            system_prompt = (
+                f"{self._character_context}\n\n"
+                "---\n\n"
+                f"{system_prompt}\n"
+                "如果角色有可用情绪，输出必须以 `[emotion:情绪名]` 开头，情绪名必须来自角色可用情绪。"
+            )
+        return self._llm.judge(system_prompt, prompt, max_tokens=120)
 
     def _emit_message(self, message: str, source: str) -> None:
         self._last_proactive_time = time.time()

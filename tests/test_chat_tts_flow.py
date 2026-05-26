@@ -133,6 +133,31 @@ def test_chat_window_llm_error_records_system_log(chat_window, monkeypatch):
     assert "Request timed out" in recorded[-1]["details"]["error"]
 
 
+def test_proactive_message_uses_tts_segments_emotion_and_log(chat_window, monkeypatch):
+    recorded = []
+    emotions = []
+    monkeypatch.setattr(
+        chat_window,
+        "_record_log_event",
+        lambda **kwargs: recorded.append(kwargs),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        chat_window._sprite_mgr,
+        "set_emotion",
+        lambda emotion: emotions.append(emotion),
+        raising=False,
+    )
+
+    chat_window._char_name = "樱"
+    chat_window._on_proactive_message("[emotion:撒娇]第一句。第二句", "idle_chat")
+
+    assert chat_window._queued_texts == ["第一句。", "第二句"]
+    assert emotions == ["撒娇"]
+    assert any(event["event_type"] == "chat.proactive_message_received" for event in recorded)
+    assert any(event["event_type"] == "chat.segmenter.segment_ready" for event in recorded)
+
+
 def test_chunked_output_enqueues_sentence_when_period_arrives(chat_window):
     chat_window._on_chunk(ProcessedText(clean_text="第一句", emotion=None))
     assert chat_window._queued_texts == []

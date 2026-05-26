@@ -371,10 +371,18 @@ def test_system_log_page_filters_sources_by_group_and_specific_source():
         "记忆",
         "LLM",
         "切句",
+        "STT",
         "TTS",
         "工具",
         "UI",
         "Agent",
+    ]
+
+    page._source_group_filter.setCurrentText("STT")
+    assert [page._source_filter.itemText(i) for i in range(page._source_filter.count())] == [
+        "全部",
+        "chat.stt",
+        "stt.faster_whisper",
     ]
 
     page._source_group_filter.setCurrentText("记忆")
@@ -850,6 +858,7 @@ def test_system_log_page_known_sources_have_unique_colors():
     colors = [SOURCE_COLORS[source] for source in known_sources]
 
     assert len(colors) == len(set(colors))
+    assert SOURCE_COLORS["chat.stt"] != SOURCE_COLORS["stt.faster_whisper"]
 
 
 def test_system_log_page_selected_item_keeps_source_foreground_color():
