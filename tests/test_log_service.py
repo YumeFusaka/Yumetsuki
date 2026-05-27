@@ -219,3 +219,16 @@ def test_list_sources_returns_sorted_unique_sources(tmp_path):
     service.record_system("chat.tts", "tts.segment_played", "played", {}, session_id="s1")
 
     assert service.list_sources() == ["chat.tts", "llm.manager"]
+
+
+def test_log_service_limits_in_memory_events_without_dropping_pending_flush(tmp_path):
+    service = LogService(log_root=tmp_path, system_flush_interval_ms=999999, max_events=2)
+
+    service.record_system("chat.tts", "first", "first", {"index": 1}, session_id="s1")
+    service.record_system("chat.tts", "second", "second", {"index": 2}, session_id="s1")
+    service.record_system("chat.tts", "third", "third", {"index": 3}, session_id="s1")
+
+    events = service.query_events()
+
+    assert [event["summary"] for event in events] == ["second", "third"]
+    assert [event.summary for event in service._pending] == ["first", "second", "third"]

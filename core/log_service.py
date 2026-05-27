@@ -9,9 +9,15 @@ from core.log_types import LogChannel, LogEvent, LogLevel, build_log_event
 
 
 class LogService:
-    def __init__(self, log_root: Path | str, system_flush_interval_ms: int = 200):
+    def __init__(
+        self,
+        log_root: Path | str,
+        system_flush_interval_ms: int = 200,
+        max_events: int = 500,
+    ):
         self._root = Path(log_root)
         self._system_flush_interval_ms = system_flush_interval_ms
+        self._max_events = max(1, int(max_events or 500))
         self._pending: list[LogEvent] = []
         self._events: list[LogEvent] = []
         self._last_flush_monotonic = time.monotonic()
@@ -26,6 +32,8 @@ class LogService:
         )
         self._pending.append(sanitized)
         self._events.append(sanitized)
+        if len(self._events) > self._max_events:
+            self._events = self._events[-self._max_events:]
         self._flush_if_due()
 
     def record_system(

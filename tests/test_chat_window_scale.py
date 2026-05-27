@@ -244,3 +244,57 @@ def test_launch_chat_passes_system_and_asr_config(monkeypatch):
 
     assert captured["system"] is window._config.system
     assert captured["asr"] is window._config.api.asr
+
+
+def test_chat_window_status_bar_exposes_stop_retry_and_logs(monkeypatch):
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    from ui.chat.window import ChatWindow
+
+    window = ChatWindow(LLMConfig(), system_config=SystemConfig())
+    try:
+        window._last_user_input = "你好"
+
+        window._set_chat_status("正在思考...", busy=True)
+
+        assert not window._status_label.isHidden()
+        assert not window._stop_btn.isHidden()
+        assert window._send_btn.text() == "×"
+        assert "停止当前生成" in window._send_btn.toolTip()
+
+        window._set_chat_status("请求失败：boom", error=True, can_retry=True, show_logs=True)
+
+        assert not window._retry_btn.isHidden()
+        assert not window._logs_btn.isHidden()
+        assert window._send_btn.text() == "→"
+        assert "请求失败" in window._status_label.text()
+    finally:
+        window.close()
+
+
+def test_chat_window_stream_display_batches_until_flush(monkeypatch):
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    from ui.chat.window import ChatWindow
+
+    window = ChatWindow(LLMConfig(), system_config=SystemConfig())
+    rendered = []
+    try:
+        monkeypatch.setattr(window, "_set_dialog_text", lambda text: rendered.append(text), raising=False)
+
+        window._queue_dialog_text_update("第一段")
+        window._queue_dialog_text_update("第一段第二段")
+
+        assert rendered == []
+
+        window._flush_dialog_text_update()
+
+        assert rendered == ["第一段第二段"]
+    finally:
+        window.close()

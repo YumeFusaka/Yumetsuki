@@ -293,8 +293,22 @@ def test_pcm_timeout_marks_segment_failed_and_advances(chat_window):
 
     chat_window._handle_tts_stream_event(key[0], key[1], TTSStreamEvent(kind="error", message="read timeout"))
 
-    assert chat_window._segment_states[key] == "failed"
+    assert key not in chat_window._segment_states
     assert chat_window._next_play_id == 1
+
+
+def test_stream_segment_playback_finish_clears_busy_state(chat_window):
+    key = (chat_window._current_utterance_id, 0)
+    chat_window._segment_states[key] = "ended"
+    chat_window._segment_events[key] = []
+    chat_window._active_segment_key = key
+    chat_window._set_chat_status("正在合成语音...", busy=True)
+
+    chat_window._on_segment_playback_finished(key)
+
+    assert key not in chat_window._segment_states
+    assert key not in chat_window._segment_events
+    assert chat_window._status_label.isHidden()
 
 
 def test_begin_new_tts_turn_clears_segment_stream_state(chat_window):

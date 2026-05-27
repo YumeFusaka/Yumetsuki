@@ -177,6 +177,7 @@ class SettingsWindow(QMainWindow):
         self._log_service = LogService(
             log_root=self._config.system.logging.log_root,
             system_flush_interval_ms=self._config.system.logging.system_flush_interval_ms,
+            max_events=self._config.system.logging.ui_buffer_limit,
         )
         self._chat_window = None
         self._close_callback = None

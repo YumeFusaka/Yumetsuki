@@ -233,6 +233,7 @@ class ChatWindow(QWidget):
     TTS_TRANSLATION_SOFT_TARGET_CHARS = 32
     TTS_TRANSLATION_SOFT_MAX_CHARS = 48
     TTS_PHONETIC_MARKUP_TAG = "phonetic"
+    DISPLAY_FLUSH_INTERVAL_MS = 45
     TTS_EXPRESSIVE_CHARS = set(
         "啊呀哇呜诶欸唉哎咦噫呦哟哦喔嗷呐嗯唔哼嘿哈啦嘛喵"
         "ぁあぃいぅうぇえぉおゃやゅゆょよゎわっー゛゜"
@@ -306,6 +307,13 @@ class ChatWindow(QWidget):
         self._max_translation_workers = runtime_config.max_translation_workers
         self._max_tts_workers = runtime_config.max_tts_workers
         self._tts_prepare_worker = None
+        self._last_user_input = ""
+        self._last_rendered_dialog_text = None
+        self._pending_dialog_text = None
+        self._display_flush_timer = QTimer(self)
+        self._display_flush_timer.setSingleShot(True)
+        self._display_flush_timer.setInterval(self.DISPLAY_FLUSH_INTERVAL_MS)
+        self._display_flush_timer.timeout.connect(self._flush_dialog_text_update)
         self._audio_output = None
         self._audio_player = None
         self._audio_buffer = None
@@ -439,6 +447,36 @@ class ChatWindow(QWidget):
         self._conversation_pane.setMinimumHeight(96)
         panel_layout.addWidget(self._conversation_pane, 1)
 
+        status_row = QHBoxLayout()
+        status_row.setSpacing(6)
+        self._status_label = QLabel("")
+        self._status_label.setObjectName("chatStatusLabel")
+        self._status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._status_label.hide()
+        status_row.addWidget(self._status_label, 1)
+
+        self._stop_btn = QPushButton("停止")
+        self._stop_btn.setObjectName("statusActionButton")
+        self._stop_btn.setToolTip("停止当前生成和播报")
+        self._stop_btn.clicked.connect(self._cancel_current_turn)
+        self._stop_btn.hide()
+        status_row.addWidget(self._stop_btn)
+
+        self._retry_btn = QPushButton("重试")
+        self._retry_btn.setObjectName("statusActionButton")
+        self._retry_btn.setToolTip("重试上一条消息")
+        self._retry_btn.clicked.connect(self._retry_last_input)
+        self._retry_btn.hide()
+        status_row.addWidget(self._retry_btn)
+
+        self._logs_btn = QPushButton("日志")
+        self._logs_btn.setObjectName("statusActionButton")
+        self._logs_btn.setToolTip("打开设置中心查看平台日志")
+        self._logs_btn.clicked.connect(lambda: self._open_settings_page(4))
+        self._logs_btn.hide()
+        status_row.addWidget(self._logs_btn)
+        panel_layout.addLayout(status_row)
+
         # Input row: [input] [mic] [send]
         input_row = QHBoxLayout()
         input_row.setSpacing(6)
@@ -469,13 +507,14 @@ class ChatWindow(QWidget):
             self._mic_btn.setToolTip("语音输入未启用")
         input_row.addWidget(self._mic_btn)
 
-        send_btn = QPushButton(">")
-        send_btn.setObjectName("sendButton")
-        send_btn.setFixedSize(34, 34)
-        send_btn.setStyleSheet(self._circle_btn_style("#ff9aaa", "#ffb0be"))
-        send_btn.setToolTip("发送")
-        send_btn.clicked.connect(self._on_send)
-        input_row.addWidget(send_btn)
+        self._send_btn = QPushButton("→")
+        self._send_btn.setObjectName("sendButton")
+        self._send_btn.setAccessibleName("发送")
+        self._send_btn.setFixedSize(34, 34)
+        self._send_btn.setStyleSheet(self._circle_btn_style("#ff9aaa", "#ffb0be"))
+        self._send_btn.setToolTip("发送")
+        self._send_btn.clicked.connect(self._on_send_button_clicked)
+        input_row.addWidget(self._send_btn)
 
         panel_layout.addLayout(input_row)
 
@@ -570,6 +609,9 @@ class ChatWindow(QWidget):
         )
 
     def _set_dialog_text(self, text: str) -> None:
+        if text == self._last_rendered_dialog_text:
+            return
+        self._last_rendered_dialog_text = text
         font = self._scaled_display_font(self.BASE_FONT)
         paragraph_gap = max(2, int(4 * self._scale))
         html = self._build_dialog_html(
@@ -581,6 +623,96 @@ class ChatWindow(QWidget):
         )
         self._dialog_box.setText(html)
         self._conversation_pane.scroll_to_top()
+
+    def _queue_dialog_text_update(self, text: str, *, immediate: bool = False) -> None:
+        self._pending_dialog_text = text
+        if immediate:
+            self._flush_dialog_text_update()
+            return
+        if not self._display_flush_timer.isActive():
+            self._display_flush_timer.start()
+
+    def _flush_dialog_text_update(self) -> None:
+        if self._pending_dialog_text is None:
+            return
+        text = self._pending_dialog_text
+        self._pending_dialog_text = None
+        self._set_dialog_text(text)
+
+    def _set_chat_status(
+        self,
+        message: str = "",
+        *,
+        busy: bool = False,
+        error: bool = False,
+        can_retry: bool = False,
+        show_logs: bool = False,
+    ) -> None:
+        if (
+            self._status_label.text() == message
+            and bool(self._stop_btn.isVisible()) == bool(busy)
+            and bool(self._retry_btn.isVisible()) == bool(can_retry)
+            and bool(self._logs_btn.isVisible()) == bool(show_logs)
+            and bool(self._status_label.property("error")) == bool(error)
+        ):
+            return
+        self._status_label.setText(message)
+        self._status_label.setProperty("error", error)
+        self._status_label.setVisible(bool(message))
+        self._stop_btn.setVisible(busy)
+        self._retry_btn.setVisible(can_retry)
+        self._logs_btn.setVisible(show_logs)
+        self._send_btn.setText("×" if busy else "→")
+        self._send_btn.setToolTip("停止当前生成" if busy else "发送")
+        self._send_btn.setAccessibleName("停止当前生成" if busy else "发送")
+        self._rebuild_stylesheet()
+
+    def _clear_chat_status(self) -> None:
+        self._set_chat_status("")
+
+    def _on_send_button_clicked(self) -> None:
+        if self._has_active_turn_work():
+            self._cancel_current_turn()
+            return
+        self._on_send()
+
+    def _has_active_turn_work(self) -> bool:
+        return bool(
+            self._worker is not None
+            or self._active_tts_workers
+            or self._active_translation_workers
+            or self._pending_tts_segments
+            or self._pending_translation_segments
+            or self._segment_backends
+            or any(events for events in self._segment_events.values())
+            or self._segment_results
+            or self._wav_segment_buffers
+            or self._is_audio_playing
+        )
+
+    def _retry_last_input(self) -> None:
+        if self._worker is not None or not self._last_user_input:
+            return
+        self._input.setText(self._last_user_input)
+        self._on_send()
+
+    def _cancel_current_turn(self) -> None:
+        had_active_work = self._has_active_turn_work()
+        if self._worker is not None:
+            self._request_worker_stop(self._worker)
+        for worker in [*self._active_tts_workers, *self._active_translation_workers]:
+            self._request_worker_stop(worker)
+        self._begin_new_tts_turn()
+        if had_active_work:
+            self._set_chat_status("正在停止当前生成...", busy=True, show_logs=True)
+        else:
+            self._clear_chat_status()
+
+    def _clear_turn_status_if_idle(self) -> None:
+        if self._has_active_turn_work():
+            return
+        if self._status_label.text() in {"正在停止当前生成...", "正在合成语音..."}:
+            self._clear_chat_status()
 
     def _hide_passive_bubble(self) -> None:
         self._passive_bubble_timer.stop()
@@ -707,6 +839,26 @@ class ChatWindow(QWidget):
         """)
 
         for btn in self._panel.findChildren(QPushButton):
+            if btn.objectName() == "statusActionButton":
+                btn.setFixedHeight(max(24, int(28 * s)))
+                btn.setMinimumWidth(max(46, int(48 * s)))
+                btn.setMaximumWidth(16777215)
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: rgba(255,255,255,0.62);
+                        border: {control_border}px solid rgba(212, 86, 122, 0.42);
+                        border-radius: {max(6, int(8*s))}px;
+                        color: #7a3a5a;
+                        font-size: {max(10, int(11*s))}px;
+                        font-weight: 600;
+                        padding: 0 {max(8, int(10*s))}px;
+                    }}
+                    QPushButton:hover {{
+                        background: rgba(255,232,240,0.9);
+                        border-color: #9b3060;
+                    }}
+                """)
+                continue
             btn.setFixedSize(btn_size, btn_size)
             btn_radius = btn_size // 2
             btn.setStyleSheet(f"""
@@ -751,6 +903,19 @@ class ChatWindow(QWidget):
                 font-family: "{self._display_font_family}";
                 font-size: {bubble_font}px;
                 padding: {bubble_padding_y}px {bubble_padding_x}px;
+            }}
+        """)
+        status_color = "#9b3060" if self._status_label.property("error") else "#7a5263"
+        status_background = "rgba(255, 235, 242, 0.9)" if self._status_label.property("error") else "rgba(255, 250, 252, 0.72)"
+        self._status_label.setStyleSheet(f"""
+            QLabel#chatStatusLabel {{
+                background: {status_background};
+                border: {control_border}px solid rgba(212, 86, 122, 0.24);
+                border-radius: {max(6, int(8*s))}px;
+                color: {status_color};
+                font-family: "{self._display_font_family}";
+                font-size: {max(10, int(11*s))}px;
+                padding: {max(3, int(4*s))}px {max(8, int(10*s))}px;
             }}
         """)
 
@@ -872,6 +1037,12 @@ class ChatWindow(QWidget):
             self._settings_window.raise_()
         if hasattr(self._settings_window, "activateWindow"):
             self._settings_window.activateWindow()
+
+    def _open_settings_page(self, index: int) -> None:
+        self._open_settings()
+        switch_page = getattr(self._settings_window, "_switch_page", None)
+        if callable(switch_page):
+            switch_page(index)
 
     def _clear_settings_window_ref(self):
         self._settings_window = None
@@ -1258,6 +1429,7 @@ class ChatWindow(QWidget):
         worker.deleteLater()
         if not self._is_closing:
             self._start_next_pending_tts_worker()
+        self._clear_turn_status_if_idle()
 
     def _on_translation_worker_finished(self, worker: TTSTranslationWorker) -> None:
         if worker in self._active_translation_workers:
@@ -1265,6 +1437,7 @@ class ChatWindow(QWidget):
         worker.deleteLater()
         if not self._is_closing:
             self._start_next_pending_translation_worker()
+        self._clear_turn_status_if_idle()
 
     def _start_next_pending_tts_worker(self) -> None:
         if self._is_closing:
@@ -1472,12 +1645,14 @@ class ChatWindow(QWidget):
         if key[0] != self._current_utterance_id:
             return
         self._tts_pipeline.mark_played(key)
-        self._segment_states[key] = "played"
+        self._segment_states.pop(key, None)
+        self._segment_events.pop(key, None)
         self._stop_segment_backend(key)
         if self._active_segment_key == key:
             self._next_play_id += 1
             self._active_segment_key = None
         self._advance_ready_segments()
+        self._clear_turn_status_if_idle()
 
     def _fail_segment(self, key: tuple[int, int], message: str) -> None:
         backend = self._segment_backends.get(key)
@@ -1488,12 +1663,14 @@ class ChatWindow(QWidget):
             self._tts_adapter.force_session_audio_mode("wav")
         print(f"[TTS] segment {key[1]} failed: {message}")
         self._tts_pipeline.mark_failed(key)
-        self._segment_states[key] = "failed"
+        self._segment_states.pop(key, None)
+        self._segment_events.pop(key, None)
         self._stop_segment_backend(key)
         if self._active_segment_key == key or key[1] == self._next_play_id:
             self._next_play_id += 1
             self._active_segment_key = None
         self._advance_ready_segments()
+        self._clear_turn_status_if_idle()
 
     def _poll_tts_timeouts(self) -> None:
         for key in self._tts_pipeline.collect_timed_out_segments(time.monotonic()):
@@ -1567,6 +1744,8 @@ class ChatWindow(QWidget):
         if self._pending_audio_queue:
             next_audio = self._pending_audio_queue.pop(0)
             self._start_audio_playback(next_audio)
+            return
+        self._clear_turn_status_if_idle()
 
     def _is_stt_enabled(self) -> bool:
         return (self._asr_config.engine or "none").strip().lower() != "none"
@@ -1849,12 +2028,17 @@ class ChatWindow(QWidget):
     def _on_send(self):
         self._refresh_interaction()
         text = self._input.text().strip()
-        if not text or self._worker is not None:
+        if not text:
+            return
+        if self._worker is not None:
+            self._set_chat_status("正在回复，可先停止当前生成。", busy=True, show_logs=True)
             return
         self._input.clear()
+        self._last_user_input = text
         self._begin_new_tts_turn()
+        self._set_chat_status("正在思考...", busy=True)
         self._set_speaker_name("我", is_user=True)
-        self._set_dialog_text(text)
+        self._queue_dialog_text_update(text, immediate=True)
 
         # 通知主动调度器：用户刚交互
         if self._proactive_scheduler is not None:
@@ -1873,9 +2057,12 @@ class ChatWindow(QWidget):
     def _capture_visual_for_user_input(self, text: str) -> OCRResult | None:
         if not self._chat_engine.should_capture_screen(text):
             return None
+        self._set_chat_status("正在读取屏幕...", busy=True)
         result = self._vision_manager.capture_screen_image()
         if result.ok:
+            self._set_chat_status("屏幕文字已采集，正在思考...", busy=True)
             return result
+        self._set_chat_status("读屏截图失败，已继续发送文本。", busy=True, show_logs=True)
         self._record_log_event(
             channel=LogChannel.SYSTEM,
             level=LogLevel.WARN,
@@ -1891,20 +2078,32 @@ class ChatWindow(QWidget):
     def _on_chunk(self, result: ProcessedText):
         if self._name_label.text() == "我" and self._char_name:
             self._set_speaker_name(self._char_name)
-        self._set_dialog_text(result.clean_text)
+        self._set_chat_status("正在回复...", busy=True)
+        self._queue_dialog_text_update(result.clean_text)
         if self._tts_adapter is not None:
             self._enqueue_assistant_text_for_tts(result.clean_text)
         if result.emotion:
             self._sprite_mgr.set_emotion(result.emotion)
 
     def _on_llm_done(self):
+        self._flush_dialog_text_update()
         if self._tts_adapter is not None:
             for segment in self._extract_tts_segments(flush=True):
                 self._tts_committed_text += segment
                 self._record_tts_segment_ready(segment)
                 self._enqueue_tts_segment(segment)
+            if self._active_tts_workers or self._pending_tts_segments or self._active_translation_workers:
+                self._set_chat_status("正在合成语音...", busy=True, show_logs=True)
+                return
+        self._clear_chat_status()
 
     def _on_llm_error(self, error_message: str):
+        self._set_chat_status(
+            f"请求失败：{error_message}",
+            error=True,
+            can_retry=bool(self._last_user_input),
+            show_logs=True,
+        )
         self._record_log_event(
             channel=LogChannel.SYSTEM,
             level=LogLevel.ERROR,
@@ -1919,8 +2118,11 @@ class ChatWindow(QWidget):
     def _on_llm_worker_finished(self, worker) -> None:
         if self._worker is worker:
             self._worker = None
+            if self._status_label.text() in {"正在思考...", "正在回复...", "正在停止当前生成..."}:
+                self._clear_chat_status()
         if hasattr(worker, "deleteLater"):
             worker.deleteLater()
+        self._clear_turn_status_if_idle()
 
     def _on_proactive_message(self, message: str, source: str):
         """收到主动消息：以角色身份显示。"""

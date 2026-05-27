@@ -71,6 +71,9 @@ servers:
     command: ""
     url: http://127.0.0.1:8000/mcp
     enabled: false
+    connect_timeout_seconds: 10
+    request_timeout_seconds: 10
+    retry_attempts: 0
 ```
 
 ## MCP transport
@@ -119,16 +122,20 @@ servers:
 
 ## 设置页支持
 
-插件 / MCP 页面当前支持：
+插件页面当前支持：
 
 - 导入本地插件
 - 删除本地插件
+- 查看插件加载状态、工具数量、说明和错误消息
+
+MCP 页面当前支持：
+
 - 添加 MCP server
 - 启用 / 停用 MCP server
 - 删除 MCP server
 - 刷新统一工具目录
 - 查看工具来源、描述、参数摘要
-- 查看插件加载状态、MCP 连接状态、工具数量、错误类型和诊断消息
+- 查看 MCP 连接状态、工具数量、错误类型和诊断消息
 
 ## 当前限制
 

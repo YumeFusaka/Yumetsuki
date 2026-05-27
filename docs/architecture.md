@@ -40,7 +40,7 @@ yumetsuki/
 负责桌面 UI。
 
 - `ui/settings/window.py`
-  设置中心主窗口；导航顺序固定为 `API / 角色 / 记忆 / Agent / 插件 / 对话日志 / 平台日志 / 系统`
+  设置中心主窗口；导航顺序固定为 `API / 角色 / 记忆 / Agent / 插件 / MCP / 对话日志 / 平台日志 / 系统`
 - `ui/theme.py`
   Sakura 主题共享模块，集中提供右键菜单浅色主题、设置中心下拉框样式与公共 UI 资源路径
 - `ui/settings/pages/api_page.py`
@@ -50,13 +50,15 @@ yumetsuki/
 - `ui/settings/pages/character_page.py`
   角色页面
 - `ui/settings/pages/plugin_page.py`
-  插件与 MCP 管理页面；展示插件加载状态、MCP 连接状态、工具数量、错误类型和诊断详情
+  插件管理页面；管理本地插件、内置插件权限和外部插件导入，展示插件加载状态、工具数量、说明和诊断详情
+- `ui/settings/pages/mcp_page.py`
+  MCP 管理页面；管理 MCP server、连接诊断和 MCP 工具列表，展示连接状态、工具数量、错误类型和诊断详情
 - `ui/settings/pages/conversation_log_page.py`
   对话日志页面，展示会话级结构化事件
 - `ui/settings/pages/system_log_page.py`
   平台日志页面，展示 TTS / LLM / STT / Tool 等运行期系统事件
 - `ui/chat/window.py`
-  桌宠聊天窗（长文本滚动、显示配置、被动互动气泡、STT 语音输入、整体缩放、对话面板布局、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend；同时产出 TTS 句段与播放相关系统日志）
+  桌宠聊天窗（长文本滚动、显示配置、被动互动气泡、STT 语音输入、整体缩放、对话面板布局、聊天运行状态条、停止 / 重试 / 打开日志入口、流式回复显示合帧、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend；同时产出 TTS 句段与播放相关系统日志）
   被动互动已从系统设置开关改为聊天窗运行态：空闲阈值自动进入、右键菜单手动切换、被动状态下主动消息走气泡
 - `ui/chat/stt_recorder.py`
   Qt 麦克风录音控制器，负责 PCM 采集、静音检测、超时停止和 WAV 字节生成；录音完成后交由聊天窗的 STT worker 转写
@@ -65,7 +67,7 @@ yumetsuki/
 - `ui/chat/tts_pipeline.py`
   `TTSPipelineController` 负责句段状态、取消语义、队列上限与总超时判定
 - `ui/chat/sprite.py`
-  立绘加载、缩放、情绪切换
+  立绘加载、缩放、情绪切换；对原图和近期目标尺寸缩放结果做小型缓存，降低滚轮缩放和情绪切换时的重复读图 / 平滑缩放成本
 
 ### `config/`
 
@@ -359,7 +361,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - `system`
   TTS、LLM、Tool、运行期错误与回退事件
 
-当前主链路中，`ChatWindow`、`AgentManager`、`LLMManager`、`ToolRegistry` 与 `GPTSoVITSAdapter` 都可向 `LogService` 写入结构化 `LogEvent`。`LogService` 会先做脱敏，再按 channel 写入 `data/logs/` 下的 JSONL 文件：
+当前主链路中，`ChatWindow`、`AgentManager`、`LLMManager`、`ToolRegistry` 与 `GPTSoVITSAdapter` 都可向 `LogService` 写入结构化 `LogEvent`。`LogService` 会先做脱敏，按 `LoggingConfig.ui_buffer_limit` 保留内存事件窗口，再按 channel 写入 `data/logs/` 下的 JSONL 文件：
 
 - `data/logs/conversation/<session_id>.jsonl`
 - `data/logs/system/YYYY-MM-DD.jsonl`
@@ -367,9 +369,9 @@ Agent 通过 `EventBus` 发布内部行为事件：
 当前页面形态：
 
 - `对话日志`
-  面向聊天回看，突出用户 / 角色主线，并补充时间、情绪、工具、记忆摘要
+  面向聊天回看，突出用户 / 角色主线，并补充时间、情绪、工具、记忆摘要；页面不可见时暂停自动刷新，避免后台重建日志视图抢占 UI 主线程
 - `平台日志`
-  面向排障与运行回看，展示完整程序运行时间线；默认上半区为高密度日志流，下半区按选中事件显示详情
+  面向排障与运行回看，展示完整程序运行时间线；默认上半区为高密度日志流，下半区按选中事件显示详情；页面不可见时暂停自动刷新，选中详情和滚动位置在刷新时保持稳定
   页面名为“平台日志”，内部日志 channel 与落盘目录仍沿用 `system`
 
 当前边界：

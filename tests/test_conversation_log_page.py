@@ -24,6 +24,22 @@ def test_conversation_log_page_builds_readonly_timeline():
     page = ConversationLogPage(_FakeLogService())
 
     assert page._timeline.isReadOnly()
+    assert not page._refresh_timer.isActive()
+
+
+def test_conversation_log_page_refresh_timer_only_runs_while_visible():
+    _app()
+    page = ConversationLogPage(_FakeLogService())
+
+    assert not page._refresh_timer.isActive()
+
+    page.show()
+    QApplication.processEvents()
+    assert page._refresh_timer.isActive()
+
+    page.hide()
+    QApplication.processEvents()
+    assert not page._refresh_timer.isActive()
 
 
 def test_conversation_log_page_refreshes_current_session_events():

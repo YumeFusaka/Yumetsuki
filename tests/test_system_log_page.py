@@ -35,6 +35,22 @@ def test_system_log_page_builds_readonly_log_text():
 
     assert page._event_list.count() == 0
     assert page._detail_text.isHidden()
+    assert not page._refresh_timer.isActive()
+
+
+def test_system_log_page_refresh_timer_only_runs_while_visible():
+    _app()
+    page = SystemLogPage(_FakeLogService())
+
+    assert not page._refresh_timer.isActive()
+
+    page.show()
+    QApplication.processEvents()
+    assert page._refresh_timer.isActive()
+
+    page.hide()
+    QApplication.processEvents()
+    assert not page._refresh_timer.isActive()
 
 
 def test_system_log_page_can_copy_selected_event_json(monkeypatch):

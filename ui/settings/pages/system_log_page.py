@@ -279,7 +279,23 @@ class SystemLogPage(QWidget):
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setInterval(1000)
         self._refresh_timer.timeout.connect(self._refresh_view)
-        self._refresh_timer.start()
+        self._sync_refresh_timer()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._refresh_view()
+        self._sync_refresh_timer()
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._sync_refresh_timer()
+
+    def _sync_refresh_timer(self) -> None:
+        if self.isVisible():
+            if not self._refresh_timer.isActive():
+                self._refresh_timer.start()
+            return
+        self._refresh_timer.stop()
 
     def _log_action_button(self, text: str) -> QPushButton:
         button = QPushButton(text)

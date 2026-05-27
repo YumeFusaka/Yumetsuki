@@ -1077,16 +1077,19 @@ def test_system_save_failure_rolls_back_shared_chat_window_vision_config(monkeyp
 
     window._switch_page(7)
     original_font = window._config.system.font_family
-    window._system_page._font.setCurrentText("Arial")
-    window._system_page._vision_enabled.setChecked(True)
-    window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
-    window._system_page._ocr_language.setCurrentText("en")
+    original_vision = window._config.system.vision.model_copy(deep=True)
+    target_font = "Arial" if original_font != "Arial" else "Microsoft YaHei"
+    target_engine = "paddleocr" if original_vision.ocr_engine != "paddleocr" else "rapidocr"
+    target_language = "en" if original_vision.language != "en" else "ch"
+    window._system_page._font.setCurrentText(target_font)
+    window._system_page._vision_enabled.setChecked(not original_vision.enabled)
+    window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData(target_engine))
+    window._system_page._ocr_language.setCurrentText(target_language)
     window._confirm_save()
 
     assert window._config.system.font_family == original_font
     assert window._system_page._font.currentText() == original_font
-    assert window._config.system.vision.enabled is False
-    assert window._config.system.vision.ocr_engine == "rapidocr"
+    assert window._config.system.vision == original_vision
     assert chat_window._vision_manager._config == window._config.system.vision
     assert chat_window._vision_manager._config is not window._config.system.vision
     assert chat_window._vision_manager._ocr is initial_adapter

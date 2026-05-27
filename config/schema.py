@@ -46,7 +46,7 @@ class MCPServerConfig(BaseModel):
 
 
 class MCPConfig(BaseModel):
-    servers: list[MCPServerConfig] = []
+    servers: list[MCPServerConfig] = Field(default_factory=list)
 
 
 class MemoryConfig(BaseModel):
@@ -58,9 +58,9 @@ class MemoryConfig(BaseModel):
 
 
 class APIConfig(BaseModel):
-    llm: LLMConfig = LLMConfig()
-    tts: TTSConfig = TTSConfig()
-    asr: ASRConfig = ASRConfig()
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+    tts: TTSConfig = Field(default_factory=TTSConfig)
+    asr: ASRConfig = Field(default_factory=ASRConfig)
 
 
 class ChatDisplayConfig(BaseModel):
@@ -138,14 +138,14 @@ class PlannerConfig(BaseModel):
     llm_judge_enabled: bool = True
     complexity_threshold: int = 80
     judge_max_tokens: int = 300
-    extra_trigger_keywords: list[str] = []
+    extra_trigger_keywords: list[str] = Field(default_factory=list)
 
 
 class ReflectorConfig(BaseModel):
     enabled: bool = True
     deep_threshold: int = 30
     reflect_max_tokens: int = 300
-    extract_types: list[str] = ["preference", "fact", "emotion", "topic"]
+    extract_types: list[str] = Field(default_factory=lambda: ["preference", "fact", "emotion", "topic"])
 
 
 class MultiStepConfig(BaseModel):
@@ -169,7 +169,7 @@ class ProactiveConfig(BaseModel):
     min_interval_minutes: int = 10
     active_hours_start: int = 8
     active_hours_end: int = 23
-    events: list[ProactiveEventConfig] = []
+    events: list[ProactiveEventConfig] = Field(default_factory=list)
 
 
 class SystemControlConfig(BaseModel):
@@ -218,12 +218,12 @@ class LoggingConfig(BaseModel):
 
 
 class AgentConfig(BaseModel):
-    planner: PlannerConfig = PlannerConfig()
-    reflector: ReflectorConfig = ReflectorConfig()
-    multi_step: MultiStepConfig = MultiStepConfig()
-    proactive: ProactiveConfig = ProactiveConfig()
-    system_control: SystemControlConfig = SystemControlConfig()
-    web_automation: WebAutomationConfig = WebAutomationConfig()
-    session_context: SessionContextConfig = SessionContextConfig()
-    tts_runtime: TTSRuntimeConfig = TTSRuntimeConfig()
-    event_bus_runtime: EventBusRuntimeConfig = EventBusRuntimeConfig()
+    planner: PlannerConfig = Field(default_factory=PlannerConfig)
+    reflector: ReflectorConfig = Field(default_factory=ReflectorConfig)
+    multi_step: MultiStepConfig = Field(default_factory=MultiStepConfig)
+    proactive: ProactiveConfig = Field(default_factory=ProactiveConfig)
+    system_control: SystemControlConfig = Field(default_factory=SystemControlConfig)
+    web_automation: WebAutomationConfig = Field(default_factory=WebAutomationConfig)
+    session_context: SessionContextConfig = Field(default_factory=SessionContextConfig)
+    tts_runtime: TTSRuntimeConfig = Field(default_factory=TTSRuntimeConfig)
+    event_bus_runtime: EventBusRuntimeConfig = Field(default_factory=EventBusRuntimeConfig)

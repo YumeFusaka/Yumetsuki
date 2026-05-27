@@ -106,8 +106,24 @@ class ConversationLogPage(QWidget):
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setInterval(1000)
         self._refresh_timer.timeout.connect(self._refresh_if_enabled)
-        self._refresh_timer.start()
+        self._sync_refresh_timer()
         self._refresh_sessions()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._refresh_sessions_and_view()
+        self._sync_refresh_timer()
+
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        self._sync_refresh_timer()
+
+    def _sync_refresh_timer(self) -> None:
+        if self.isVisible():
+            if not self._refresh_timer.isActive():
+                self._refresh_timer.start()
+            return
+        self._refresh_timer.stop()
 
     def _refresh_view(self) -> None:
         session_id = self._current_session_id

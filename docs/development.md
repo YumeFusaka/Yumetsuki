@@ -51,7 +51,7 @@
   Windows 下如使用 pip 安装 `nvidia-*-cu12` 运行库，STT 适配器会在进程内注册并持有对应 DLL 目录句柄，并把目录 prepend 到当前进程 `PATH`，以覆盖 CTranslate2 在真实解码阶段动态加载 `cublas64_12.dll` 的路径需求
 - `data/config/system_config.yaml`
   系统配置
-  当前也承载 `logging` 运行时配置，如日志根目录与平台日志内部 `system` channel 的 flush 间隔
+  当前也承载 `logging` 运行时配置，如日志根目录、平台日志内部 `system` channel 的 flush 间隔和 UI 内存事件窗口 `ui_buffer_limit`
   当前也承载 `chat_display` 与 `passive_interaction`：前者控制聊天字体倍率和气泡倍率；后者包含空闲阈值、被动气泡最大宽度和停留时长。被动状态属于聊天窗运行态，空闲阈值用于自动进入，不再使用系统级启用开关。
   当前也承载 `vision`：控制 OCR 是否启用、OCR 后端、OCR 语言、截图目录、最大文本长度和显式触发策略；默认后端为 `rapidocr`，`paddleocr` 为进阶可选后端。对应 UI 位于系统设置的 `视觉 / OCR` 分组，随系统配置保存；当前版本固定仅允许显式读屏触发。
   当前默认值：`chat_display.font_scale=1.3`，`passive_interaction.bubble_max_width=600`。
@@ -109,11 +109,10 @@
   - `asr.silence_duration_ms`
   - `chat_display.font_scale`
   - `chat_display.bubble_scale`
-  - `passive_interaction.enabled`
+  - `passive_interaction.idle_threshold_seconds`
   - `passive_interaction.bubble_max_width`
   - `passive_interaction.bubble_duration_seconds`
 - Phase 5 已确认并已落地的改进配置入口：
-  - `passive_interaction.idle_threshold_seconds`
   - 删除 `asr.base_url`、`asr.api_key`、`asr.api_url`、`asr.model`、`passive_interaction.enabled`
 - Phase 6 当前已落地的配置入口：
   - `mcp.servers[].connect_timeout_seconds`
@@ -192,6 +191,8 @@
   - `LogService` 的筛选、导出与 JSONL 落盘
   - `SettingsWindow` 下的 `对话日志` / `平台日志` 页面入口；内部 channel 仍为 `conversation` / `system`
   - 关键运行链路的日志接线
+  - `LogService` 内存事件窗口不得裁切待落盘 `_pending` 队列
+  - `对话日志` / `平台日志` 页面不可见时应暂停自动刷新，重新显示时再刷新当前视图
   - 真实服务场景下的异常日志可见性与 UI 联动
 - Phase 5 UI / STT 相关改动优先覆盖：
   - `SystemConfig.chat_display` 和 `SystemConfig.passive_interaction` 的默认值、持久化与设置页编辑
@@ -222,6 +223,8 @@
   - `py_compile`
   - 必要时 Qt offscreen 实例化
   - 聊天窗缩放 / 滚动类调整优先补回归测试
+  - 聊天主链路状态反馈、停止 / 重试 / 打开日志入口和流式显示合帧应有聚焦测试
+  - 立绘读图 / 缩放缓存应覆盖重复尺寸复用和缓存上限
 - TTS 相关改动优先覆盖：
   - `wav + inline` 下不得透传 `session_id`、不得调用 `set_refer_audio`、不得发送 PCM/流式扩展参数
   - `inline` 参考模式下，音频扩展与参考会话扩展必须解耦；允许 PCM 扩展但不得顺带透传 `session_id`
@@ -257,14 +260,14 @@
 - 日志工作台：
   - `python -m pytest tests/test_log_sanitizer.py tests/test_log_service.py tests/test_logging_integration.py -q`
   - `python -m pytest tests/test_conversation_log_page.py tests/test_system_log_page.py tests/test_settings_window.py -q`
-  - 当前这些用例主要覆盖本地聚焦回归；真实 API / TTS / 网络异常仍需手工联调验证
+  - 当前这些用例主要覆盖本地聚焦回归、日志内存窗口、页面可见性自动刷新和设置页入口；真实 API / TTS / 网络异常仍需手工联调验证
 - TTS：
   - `python -m pytest tests/test_tts_pipeline.py tests/test_tts_adapter.py tests/test_chat_tts_flow.py -q`
 - Phase 5 UI / STT：
-  - `python -m pytest tests/test_chat_passive_bubble.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py -q`
-  - 当前这些用例主要覆盖无真实设备的配置、气泡、录音、本地 faster-whisper 库 mock、被动状态状态机、带字体预览的系统字体下拉框、系统页保存应用和聊天窗主链路；真实麦克风、真实 faster-whisper 模型转写和真实 STT / TTS 互锁仍需本地手工联调验证
+  - `python -m pytest tests/test_chat_window_scale.py tests/test_chat_passive_bubble.py tests/test_chat_stt_flow.py tests/test_stt_adapter.py tests/test_stt_recorder.py tests/test_sprite_manager.py -q`
+  - 当前这些用例主要覆盖无真实设备的配置、气泡、录音、本地 faster-whisper 库 mock、被动状态状态机、聊天窗状态条、流式显示合帧、立绘缓存、带字体预览的系统字体下拉框、系统页保存应用和聊天窗主链路；真实麦克风、真实 faster-whisper 模型转写和真实 STT / TTS 互锁仍需本地手工联调验证
 - 语法检查：
-  - Phase 5 当前实现：`python -m py_compile config/schema.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/chat/window.py ui/chat/stt_recorder.py stt/types.py stt/adapter.py stt/adapters/faster_whisper.py stt/manager.py`
+  - 当前 UI / 日志关键实现：`python -m py_compile config/schema.py core/log_service.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/settings/pages/conversation_log_page.py ui/settings/pages/system_log_page.py ui/chat/window.py ui/chat/sprite.py ui/chat/stt_recorder.py stt/types.py stt/adapter.py stt/adapters/faster_whisper.py stt/manager.py`
 
 ### TTS 归因边界
 
