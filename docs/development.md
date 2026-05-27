@@ -209,6 +209,7 @@
 - Phase 6 插件 / MCP / 浏览器 / OCR 相关改动优先覆盖：
   - `PluginHost` 的插件加载状态、失败消息和工具数量
   - `MCPHost` 的连接状态、工具名、错误类型、请求超时和重试
+  - MCP 设置页新增 / 编辑弹窗对连接超时、请求超时、失败重试和启用状态保留的覆盖
   - `ToolRegistry` 的 `source_name` 与 qualified name 兼容
   - `web_automation` 既有搜索 / 提取 / 截图工具不回退，持续浏览器会话工具可打开、导航、等待、提取、点击、填写、查看状态和关闭
   - `VisionManager` 的禁用状态、截图失败、OCR 失败、文本截断和 RapidOCR / PaddleOCR 后端选择
@@ -225,6 +226,8 @@
   - 聊天窗缩放 / 滚动类调整优先补回归测试
   - 聊天主链路状态反馈、停止 / 重试 / 打开日志入口和流式显示合帧应有聚焦测试
   - 立绘读图 / 缩放缓存应覆盖重复尺寸复用和缓存上限
+  - 角色页面必须覆盖根目录核心文件删除保护，避免误删 `prompt.md`、`soul.md`、`SKILL.md` 或 `sprites.yaml`
+  - 平台日志页面 UI 文案应统一使用“平台日志”，内部 channel 与落盘目录继续沿用 `system`
 - TTS 相关改动优先覆盖：
   - `wav + inline` 下不得透传 `session_id`、不得调用 `set_refer_audio`、不得发送 PCM/流式扩展参数
   - `inline` 参考模式下，音频扩展与参考会话扩展必须解耦；允许 PCM 扩展但不得顺带透传 `session_id`

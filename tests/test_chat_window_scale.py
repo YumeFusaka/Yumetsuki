@@ -269,7 +269,7 @@ def test_chat_window_status_bar_exposes_stop_retry_and_logs(monkeypatch):
 
         assert not window._retry_btn.isHidden()
         assert not window._logs_btn.isHidden()
-        assert window._send_btn.text() == "→"
+        assert window._send_btn.text() == ">"
         assert "请求失败" in window._status_label.text()
     finally:
         window.close()

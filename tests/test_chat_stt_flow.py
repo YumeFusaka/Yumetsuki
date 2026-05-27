@@ -194,6 +194,15 @@ def test_mic_button_disabled_when_stt_engine_is_none(monkeypatch):
         _close_window(window)
 
 
+def test_idle_mic_button_uses_icon_instead_of_emoji_text(monkeypatch):
+    window = _make_window(monkeypatch)
+    try:
+        assert window._mic_btn.text() == ""
+        assert not window._mic_btn.icon().isNull()
+    finally:
+        _close_window(window)
+
+
 def test_stt_success_text_enters_send_path(monkeypatch):
     window = _make_window(monkeypatch, patch_llm_worker=True)
     try:
@@ -202,7 +211,7 @@ def test_stt_success_text_enters_send_path(monkeypatch):
         assert window._input.text() == ""
         assert _FakeLLMWorker.instances[-1].user_input == "你好呀"
         assert _FakeLLMWorker.instances[-1].start_count == 1
-        assert window._mic_btn.text() == "🎤"
+        assert window._mic_btn.text() == ""
     finally:
         _close_window(window)
 
@@ -263,6 +272,23 @@ def test_stt_start_interrupts_current_tts(monkeypatch):
         _close_window(window)
 
 
+def test_mic_button_keeps_circle_style_after_scaled_recording_toggle(monkeypatch):
+    window = _make_window(monkeypatch)
+    recorder = _ManualRecorder()
+    window._stt_recorder = recorder
+    try:
+        window._scale = 1.6
+        window._apply_scale()
+        expected_radius = window._mic_btn.width() // 2
+
+        window._start_stt_recording()
+
+        assert window._mic_btn.width() == window._mic_btn.height()
+        assert f"border-radius: {expected_radius}px" in window._mic_btn.styleSheet()
+    finally:
+        _close_window(window)
+
+
 def test_stt_start_failure_does_not_interrupt_tts_or_enter_recording_state(monkeypatch):
     window = _make_window(monkeypatch)
     calls = []
@@ -281,8 +307,10 @@ def test_stt_start_failure_does_not_interrupt_tts_or_enter_recording_state(monke
         assert calls == []
         assert recorder.start_count == 1
         assert window._is_stt_recording is False
-        assert window._mic_btn.text() == "🎤"
+        assert window._mic_btn.text() == ""
         assert window._input.placeholderText() == "输入消息..."
+        assert "麦克风启动失败" in window._status_label.text()
+        assert not window._logs_btn.isHidden()
     finally:
         _close_window(window)
 
@@ -300,7 +328,7 @@ def test_toggle_stt_recording_stops_active_recorder(monkeypatch):
         assert recorder.stop_count == 1
         assert recorder.start_count == 0
         assert window._is_stt_recording is False
-        assert window._mic_btn.text() == "🎤"
+        assert window._mic_btn.text() == ""
         assert window._mic_btn.property("recording") is False
         assert window._mic_btn.toolTip() == "语音输入"
     finally:
@@ -317,8 +345,10 @@ def test_stt_start_does_not_record_when_llm_worker_is_busy(monkeypatch):
 
         assert recorder.start_count == 0
         assert window._is_stt_recording is False
-        assert window._mic_btn.text() == "🎤"
+        assert window._mic_btn.text() == ""
         assert window._input.placeholderText() == "输入消息..."
+        assert "正在回复" in window._status_label.text()
+        assert not window._logs_btn.isHidden()
     finally:
         window._worker = None
         _close_window(window)
@@ -345,8 +375,10 @@ def test_stt_start_does_not_record_when_stt_worker_is_busy(monkeypatch):
 
         assert recorder.start_count == 0
         assert window._is_stt_recording is False
-        assert window._mic_btn.text() == "🎤"
+        assert window._mic_btn.text() == ""
         assert window._input.placeholderText() == "输入消息..."
+        assert "正在识别" in window._status_label.text()
+        assert not window._logs_btn.isHidden()
     finally:
         _close_window(window)
 

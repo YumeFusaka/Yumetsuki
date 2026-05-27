@@ -173,10 +173,10 @@ class SystemLogPage(QWidget):
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(12)
 
-        title = settings_page_title(QLabel("系统日志"))
-        layout.addWidget(title)
+        self._title = settings_page_title(QLabel("平台日志"))
+        layout.addWidget(self._title)
 
-        desc = QLabel("查看 TTS、LLM、工具调用与运行期系统事件。")
+        desc = QLabel("查看 TTS、LLM、工具调用与运行期平台事件。内部日志 channel 仍为 system。")
         layout.addWidget(desc)
 
         controls = QVBoxLayout()
@@ -271,7 +271,7 @@ class SystemLogPage(QWidget):
         self._detail_text.hide()
         layout.addWidget(self._detail_text, 3)
 
-        self._empty_label = QLabel("暂无系统日志。")
+        self._empty_label = QLabel("暂无平台日志。")
         self._empty_label.setStyleSheet("color: #8c6b7a; padding: 8px 4px;")
         layout.insertWidget(layout.indexOf(self._event_list) + 1, self._empty_label)
         self._empty_label.hide()
@@ -395,8 +395,8 @@ class SystemLogPage(QWidget):
     def _choose_export_path(self) -> Path | None:
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "导出系统日志",
-            str(self._log_service.log_root / "system-export.jsonl"),
+            "导出平台日志",
+            str(self._log_service.log_root / "platform-export.jsonl"),
             "JSON Lines (*.jsonl)",
         )
         return Path(path) if path else None

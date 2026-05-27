@@ -192,6 +192,8 @@ class NewFileDialog(QDialog):
 
 
 class CharacterPage(QWidget):
+    CORE_FILES = {"prompt.md", "soul.md", "SKILL.md", "sprites.yaml"}
+
     def __init__(self, characters_dir: Path, parent=None, config: ConfigManager | None = None):
         super().__init__(parent)
         self._dir = characters_dir
@@ -499,8 +501,15 @@ class CharacterPage(QWidget):
         if not self._current_file_path or not self._current_file_path.exists():
             show_feedback(self, "删除失败", "当前没有可删除的文件。", success=False)
             return
-        # Don't allow deleting core files
         name = self._current_file_path.name
+        if name in self.CORE_FILES and self._current_file_path.parent in self._char_dirs:
+            show_feedback(
+                self,
+                "删除失败",
+                f"'{name}' 是角色核心文件，不能删除。可以编辑内容或从备份恢复。",
+                success=False,
+            )
+            return
         if not confirm_action(self, "确认删除", f"确定删除文件 '{name}' 吗？"):
             return
         self._current_file_path.unlink(missing_ok=True)

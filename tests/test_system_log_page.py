@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QApplication
@@ -16,6 +18,8 @@ def _app() -> QApplication:
 
 
 class _FakeLogService:
+    log_root = Path(".")
+
     def query_events(self, **kwargs):
         return []
 
@@ -33,9 +37,31 @@ def test_system_log_page_builds_readonly_log_text():
     _app()
     page = SystemLogPage(_FakeLogService())
 
+    assert page._title.text() == "平台日志"
+    assert page._empty_label.text() == "暂无平台日志。"
     assert page._event_list.count() == 0
     assert page._detail_text.isHidden()
     assert not page._refresh_timer.isActive()
+
+
+def test_system_log_page_export_dialog_uses_platform_log_label(monkeypatch, tmp_path):
+    _app()
+    page = SystemLogPage(_FakeLogService())
+    captured = {}
+
+    def fake_get_save_file_name(parent, title, path, filter_text):
+        captured["title"] = title
+        captured["path"] = path
+        return str(tmp_path / "platform-export.jsonl"), filter_text
+
+    monkeypatch.setattr(
+        "ui.settings.pages.system_log_page.QFileDialog.getSaveFileName",
+        fake_get_save_file_name,
+    )
+
+    assert page._choose_export_path() == tmp_path / "platform-export.jsonl"
+    assert captured["title"] == "导出平台日志"
+    assert captured["path"].endswith("platform-export.jsonl")
 
 
 def test_system_log_page_refresh_timer_only_runs_while_visible():

@@ -5,12 +5,13 @@ import time
 import unicodedata
 import uuid
 from html import escape
+from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QPushButton, QMenu,
     QApplication, QSizePolicy, QScrollArea,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize, QBuffer, QByteArray, QIODevice, QTimer, QEvent
-from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush, QPen
+from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush, QPen, QIcon
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from ui.chat.sprite import SpriteManager
 from ui.chat.tts_pipeline import TTSPipelineController, TTSSegmentStatus
@@ -34,6 +35,7 @@ from vision.types import OCRResult
 
 
 SENTENCE_ENDINGS = "。！？；\n"
+MICROPHONE_ICON = (Path(__file__).resolve().parent.parent / "assets" / "microphone.svg").as_posix()
 
 
 class LLMWorker(QThread):
@@ -495,9 +497,11 @@ class ChatWindow(QWidget):
         self._input.returnPressed.connect(self._on_send)
         input_row.addWidget(self._input)
 
-        self._mic_btn = QPushButton("🎤")
+        self._mic_btn = QPushButton("")
         self._mic_btn.setObjectName("micButton")
+        self._mic_btn.setIcon(QIcon(MICROPHONE_ICON))
         self._mic_btn.setFixedSize(34, 34)
+        self._mic_btn.setIconSize(QSize(18, 18))
         self._mic_btn.setStyleSheet(self._circle_btn_style())
         self._mic_btn.clicked.connect(self._toggle_stt_recording)
         if self._is_stt_enabled():
@@ -507,11 +511,11 @@ class ChatWindow(QWidget):
             self._mic_btn.setToolTip("语音输入未启用")
         input_row.addWidget(self._mic_btn)
 
-        self._send_btn = QPushButton("→")
+        self._send_btn = QPushButton(">")
         self._send_btn.setObjectName("sendButton")
         self._send_btn.setAccessibleName("发送")
         self._send_btn.setFixedSize(34, 34)
-        self._send_btn.setStyleSheet(self._circle_btn_style("#ff9aaa", "#ffb0be"))
+        self._send_btn.setStyleSheet(self._circle_btn_style())
         self._send_btn.setToolTip("发送")
         self._send_btn.clicked.connect(self._on_send_button_clicked)
         input_row.addWidget(self._send_btn)
@@ -524,11 +528,17 @@ class ChatWindow(QWidget):
         hover="rgba(255,214,224,0.82)",
         border="rgba(212, 86, 122, 0.32)",
     ):
+        size = max(self._mic_btn.width() if hasattr(self, "_mic_btn") else 0, int(self.BASE_BTN_SIZE * self._scale))
+        radius = size // 2
+        _, control_border = self._scaled_border_widths(self._scale)
+        font_size = max(11, int(14 * self._scale))
+        send_font_size = max(15, int(15 * self._scale))
+        recording_font_size = max(18, int(18 * self._scale))
         return f"""
             QPushButton {{
                 background: {bg};
-                border: 3px solid #d4567a;
-                border-radius: 17px; color: #6b4a5a; font-size: 11px;
+                border: {control_border}px solid #d4567a;
+                border-radius: {radius}px; color: #6b4a5a; font-size: {font_size}px;
                 font-weight: 700;
             }}
             QPushButton:hover {{
@@ -539,7 +549,7 @@ class ChatWindow(QWidget):
                 background: rgba(212, 86, 122, 0.14);
                 color: #d4567a;
                 border-color: #d4567a;
-                font-size: 18px;
+                font-size: {recording_font_size}px;
                 font-weight: 700;
             }}
             QPushButton#micButton[recording="true"]:hover {{
@@ -547,12 +557,16 @@ class ChatWindow(QWidget):
                 border-color: #9b3060;
             }}
             QPushButton#sendButton {{
-                font-size: 15px;
+                font-size: {send_font_size}px;
             }}
         """
 
     def _set_mic_recording_style(self, recording: bool) -> None:
         self._mic_btn.setProperty("recording", recording)
+        if recording:
+            self._mic_btn.setIcon(QIcon())
+        else:
+            self._mic_btn.setIcon(QIcon(MICROPHONE_ICON))
         self._mic_btn.setStyleSheet(self._circle_btn_style())
 
     def _set_speaker_name(self, name: str, is_user: bool = False) -> None:
@@ -662,7 +676,7 @@ class ChatWindow(QWidget):
         self._stop_btn.setVisible(busy)
         self._retry_btn.setVisible(can_retry)
         self._logs_btn.setVisible(show_logs)
-        self._send_btn.setText("×" if busy else "→")
+        self._send_btn.setText("×" if busy else ">")
         self._send_btn.setToolTip("停止当前生成" if busy else "发送")
         self._send_btn.setAccessibleName("停止当前生成" if busy else "发送")
         self._rebuild_stylesheet()
@@ -860,18 +874,8 @@ class ChatWindow(QWidget):
                 """)
                 continue
             btn.setFixedSize(btn_size, btn_size)
-            btn_radius = btn_size // 2
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background: rgba(255,255,255,0.68);
-                    border: {control_border}px solid #d4567a;
-                    border-radius: {btn_radius}px; color: #6b4a5a; font-size: {int(14*s)}px;
-                }}
-                QPushButton:hover {{
-                    background: rgba(255,214,224,0.82);
-                    border-color: #9b3060;
-                }}
-            """)
+            btn.setIconSize(QSize(max(14, int(18 * s)), max(14, int(18 * s))))
+            btn.setStyleSheet(self._circle_btn_style())
 
         self._conversation_pane._scroll_area.setStyleSheet(f"""
             QScrollArea {{ background: transparent; border: none; }}
@@ -1785,6 +1789,7 @@ class ChatWindow(QWidget):
         if self._is_closing:
             return
         if not self._is_stt_enabled() or self._stt_manager is None:
+            self._set_chat_status("语音输入未启用，请在 API 设置中启用 ASR。", error=True, show_logs=True)
             self._record_stt_event(
                 level=LogLevel.WARN,
                 event_type="stt.recording_ignored",
@@ -1793,6 +1798,8 @@ class ChatWindow(QWidget):
             )
             return
         if self._worker is not None or self._is_stt_worker_busy():
+            message = "正在回复，可先停止当前生成。" if self._worker is not None else "正在识别语音，请稍候。"
+            self._set_chat_status(message, busy=self._worker is not None, show_logs=True)
             self._record_stt_event(
                 level=LogLevel.WARN,
                 event_type="stt.recording_ignored",
@@ -1809,6 +1816,7 @@ class ChatWindow(QWidget):
         if not self._is_stt_recorder_active(recorder):
             self._is_stt_recording = False
             self._reset_stt_button()
+            self._set_chat_status("麦克风启动失败，请检查输入设备和系统权限。", error=True, show_logs=True)
             self._record_stt_event(
                 level=LogLevel.ERROR,
                 event_type="stt.recording_start_failed",
@@ -1853,7 +1861,7 @@ class ChatWindow(QWidget):
         )
 
     def _reset_stt_button(self) -> None:
-        self._mic_btn.setText("🎤")
+        self._mic_btn.setText("")
         self._set_mic_recording_style(False)
         self._mic_btn.setToolTip("语音输入" if self._is_stt_enabled() else "语音输入未启用")
 

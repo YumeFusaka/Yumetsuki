@@ -26,6 +26,7 @@ from ui.theme import (
     set_settings_font_role,
     settings_page_title,
 )
+from ui.widgets.rose_spin_box import RoseSpinBox
 
 
 DIALOG_STYLE = """
@@ -134,8 +135,25 @@ class MCPServerDialog(QDialog):
         layout.addRow("命令:", self._command)
 
         self._url = QLineEdit(server.url if server else "")
-        self._url.setPlaceholderText("如 http://127.0.0.1:8000/sse")
+        self._url.setPlaceholderText("如 http://127.0.0.1:8000/mcp 或 /sse")
         layout.addRow("SSE URL:", self._url)
+
+        self._connect_timeout = RoseSpinBox()
+        self._connect_timeout.setRange(1, 120)
+        self._connect_timeout.setSuffix(" 秒")
+        self._connect_timeout.setValue(server.connect_timeout_seconds if server else 10)
+        layout.addRow("连接超时:", self._connect_timeout)
+
+        self._request_timeout = RoseSpinBox()
+        self._request_timeout.setRange(1, 300)
+        self._request_timeout.setSuffix(" 秒")
+        self._request_timeout.setValue(server.request_timeout_seconds if server else 10)
+        layout.addRow("请求超时:", self._request_timeout)
+
+        self._retry_attempts = RoseSpinBox()
+        self._retry_attempts.setRange(0, 10)
+        self._retry_attempts.setValue(server.retry_attempts if server else 0)
+        layout.addRow("失败重试:", self._retry_attempts)
 
         risk = QLabel("stdio 会启动本地进程；sse 会连接网络服务。请只添加可信 MCP。")
         set_settings_font_role(risk, "small")
@@ -161,6 +179,9 @@ class MCPServerDialog(QDialog):
             transport=self._transport.currentText(),
             command=self._command.text().strip(),
             url=self._url.text().strip(),
+            connect_timeout_seconds=self._connect_timeout.value(),
+            request_timeout_seconds=self._request_timeout.value(),
+            retry_attempts=self._retry_attempts.value(),
         )
 
 

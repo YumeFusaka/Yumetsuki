@@ -138,6 +138,12 @@ def test_wa_plugin_has_browser_session_tools():
     assert "web_session_close" in tool_names
 
 
+def test_wa_plugin_description_mentions_browser_session_capability():
+    plugin = Plugin()
+
+    assert "持续浏览器会话" in plugin.description
+
+
 def test_web_search_visible_description_mentions_automation_window():
     plugin = Plugin()
     visible_tool = next(t for t in plugin.tools() if t.name == "web_search_visible")

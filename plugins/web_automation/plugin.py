@@ -39,7 +39,7 @@ def _load_config() -> dict:
 
 class Plugin(BasePlugin):
     name = "web_automation"
-    description = "网页自动化：搜索、提取文本、截图"
+    description = "网页自动化：搜索、提取文本、截图、持续浏览器会话"
 
     def __init__(self):
         super().__init__()

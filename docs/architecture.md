@@ -48,15 +48,15 @@ yumetsuki/
 - `ui/settings/pages/system_page.py`
   系统设置页面；当前已将外观相关配置拆分为基础外观、聊天显示、被动状态、被动气泡和网络区域，字体下拉框按字体自身样式预览
 - `ui/settings/pages/character_page.py`
-  角色页面
+  角色页面；角色根目录核心文件 `prompt.md`、`soul.md`、`SKILL.md`、`sprites.yaml` 在 UI 中禁止删除，避免误破坏角色包
 - `ui/settings/pages/plugin_page.py`
   插件管理页面；管理本地插件、内置插件权限和外部插件导入，展示插件加载状态、工具数量、说明和诊断详情
 - `ui/settings/pages/mcp_page.py`
-  MCP 管理页面；管理 MCP server、连接诊断和 MCP 工具列表，展示连接状态、工具数量、错误类型和诊断详情
+  MCP 管理页面；管理 MCP server、连接诊断和 MCP 工具列表，新增 / 编辑弹窗覆盖 transport、命令或 URL、连接超时、请求超时和失败重试，展示连接状态、工具数量、错误类型和诊断详情
 - `ui/settings/pages/conversation_log_page.py`
   对话日志页面，展示会话级结构化事件
 - `ui/settings/pages/system_log_page.py`
-  平台日志页面，展示 TTS / LLM / STT / Tool 等运行期系统事件
+  平台日志页面，展示 TTS / LLM / STT / Tool 等运行期平台事件；内部日志 channel 与落盘目录仍沿用 `system`
 - `ui/chat/window.py`
   桌宠聊天窗（长文本滚动、显示配置、被动互动气泡、STT 语音输入、整体缩放、对话面板布局、聊天运行状态条、停止 / 重试 / 打开日志入口、流式回复显示合帧、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend；同时产出 TTS 句段与播放相关系统日志）
   被动互动已从系统设置开关改为聊天窗运行态：空闲阈值自动进入、右键菜单手动切换、被动状态下主动消息走气泡

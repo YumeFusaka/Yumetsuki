@@ -1,7 +1,13 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QLabel, QSizePolicy, QSplitter, QTextEdit
+from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QListWidgetItem
+from PySide6.QtWidgets import QSizePolicy
+from PySide6.QtWidgets import QSplitter
+from PySide6.QtWidgets import QTextEdit
 
 from config.schema import MCPServerConfig
 from config.manager import ConfigManager
@@ -153,6 +159,83 @@ def test_remove_mcp_server_by_index():
     assert [server.name for server in servers] == ["a"]
 
 
+def test_mcp_server_dialog_exposes_timeout_and_retry_fields(tmp_path):
+    _app()
+    page = MCPPage(config=ConfigManager(config_dir=tmp_path))
+    server = MCPServerConfig(
+        name="slow-tools",
+        transport="sse",
+        url="http://127.0.0.1:8000/mcp",
+        connect_timeout_seconds=3,
+        request_timeout_seconds=7,
+        retry_attempts=2,
+    )
+    dialog = MCPServerDialog(page, server)
+
+    try:
+        result = dialog.get_result()
+
+        assert result.connect_timeout_seconds == 3
+        assert result.request_timeout_seconds == 7
+        assert result.retry_attempts == 2
+    finally:
+        dialog.close()
+        page.close()
+
+
+def test_mcp_server_edit_preserves_timeout_retry_and_enabled(tmp_path, monkeypatch):
+    _app()
+    config = ConfigManager(config_dir=tmp_path)
+    original = MCPServerConfig(
+        name="local",
+        transport="stdio",
+        command="python server.py",
+        enabled=False,
+        connect_timeout_seconds=4,
+        request_timeout_seconds=9,
+        retry_attempts=1,
+    )
+    config.mcp.servers = [original]
+    page = MCPPage(config=config)
+    item = QListWidgetItem("local [stdio] 未连接")
+    item.setData(Qt.ItemDataRole.UserRole, {"kind": "mcp_status", "index": 0, "detail": "local"})
+    page._list.clear()
+    page._list.addItem(item)
+
+    class _AcceptedDialog:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def get_result(self):
+            return MCPServerConfig(
+                name="local-new",
+                transport="stdio",
+                command="python new_server.py",
+                connect_timeout_seconds=4,
+                request_timeout_seconds=9,
+                retry_attempts=1,
+            )
+
+    try:
+        page._list.setCurrentRow(0)
+        monkeypatch.setattr("ui.settings.pages.mcp_page.MCPServerDialog", _AcceptedDialog)
+        monkeypatch.setattr("ui.settings.pages.mcp_page.confirm_action", lambda *_args, **_kwargs: True)
+        monkeypatch.setattr(page, "_refresh_mcp", lambda *_args, **_kwargs: None, raising=False)
+        page._edit_selected_mcp()
+
+        updated = config.mcp.servers[0]
+        assert updated.name == "local-new"
+        assert updated.enabled is False
+        assert updated.connect_timeout_seconds == 4
+        assert updated.request_timeout_seconds == 9
+        assert updated.retry_attempts == 1
+    finally:
+        page.close()
+
+
 def test_plugin_catalog_dialogs_use_sakura_light_style():
     _app()
     source_dialog = PluginCatalogSourceDialog()
@@ -279,5 +362,37 @@ def test_character_page_dynamic_items_use_injected_system_font_tokens(tmp_path):
     try:
         assert page._config is config
         assert page._list.item(0).font().pointSize() == 16
+    finally:
+        page.close()
+
+
+def test_character_page_refuses_to_delete_core_files(tmp_path, monkeypatch):
+    _app()
+    config = ConfigManager(config_dir=tmp_path / "config")
+    characters_dir = tmp_path / "characters"
+    char_dir = characters_dir / "demo"
+    char_dir.mkdir(parents=True)
+    core_file = char_dir / "prompt.md"
+    core_file.write_text("core prompt", encoding="utf-8")
+
+    page = CharacterPage(characters_dir, config=config)
+    messages = []
+    monkeypatch.setattr(
+        "ui.settings.pages.character_page.show_feedback",
+        lambda _parent, title, message, success=True: messages.append((title, message, success)),
+    )
+    monkeypatch.setattr(
+        "ui.settings.pages.character_page.confirm_action",
+        lambda *_args, **_kwargs: True,
+    )
+
+    try:
+        page._list.setCurrentRow(0)
+        page._current_file_path = core_file
+        page._del_file()
+
+        assert core_file.exists()
+        assert core_file.read_text(encoding="utf-8") == "core prompt"
+        assert any("核心文件" in message for _title, message, _success in messages)
     finally:
         page.close()
