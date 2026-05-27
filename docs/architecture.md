@@ -154,9 +154,9 @@ yumetsuki/
 - `vision/screen_capture.py`
   使用 Qt 主屏截图并保存到 `SystemConfig.vision.screenshot_dir`
 - `vision/ocr.py`
-  `TesseractOCRAdapter` 调用本地 `tesseract` 命令输出 OCR 文本
+  `RapidOCRAdapter` 作为默认本地 OCR 后端，`PaddleOCRAdapter` 作为进阶可选后端
 - `vision/manager.py`
-  `VisionManager.capture_screen_text()` 串联截图、OCR、截断和错误封装
+  `VisionManager.capture_screen_image()` 负责主线程截图封装，`recognize_image_text()` 负责 OCR 与截断；`capture_screen_text()` 仅保留为兼容旧调用的组合方法
 
 ### `core/`
 
@@ -224,9 +224,11 @@ yumetsuki/
 → STTManager 调用当前 STT 适配器转写
 → ChatWindow 将识别文本写入输入框并调用 _on_send()
 用户文本输入
+→ ChatWindow 判断是否为显式读屏请求
+→ 如需读屏，则 ChatWindow 在 Qt 主线程通过 VisionManager.capture_screen_image() 预采集截图
 → AgentManager 编排当前轮
 → SessionContextManager 同步更新当前会话短期记忆
-→ 若用户显式要求读屏，则 VisionManager 采集 OCR 文本并写入 SessionContext.visual_observations
+→ 若本轮有预采集截图，则 AgentManager 在后台 OCR 并写入 SessionContext.visual_observations
 → LLMManager 按“角色提示 → SessionContext 热上下文 → 长期记忆补充 → 当前输入”组装 messages
 → ToolRegistry 注入 tool schemas
 → OpenAI-compatible API 流式返回
@@ -411,18 +413,14 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - Phase 5 STT 链路：API ASR 配置、Qt 麦克风录音、PCM 静音检测、WAV 生成、本地 faster-whisper 模型转写和 `_on_send()` 主链路接入；默认 CPU/int8 降低 CUDA 环境依赖，识别超时会释放当前 UI 状态并记录平台日志，迟到结果会被忽略
 - Phase 5 改进实现：STT 已改为本地 faster-whisper 库与模型目录；被动互动已改为聊天窗运行态；系统页已改为系统字体下拉框、独立保存和保存后应用
 
-尚未实现：
+当前边界：
 
 - 更多内置插件能力扩展（媒体控制、截图等）
-- 真实麦克风、真实 faster-whisper 模型转写与真实 STT / TTS / API 场景的全面联调验证
+- 第六阶段实现、本地自动化验证和 sub agent 复审已完成；真实浏览器、OCR、MCP、STT / TTS / API 实机验收暂缓
 
-## 已确认的后续演进方向
+## 已完成的阶段性架构收敛
 
-当前已确认的路线图见：
-
-- [Phase 4-6 路线图设计](./superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md)
-
-其中已经完成并对当前架构影响最大的近阶段收敛是 Phase 4，核心结果如下：
+已经完成并对当前架构影响最大的近阶段收敛如下：
 
 - 新增 `SessionContext` 短期记忆层，位于 UI / Agent / 长期记忆之间
 - 把多轮连续性建立在“单会话工作记忆”之上，而不是仅依赖原始 `_history` 或长期记忆检索
@@ -446,7 +444,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 后续演进重点：
 
 - 日志工作台与结构化可观测性
-- UI 被动状态和 STT 已完成 Phase 5 方向修正；视觉与浏览器自由操控仍是后续阶段接入重点
+- 实机验收恢复后，优先检查真实浏览器持续会话、真实 OCR、MCP 服务端、STT / TTS / API 和平台日志联动
 
 ## 记忆系统
 

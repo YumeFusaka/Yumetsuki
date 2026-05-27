@@ -29,6 +29,8 @@ from tts.types import TTSAudioFormat, TTSStreamEvent
 from ui.chat.audio_backends import PcmStreamPlaybackBackend, WavPlaybackBackend
 from ui.chat.stt_recorder import STTRecorder
 from ui.text_metrics import clamped_text_width
+from vision.manager import VisionManager
+from vision.types import OCRResult
 
 
 SENTENCE_ENDINGS = "。！？；\n"
@@ -39,14 +41,15 @@ class LLMWorker(QThread):
     finished_signal = Signal()
     error_signal = Signal(str)
 
-    def __init__(self, chat_engine, user_input: str):
+    def __init__(self, chat_engine, user_input: str, visual_capture: OCRResult | None = None):
         super().__init__()
         self._chat_engine = chat_engine
         self._input = user_input
+        self._visual_capture = visual_capture
 
     def run(self):
         try:
-            for result in self._chat_engine.chat_stream(self._input):
+            for result in self._chat_engine.chat_stream(self._input, visual_capture=self._visual_capture):
                 if self.isInterruptionRequested():
                     return
                 self.chunk_received.emit(result)
@@ -267,6 +270,7 @@ class ChatWindow(QWidget):
         self._settings_window = None
         self._log_service = log_service
         self._tts_session_id = uuid.uuid4().hex
+        self._vision_manager = VisionManager(self._system_config.vision)
         runtime_config = (agent_config or AgentConfig()).tts_runtime
         self._tts_pipeline = TTSPipelineController(
             max_translation_workers=runtime_config.max_translation_workers,
@@ -356,6 +360,7 @@ class ChatWindow(QWidget):
             agent_config=agent_config,
             session_id=self._tts_session_id,
             log_service=log_service,
+            vision_manager=self._vision_manager,
         )
         self._worker = None
         self._char_name = ""
@@ -368,6 +373,7 @@ class ChatWindow(QWidget):
             self._proactive_scheduler = ProactiveScheduler(
                 config=agent_config.proactive,
                 llm_helper=self._chat_engine._llm_helper,
+                can_fire=lambda: self._is_passive,
                 parent=self,
             )
             self._proactive_scheduler.proactive_message.connect(
@@ -857,6 +863,8 @@ class ChatWindow(QWidget):
             else:
                 from ui.settings.window import SettingsWindow
                 self._settings_window = SettingsWindow()
+            if hasattr(self._settings_window, "set_chat_window"):
+                self._settings_window.set_chat_window(self)
             if hasattr(self._settings_window, "set_close_callback"):
                 self._settings_window.set_close_callback(self._clear_settings_window_ref)
         self._settings_window.show()
@@ -1852,7 +1860,8 @@ class ChatWindow(QWidget):
         if self._proactive_scheduler is not None:
             self._proactive_scheduler.notify_interaction()
 
-        self._worker = LLMWorker(self._chat_engine, text)
+        visual_capture = self._capture_visual_for_user_input(text)
+        self._worker = LLMWorker(self._chat_engine, text, visual_capture=visual_capture)
         self._worker.chunk_received.connect(self._on_chunk, Qt.ConnectionType.QueuedConnection)
         self._worker.finished_signal.connect(self._on_llm_done, Qt.ConnectionType.QueuedConnection)
         self._worker.error_signal.connect(self._on_llm_error, Qt.ConnectionType.QueuedConnection)
@@ -1860,6 +1869,24 @@ class ChatWindow(QWidget):
             worker = self._worker
             worker.finished.connect(lambda worker=worker: self._on_llm_worker_finished(worker))
         self._worker.start()
+
+    def _capture_visual_for_user_input(self, text: str) -> OCRResult | None:
+        if not self._chat_engine.should_capture_screen(text):
+            return None
+        result = self._vision_manager.capture_screen_image()
+        if result.ok:
+            return result
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.WARN,
+            source="chat.vision",
+            event_type="vision.capture_failed",
+            session_id=self._tts_session_id,
+            utterance_id=self._current_utterance_id,
+            summary=f"读屏截图失败: {(result.error or '')[:80]}",
+            details={"error": result.error},
+        )
+        return result
 
     def _on_chunk(self, result: ProcessedText):
         if self._name_label.text() == "我" and self._char_name:
@@ -1897,6 +1924,22 @@ class ChatWindow(QWidget):
 
     def _on_proactive_message(self, message: str, source: str):
         """收到主动消息：以角色身份显示。"""
+        if not self._is_passive:
+            self._record_log_event(
+                channel=LogChannel.SYSTEM,
+                level=LogLevel.INFO,
+                source="chat.proactive",
+                event_type="chat.proactive_message_ignored",
+                session_id=self._tts_session_id,
+                utterance_id=self._current_utterance_id,
+                summary="主动消息因非被动状态被忽略",
+                details={
+                    "source": source,
+                    "text_length": len(message or ""),
+                    "passive": self._is_passive,
+                },
+            )
+            return
         processed = self._proactive_text_processor.process(message)
         display_text = processed.clean_text
         self._begin_new_tts_turn()
@@ -1917,17 +1960,12 @@ class ChatWindow(QWidget):
         )
         if processed.emotion:
             self._sprite_mgr.set_emotion(processed.emotion)
-        if self._is_passive:
-            self._show_passive_bubble(display_text)
-            self._enqueue_assistant_text_for_tts(display_text, flush=True)
-            return
-        if self._char_name:
-            self._set_speaker_name(self._char_name)
-        self._set_dialog_text(display_text)
+        self._show_passive_bubble(display_text)
         self._enqueue_assistant_text_for_tts(display_text, flush=True)
 
     def apply_system_config(self, config: SystemConfig) -> None:
         self._system_config = config
+        self._vision_manager.update_config(config.vision)
         self._display_font_family = config.font_family or SystemConfig().font_family
         self._display_font_size = max(1, int(config.font_size))
         self._display_font_scale = max(0.1, float(config.chat_display.font_scale))

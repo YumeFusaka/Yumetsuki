@@ -8,7 +8,6 @@ from llm.text_processor import ProcessedText
 from tts.types import TTSAudioFormat, TTSStreamEvent
 from ui.chat.tts_pipeline import TTSSegmentStatus
 from ui.chat.window import ChatWindow
-from ui.settings.window import SettingsWindow
 
 
 def _app() -> QApplication:
@@ -83,6 +82,8 @@ def chat_window(monkeypatch):
 
 
 def test_launch_chat_passes_tts_config(monkeypatch):
+    from ui.settings.window import SettingsWindow
+
     _app()
     captured = {}
 
@@ -150,6 +151,7 @@ def test_proactive_message_uses_tts_segments_emotion_and_log(chat_window, monkey
     )
 
     chat_window._char_name = "樱"
+    chat_window._enter_passive_state()
     chat_window._on_proactive_message("[emotion:撒娇]第一句。第二句", "idle_chat")
 
     assert chat_window._queued_texts == ["第一句。", "第二句"]

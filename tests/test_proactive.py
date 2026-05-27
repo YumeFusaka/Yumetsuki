@@ -76,6 +76,35 @@ def test_proactive_idle_triggers(qapp):
     assert "不要总是打招呼" in scheduler._llm.calls[-1]["user"]
 
 
+def test_proactive_can_fire_false_blocks_before_generation(qapp):
+    """can_fire=False 时不调用 LLM、不 emit、不更新冷却。"""
+    from agent.proactive import ProactiveScheduler
+
+    llm = FakeLLMHelper("不应该生成")
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=0,
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+        ),
+        llm_helper=llm,
+        can_fire=lambda: False,
+    )
+    received = []
+    scheduler.proactive_message.connect(lambda msg, src: received.append((msg, src)))
+
+    scheduler._last_interaction_time = time.time() - 100
+    before_last_proactive_time = scheduler._last_proactive_time
+    scheduler._tick()
+    qapp.processEvents()
+
+    assert llm.calls == []
+    assert received == []
+    assert scheduler._last_proactive_time == before_last_proactive_time
+
+
 def test_proactive_prompt_includes_character_context_and_emotion_rule(qapp):
     from agent.proactive import ProactiveScheduler
 

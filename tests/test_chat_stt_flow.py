@@ -40,6 +40,9 @@ class _FakeAgentManager:
     def __init__(self, *args, **kwargs):
         pass
 
+    def should_capture_screen(self, *_args, **_kwargs):
+        return False
+
     def set_memory_store(self, *_args, **_kwargs):
         return None
 
@@ -126,10 +129,11 @@ def _patch_window_dependencies(
 
             instances = []
 
-            def __init__(self, chat_engine, user_input):
+            def __init__(self, chat_engine, user_input, visual_capture=None):
                 super().__init__()
                 self.chat_engine = chat_engine
                 self.user_input = user_input
+                self.visual_capture = visual_capture
                 self.start_count = 0
                 _QtFakeLLMWorker.instances.append(self)
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import yaml
 from config.schema import AgentConfig, APIConfig, MCPConfig, MemoryConfig, SystemConfig
 
@@ -58,30 +59,31 @@ class ConfigManager:
     def save_api(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
         api_path = self._dir / "api.yaml"
-        api_path.write_text(yaml.dump(self.api.model_dump(), allow_unicode=True, default_flow_style=False), encoding="utf-8")
+        self._write_yaml_atomic(api_path, self.api.model_dump())
 
     def save_system(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
         sys_path = self._dir / "system_config.yaml"
-        sys_path.write_text(yaml.dump(self.system.model_dump(), allow_unicode=True, default_flow_style=False), encoding="utf-8")
+        self._write_yaml_atomic(sys_path, self.system.model_dump())
 
     def save_mcp(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
         mcp_path = self._dir / "mcp.yaml"
-        mcp_path.write_text(yaml.dump(self.mcp.model_dump(), allow_unicode=True, default_flow_style=False), encoding="utf-8")
+        self._write_yaml_atomic(mcp_path, self.mcp.model_dump())
 
     def save_memory(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
         memory_path = self._dir / "memory.yaml"
-        memory_path.write_text(
-            yaml.dump(self.memory.model_dump(), allow_unicode=True, default_flow_style=False),
-            encoding="utf-8",
-        )
+        self._write_yaml_atomic(memory_path, self.memory.model_dump())
 
     def save_agent(self) -> None:
         self._dir.mkdir(parents=True, exist_ok=True)
         agent_path = self._dir / "agent.yaml"
-        agent_path.write_text(
-            yaml.dump(self.agent.model_dump(), allow_unicode=True, default_flow_style=False),
-            encoding="utf-8",
-        )
+        self._write_yaml_atomic(agent_path, self.agent.model_dump())
+
+    @staticmethod
+    def _write_yaml_atomic(path: Path, data: dict) -> None:
+        temp_path = path.with_name(f".{path.name}.tmp")
+        content = yaml.dump(data, allow_unicode=True, default_flow_style=False)
+        temp_path.write_text(content, encoding="utf-8")
+        os.replace(temp_path, path)

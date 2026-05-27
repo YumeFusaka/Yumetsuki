@@ -1,6 +1,8 @@
 from pathlib import Path
+import yaml
+
 from config.manager import ConfigManager
-from config.schema import ASRConfig, MCPServerConfig, SystemConfig
+from config.schema import ASRConfig, MCPServerConfig, SystemConfig, VisionConfig
 
 
 def test_load_default_config(tmp_path):
@@ -167,6 +169,21 @@ def test_save_system_does_not_create_api_config(tmp_path):
     assert not (tmp_path / "api.yaml").exists()
 
 
+def test_save_system_uses_atomic_replace(tmp_path, monkeypatch):
+    mgr = ConfigManager(config_dir=tmp_path)
+    calls = []
+
+    def fake_replace(src, dst):
+        calls.append((Path(src).name, Path(dst).name))
+
+    monkeypatch.setattr("config.manager.os.replace", fake_replace)
+
+    mgr.save_system()
+
+    assert calls == [(".system_config.yaml.tmp", "system_config.yaml")]
+    assert (tmp_path / ".system_config.yaml.tmp").exists()
+
+
 def test_load_default_memory_config(tmp_path):
     mgr = ConfigManager(config_dir=tmp_path)
 
@@ -200,6 +217,12 @@ def test_system_config_exposes_logging_runtime():
     assert cfg.logging.system_flush_interval_ms == 200
 
 
+def test_system_config_default_theme_is_sakura():
+    cfg = SystemConfig()
+
+    assert cfg.theme == "sakura"
+
+
 def test_system_config_exposes_phase5_display_and_passive_settings():
     cfg = SystemConfig()
 
@@ -215,13 +238,72 @@ def test_vision_config_defaults():
     cfg = SystemConfig()
 
     assert cfg.vision.enabled is False
-    assert cfg.vision.ocr_engine == "tesseract"
-    assert cfg.vision.tesseract_cmd == "tesseract"
-    assert cfg.vision.language == "chi_sim+eng"
-    assert cfg.vision.psm == 6
+    assert cfg.vision.ocr_engine == "rapidocr"
+    assert cfg.vision.language == "ch"
     assert cfg.vision.screenshot_dir == "data/vision"
     assert cfg.vision.max_text_chars == 2000
     assert cfg.vision.explicit_trigger_only is True
+
+
+def test_vision_config_maps_legacy_tesseract_engine_to_rapidocr():
+    cfg = VisionConfig(ocr_engine="tesseract", language="chi_sim+eng")
+
+    assert cfg.ocr_engine == "rapidocr"
+    assert cfg.language == "ch"
+
+
+def test_load_system_config_maps_legacy_tesseract_engine_to_rapidocr(tmp_path):
+    sys_yaml = tmp_path / "system_config.yaml"
+    sys_yaml.write_text(
+        """
+vision:
+  enabled: true
+  ocr_engine: tesseract
+  tesseract_cmd: tesseract
+  language: chi_sim+eng
+  psm: 6
+""",
+        encoding="utf-8",
+    )
+
+    mgr = ConfigManager(config_dir=tmp_path)
+
+    assert mgr.system.vision.enabled is True
+    assert mgr.system.vision.ocr_engine == "rapidocr"
+    assert mgr.system.vision.language == "ch"
+    assert not hasattr(mgr.system.vision, "tesseract_cmd")
+    assert not hasattr(mgr.system.vision, "psm")
+
+
+def test_vision_config_unknown_ocr_engine_falls_back_to_rapidocr():
+    cfg = VisionConfig(ocr_engine="unknown")
+
+    assert cfg.ocr_engine == "rapidocr"
+
+
+def test_save_and_reload_vision_system_config(tmp_path):
+    mgr = ConfigManager(config_dir=tmp_path)
+    mgr.system.vision.enabled = True
+    mgr.system.vision.ocr_engine = "paddleocr"
+    mgr.system.vision.language = "en"
+    mgr.system.vision.screenshot_dir = "runtime/vision"
+    mgr.system.vision.max_text_chars = 4200
+    mgr.system.vision.explicit_trigger_only = False
+    mgr.save_system()
+    saved = yaml.safe_load((tmp_path / "system_config.yaml").read_text(encoding="utf-8"))
+
+    mgr2 = ConfigManager(config_dir=tmp_path)
+
+    assert saved["vision"]["enabled"] is True
+    assert saved["vision"]["ocr_engine"] == "paddleocr"
+    assert saved["vision"]["language"] == "en"
+    assert saved["vision"]["explicit_trigger_only"] is True
+    assert mgr2.system.vision.enabled is True
+    assert mgr2.system.vision.ocr_engine == "paddleocr"
+    assert mgr2.system.vision.language == "en"
+    assert mgr2.system.vision.screenshot_dir == "runtime/vision"
+    assert mgr2.system.vision.max_text_chars == 4200
+    assert mgr2.system.vision.explicit_trigger_only is True
 
 
 def test_save_and_reload_phase5_system_config(tmp_path):

@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.theme import SAKURA_COMBO_BOX_STYLE
+from ui.theme import SAKURA_COMBO_BOX_STYLE, settings_font_tokens, settings_page_title
 
 
 PAGE_STYLE = """
@@ -71,8 +71,7 @@ class ConversationLogPage(QWidget):
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(12)
 
-        title = QLabel("对话日志")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7a3a5a;")
+        title = settings_page_title(QLabel("对话日志"))
         layout.addWidget(title)
 
         desc = QLabel("查看用户输入、角色回复与会话级结构化日志。")
@@ -122,6 +121,9 @@ class ConversationLogPage(QWidget):
             self._timeline.setPlainText("暂无对话日志。")
             return
         self._timeline.setHtml("".join(self._render_event_block(event) for event in events))
+
+    def refresh_appearance(self) -> None:
+        self._refresh_view()
 
     def set_session_id(self, session_id: str | None) -> None:
         self._current_session_id = session_id or None
@@ -173,6 +175,7 @@ class ConversationLogPage(QWidget):
             self._refresh_view()
 
     def _render_event_block(self, event: dict) -> str:
+        tokens = settings_font_tokens(self._config_for_fonts())
         event_type = event.get("event_type", "")
         details = event.get("details", {}) or {}
         timestamp = self._format_time(event.get("timestamp", ""))
@@ -184,7 +187,7 @@ class ConversationLogPage(QWidget):
             inline_emotion = (
                 f' <span style="display:inline-block; margin-left: 6px; padding: 4px 12px; '
                 'background: rgba(255, 236, 242, 0.96); border: 1px solid rgba(212, 86, 122, 0.18); '
-                'border-radius: 999px; font-size: 11px; color: #8b4d66; vertical-align: middle;">'
+                f'border-radius: 999px; font-size: {tokens.html_small}px; color: #8b4d66; vertical-align: middle;">'
                 f'{html_escape(str(emotion))}</span>'
             )
 
@@ -216,14 +219,23 @@ class ConversationLogPage(QWidget):
             title_color="#9b3060",
         )
 
+    def _config_for_fonts(self):
+        parent = self.parent()
+        while parent is not None:
+            config = getattr(parent, "_config", None)
+            if config is not None and hasattr(config, "system"):
+                return config.system
+            parent = parent.parent()
+        return None
+
     @staticmethod
     def _format_time(timestamp: str) -> str:
         if not timestamp:
             return ""
         return timestamp[11:16]
 
-    @staticmethod
     def _render_message_card(
+        self,
         speaker: str,
         timestamp: str,
         text: str,
@@ -231,6 +243,7 @@ class ConversationLogPage(QWidget):
         tags: list[str],
         title_color: str,
     ) -> str:
+        tokens = settings_font_tokens(self._config_for_fonts())
         tag_html = ""
         if tags:
             tag_html = (
@@ -238,7 +251,7 @@ class ConversationLogPage(QWidget):
                 + "".join(
                     f'<span style="display:inline-block; margin: 0 8px 8px 0; padding: 5px 10px; '
                     'background: rgba(255, 236, 242, 0.96); border: 1px solid rgba(212, 86, 122, 0.18); '
-                    'border-radius: 999px; font-size: 11px; color: #8b4d66;">'
+                    f'border-radius: 999px; font-size: {tokens.html_small}px; color: #8b4d66;">'
                     f'{html_escape(tag)}</span>'
                     for tag in tags
                 )
@@ -247,9 +260,9 @@ class ConversationLogPage(QWidget):
         return (
             '<div style="margin: 0 0 16px 0; padding: 16px 18px; background: rgba(255, 248, 251, 0.95); '
             'border: 1px solid rgba(220, 160, 180, 0.26); border-radius: 16px;">'
-            f'<div style="font-size: 11px; color: {title_color}; margin-bottom: 8px; font-weight: 600;">'
+            f'<div style="font-size: {tokens.html_small}px; color: {title_color}; margin-bottom: 8px; font-weight: 600;">'
             f'{speaker} · {timestamp}</div>'
-            f'<div style="font-size: 14px; line-height: 1.7; color: #4a3040;">{text}{inline_suffix}</div>'
+            f'<div style="font-size: {tokens.html_body}px; line-height: 1.7; color: #4a3040;">{text}{inline_suffix}</div>'
             f'{tag_html}'
             '</div>'
         )

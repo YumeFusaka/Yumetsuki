@@ -13,6 +13,7 @@ from core.event_bus import event_bus
 from core.log_types import LogChannel, LogLevel, build_log_event
 from llm.text_processor import ProcessedText
 from session.manager import SessionContextManager
+from vision.types import OCRResult, VisualObservation
 
 
 class AgentEvents:
@@ -70,7 +71,11 @@ class AgentManager:
         self._log_service = log_service
         self._vision_manager = vision_manager
 
-    def chat_stream(self, user_input: str) -> Generator[ProcessedText, None, None]:
+    def chat_stream(
+        self,
+        user_input: str,
+        visual_capture: OCRResult | None = None,
+    ) -> Generator[ProcessedText, None, None]:
         self._record_log_event(
             channel=LogChannel.CONVERSATION,
             level=LogLevel.INFO,
@@ -83,8 +88,9 @@ class AgentManager:
         self._event_bus.publish(AgentEvents.USER_INPUT, {"text": user_input})
         session_ctx = self._session_manager.get_or_create(self._user_id, self._session_id)
         self._session_manager.record_user_input(session_ctx, user_input)
-        if self._should_capture_screen(user_input):
-            self._capture_visual_observation(session_ctx)
+        visual_context = ""
+        if visual_capture is not None:
+            visual_context = self._process_visual_capture(session_ctx, visual_capture)
 
         memories = self._search_memories(user_input)
         if memories:
@@ -130,6 +136,7 @@ class AgentManager:
             memories,
             tool_result,
             tool_executed=bool(tool_calls),
+            visual_context=visual_context,
         )
         session_context = self._session_manager.build_prompt_context(session_ctx)
 
@@ -233,18 +240,44 @@ class AgentManager:
             "needs_multi_step": plan.needs_multi_step,
         }
 
-    def _should_capture_screen(self, user_input: str) -> bool:
+    def should_capture_screen(self, user_input: str) -> bool:
         if self._vision_manager is None:
             return False
         text = user_input.strip()
-        triggers = ("看看屏幕", "看一下屏幕", "屏幕上", "读屏幕", "识别屏幕", "这个窗口")
-        return any(trigger in text for trigger in triggers)
+        explicit_triggers = (
+            "看看屏幕",
+            "看一下屏幕",
+            "读屏幕",
+            "识别屏幕",
+            "读取屏幕",
+            "屏幕截图",
+            "屏幕上写",
+        )
+        if any(trigger in text for trigger in explicit_triggers):
+            return True
+        has_screen_target = any(target in text for target in ("屏幕", "当前画面", "当前窗口"))
+        has_read_intent = any(intent in text for intent in ("看看", "看下", "看一下", "识别", "读取", "读一下"))
+        return has_screen_target and has_read_intent
 
-    def _capture_visual_observation(self, session_ctx) -> None:
-        result = self._vision_manager.capture_screen_text()
+    def _process_visual_capture(self, session_ctx, capture: OCRResult) -> str:
+        if not capture.ok:
+            return self._record_ocr_result(session_ctx, capture)
+        result = self._vision_manager.recognize_image_text(capture.image_path)
+        return self._record_ocr_result(session_ctx, result)
+
+    def _record_ocr_result(self, session_ctx, result: OCRResult) -> str:
         if not result.ok or not result.text.strip():
-            return
-        from vision.types import VisualObservation
+            error = result.error or "未识别到屏幕文字"
+            self._record_log_event(
+                channel=LogChannel.SYSTEM,
+                level=LogLevel.WARN,
+                source="agent.vision",
+                event_type="vision.ocr_failed",
+                session_id=self._session_id,
+                summary=f"OCR 未完成: {error[:80]}",
+                details={"error": error, "image_path": result.image_path},
+            )
+            return f"视觉 OCR 未完成：{error}"
 
         self._session_manager.record_visual_observation(
             session_ctx,
@@ -255,6 +288,20 @@ class AgentManager:
                 timestamp=time(),
             ),
         )
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="agent.vision",
+            event_type="vision.ocr_completed",
+            session_id=self._session_id,
+            summary=f"OCR 识别到 {len(result.text)} 字",
+            details={"image_path": result.image_path, "text_length": len(result.text)},
+            sensitive=True,
+        )
+        return ""
+
+    def _should_capture_screen(self, user_input: str) -> bool:
+        return self.should_capture_screen(user_input)
 
     def _search_memories(self, user_input: str) -> list[str]:
         if not self._memory_store:
@@ -282,8 +329,11 @@ class AgentManager:
         memories: list[str],
         tool_result: str,
         tool_executed: bool = False,
+        visual_context: str = "",
     ) -> str:
         sections: list[str] = []
+        if visual_context:
+            sections.append(visual_context)
         if memories:
             memory_lines = "\n".join(f"- {memory}" for memory in memories)
             sections.append(f"相关记忆:\n{memory_lines}")

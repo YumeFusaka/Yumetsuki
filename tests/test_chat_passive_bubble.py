@@ -36,6 +36,9 @@ class _FakeAgentManager:
     def __init__(self, *args, **kwargs):
         pass
 
+    def should_capture_screen(self, *_args, **_kwargs):
+        return False
+
     def set_memory_store(self, *_args, **_kwargs):
         return None
 
@@ -68,17 +71,19 @@ def _make_window(monkeypatch, system_config: SystemConfig):
     return window
 
 
-def test_proactive_message_uses_main_panel_until_window_is_passive(monkeypatch):
+def test_proactive_message_is_ignored_until_window_is_passive(monkeypatch):
     config = SystemConfig(font_family="Microsoft YaHei", font_size=16)
     config.passive_interaction.idle_threshold_seconds = 300
 
     window = _make_window(monkeypatch, config)
     try:
+        queued_texts = []
+        window._enqueue_assistant_text_for_tts = lambda text, *, flush=False: queued_texts.append(text)
         window._on_proactive_message("主动提醒", "idle")
 
         assert window._passive_bubble.isHidden()
-        assert not window._panel.isHidden()
-        assert "主动提醒" in window._dialog_box.text()
+        assert "主动提醒" not in window._dialog_box.text()
+        assert queued_texts == []
     finally:
         window.close()
 

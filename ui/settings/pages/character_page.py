@@ -11,7 +11,14 @@ from core.character import load_character
 from config.manager import ConfigManager
 from llm.adapters.openai_compat import OpenAICompatAdapter
 from ui.settings.feedback import confirm_action, show_feedback
-from ui.theme import SAKURA_COMBO_BOX_STYLE
+from ui.theme import (
+    SAKURA_COMBO_BOX_STYLE,
+    apply_settings_fonts,
+    apply_settings_item_font,
+    apply_settings_tree_item_font,
+    set_settings_font_role,
+    settings_page_title,
+)
 import shutil
 import yaml
 
@@ -164,6 +171,16 @@ class NewFileDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
+        apply_settings_fonts(self, self._system_config())
+
+    def _system_config(self):
+        parent = self.parent()
+        while parent is not None:
+            config = getattr(parent, "_config", None)
+            if config is not None and hasattr(config, "system"):
+                return config.system
+            parent = parent.parent()
+        return ConfigManager().system
 
     def get_result(self):
         name = self._name.text().strip()
@@ -175,17 +192,17 @@ class NewFileDialog(QDialog):
 
 
 class CharacterPage(QWidget):
-    def __init__(self, characters_dir: Path, parent=None):
+    def __init__(self, characters_dir: Path, parent=None, config: ConfigManager | None = None):
         super().__init__(parent)
         self._dir = characters_dir
         self._sync_worker = None
+        self._config = config or ConfigManager()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(16)
 
-        title = QLabel("角色管理")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #7a3a5a;")
+        title = settings_page_title(QLabel("角色管理"))
         layout.addWidget(title)
 
         content = QHBoxLayout()
@@ -345,6 +362,7 @@ class CharacterPage(QWidget):
                 item = QListWidgetItem(self._character_icon(d), d.name)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                 item.setSizeHint(QSize(150, 50))
+                apply_settings_item_font(item, self._config.system)
                 self._list.addItem(item)
                 self._char_dirs.append(d)
 
@@ -409,6 +427,7 @@ class CharacterPage(QWidget):
             else:
                 item.setText(0, f"{fname} (不存在)")
             self._file_tree.addTopLevelItem(item)
+            apply_settings_tree_item_font(item, self._config.system)
 
         # resource/ folder
         resource_dir = char_dir / "resource"
@@ -418,8 +437,10 @@ class CharacterPage(QWidget):
             for f in sorted(resource_dir.glob("*.md")):
                 child = QTreeWidgetItem([f.name])
                 child.setData(0, Qt.ItemDataRole.UserRole, str(f))
+                apply_settings_tree_item_font(child, self._config.system)
                 resource_node.addChild(child)
         self._file_tree.addTopLevelItem(resource_node)
+        apply_settings_tree_item_font(resource_node, self._config.system)
         resource_node.setExpanded(True)
 
         # sprites/ folder (read-only info)
@@ -427,6 +448,7 @@ class CharacterPage(QWidget):
         sprites_node = QTreeWidgetItem([f"📁 sprites/ ({len(list(sprites_dir.glob('*.png'))) if sprites_dir.is_dir() else 0} 张)"])
         sprites_node.setData(0, Qt.ItemDataRole.UserRole, None)
         self._file_tree.addTopLevelItem(sprites_node)
+        apply_settings_tree_item_font(sprites_node, self._config.system)
 
     def _on_tree_select(self, current, previous):
         if not current:
@@ -513,6 +535,7 @@ class CharacterPage(QWidget):
                 frame_layout.addWidget(lbl)
 
                 name_lbl = QLabel(img.stem)
+                set_settings_font_role(name_lbl, "small")
                 name_lbl.setStyleSheet("color: #5a3050; font-size: 10px;")
                 name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 frame_layout.addWidget(name_lbl)
@@ -528,6 +551,7 @@ class CharacterPage(QWidget):
                 frame_layout.addWidget(del_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
                 frame.setStyleSheet("background: rgba(255,255,255,0.4); border-radius: 6px;")
+                apply_settings_fonts(frame, self._config.system)
                 self._sprite_grid.addWidget(frame, i // 5, i % 5)
         self._sprite_count.setText(f"共 {count} 张立绘")
 
@@ -570,7 +594,7 @@ class CharacterPage(QWidget):
         if not sprites_dir.is_dir():
             show_feedback(self, "同步失败", "当前角色没有 sprites 目录。", success=False)
             return
-        config = ConfigManager().api.llm
+        config = self._config.api.llm
         self._sync_worker = YamlSyncWorker(sprites_dir, config)
         self._sync_worker.finished.connect(lambda result, d=char_dir: self._on_yaml_synced(result, d))
         self._sync_worker.start()

@@ -4,6 +4,7 @@ import time
 from types import SimpleNamespace
 
 from agent.manager import AgentManager
+from core.log_types import LogLevel
 from llm.text_processor import ProcessedText
 from session.context import WorkingFact
 from session.manager import SessionContextManager
@@ -139,6 +140,10 @@ class FakeVisionManager:
         self.called = True
         return OCRResult(ok=True, text="屏幕上显示保存成功", image_path="data/vision/a.png")
 
+    def recognize_image_text(self, image_path):
+        self.called = True
+        return OCRResult(ok=True, text=f"识别 {image_path}", image_path=str(image_path))
+
 
 def test_agent_manager_injects_memories_into_chat():
     manager = AgentManager(
@@ -157,7 +162,7 @@ def test_agent_manager_injects_memories_into_chat():
     assert manager._memory_store.add_calls[0]["assistant_text"] == "我记得你喜欢樱花"
 
 
-def test_agent_manager_captures_screen_when_user_explicitly_asks():
+def test_agent_manager_flags_explicit_screen_request():
     session_manager = SessionContextManager()
     vision = FakeVisionManager()
     manager = AgentManager(
@@ -173,8 +178,74 @@ def test_agent_manager_captures_screen_when_user_explicitly_asks():
     list(manager.chat_stream("帮我看看屏幕上写了什么"))
 
     ctx = session_manager.get_or_create("default-user", "s1")
+    assert manager.should_capture_screen("帮我看看屏幕上写了什么") is True
+    assert vision.called is False
+    assert ctx.visual_observations == []
+
+
+def test_agent_manager_uses_pre_captured_screen_image():
+    session_manager = SessionContextManager()
+    vision = FakeVisionManager()
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("知道了"),
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        tool_registry=FakeToolRegistry(),
+        session_manager=session_manager,
+        session_id="s1",
+        vision_manager=vision,
+    )
+
+    list(manager.chat_stream("帮我看看屏幕", visual_capture=OCRResult(ok=True, image_path="data/vision/a.png")))
+
+    ctx = session_manager.get_or_create("default-user", "s1")
     assert vision.called is True
-    assert ctx.visual_observations[0].text == "屏幕上显示保存成功"
+    assert ctx.visual_observations[0].text == "识别 data/vision/a.png"
+
+
+def test_agent_manager_adds_ocr_failure_to_extra_context():
+    events = []
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("没看到"),
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        tool_registry=FakeToolRegistry(),
+        vision_manager=FakeVisionManager(),
+        log_service=SimpleNamespace(record=lambda event: events.append(event)),
+    )
+
+    list(manager.chat_stream("帮我看看屏幕", visual_capture=OCRResult(ok=False, error="missing rapidocr")))
+
+    assert "视觉 OCR 未完成：missing rapidocr" in manager._llm_manager.calls[0]["extra_context"]
+    ocr_events = [event for event in events if event.event_type == "vision.ocr_failed"]
+    assert len(ocr_events) == 1
+    assert ocr_events[0].level == LogLevel.WARN
+    assert ocr_events[0].source == "agent.vision"
+    assert ocr_events[0].summary == "OCR 未完成: missing rapidocr"
+    assert ocr_events[0].details == {"error": "missing rapidocr", "image_path": ""}
+
+
+def test_agent_manager_treats_empty_ocr_text_as_failure():
+    events = []
+
+    class EmptyVisionManager(FakeVisionManager):
+        def recognize_image_text(self, image_path):
+            return OCRResult(ok=True, text="  ", image_path=str(image_path))
+
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("没看到"),
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        tool_registry=FakeToolRegistry(),
+        vision_manager=EmptyVisionManager(),
+        log_service=SimpleNamespace(record=lambda event: events.append(event)),
+    )
+
+    list(manager.chat_stream("帮我看看屏幕", visual_capture=OCRResult(ok=True, image_path="data/vision/a.png")))
+
+    assert "视觉 OCR 未完成：未识别到屏幕文字" in manager._llm_manager.calls[0]["extra_context"]
+    ocr_events = [event for event in events if event.event_type == "vision.ocr_failed"]
+    assert ocr_events[0].details == {"error": "未识别到屏幕文字", "image_path": "data/vision/a.png"}
 
 
 def test_agent_manager_does_not_capture_screen_for_normal_chat():
@@ -189,6 +260,26 @@ def test_agent_manager_does_not_capture_screen_for_normal_chat():
 
     list(manager.chat_stream("你好呀"))
 
+    assert vision.called is False
+
+
+def test_agent_manager_does_not_capture_for_broad_window_phrase():
+    vision = FakeVisionManager()
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("你好"),
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        tool_registry=FakeToolRegistry(),
+        vision_manager=vision,
+    )
+
+    list(manager.chat_stream("这个窗口真可爱"))
+
+    assert manager.should_capture_screen("这个窗口真可爱") is False
+    assert manager.should_capture_screen("不要显示在屏幕上") is False
+    assert manager.should_capture_screen("不要在屏幕上显示提示") is False
+    assert manager.should_capture_screen("优化屏幕内容布局") is False
+    assert manager.should_capture_screen("帮我看看屏幕上写了什么") is True
     assert vision.called is False
 
 

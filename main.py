@@ -1,7 +1,10 @@
 import sys
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
+from config.manager import ConfigManager
 from ui.settings.window import SettingsWindow
-from ui.theme import SAKURA_MENU_STYLE, install_sakura_menu_theme
+from ui.startup import StartupLoadingWindow
+from ui.theme import SAKURA_MENU_STYLE, apply_system_appearance, install_sakura_menu_theme
 
 APP_STYLE = """
 QDialog, QInputDialog, QMessageBox {
@@ -39,14 +42,45 @@ QToolTip {
 """ + SAKURA_MENU_STYLE
 
 
+def bring_window_to_front(window) -> None:
+    if hasattr(window, "showNormal"):
+        window.showNormal()
+    else:
+        window.show()
+    window.raise_()
+    window.activateWindow()
+
+
+def schedule_bring_window_to_front(window, delay_ms: int = 80) -> None:
+    QTimer.singleShot(delay_ms, lambda: bring_window_to_front(window))
+
+
+def _advance_startup(loading: StartupLoadingWindow | None, message: str, value: int, app: QApplication) -> None:
+    if loading is not None:
+        loading.update_progress(message, value)
+        app.processEvents()
+
+
 def main():
     app = QApplication(sys.argv)
     app.setStyleSheet(APP_STYLE)
     install_sakura_menu_theme(app)
-    app.setFont(app.font())  # Ensure font size is valid
 
+    loading = StartupLoadingWindow()
+    loading.show()
+    _advance_startup(loading, "加载配置...", 25, app)
+
+    config = ConfigManager()
+    _advance_startup(loading, "应用外观...", 50, app)
+    apply_system_appearance(app, config.system)
+
+    _advance_startup(loading, "创建设置中心...", 75, app)
     window = SettingsWindow()
+
+    _advance_startup(loading, "准备完成...", 100, app)
     window.show()
+    loading.close()
+    schedule_bring_window_to_front(window)
 
     sys.exit(app.exec())
 

@@ -101,6 +101,22 @@ class ToolRegistry:
             return
         self._log_service.record(build_log_event(**kwargs))
 
+    def _entry_for_tool(self, qualified_name: str) -> ToolEntry | None:
+        for entry in self._entries:
+            if entry.qualified_name == qualified_name:
+                return entry
+        return None
+
+    def _log_source_for_tool(self, qualified_name: str) -> str:
+        entry = self._entry_for_tool(qualified_name)
+        if entry is None:
+            return "tool.registry"
+        if entry.source == "plugin":
+            return f"plugin.{entry.source_name}"
+        if entry.source == "mcp":
+            return f"mcp.{entry.source_name}"
+        return "tool.registry"
+
     def call_tool(
         self,
         qualified_name: str,
@@ -115,7 +131,7 @@ class ToolRegistry:
                 self._record_log_event(
                     channel=LogChannel.SYSTEM,
                     level=LogLevel.INFO,
-                    source="tool.registry",
+                    source=self._log_source_for_tool(qualified_name),
                     event_type="tool.call_completed",
                     session_id=session_id,
                     utterance_id=utterance_id,
@@ -133,7 +149,7 @@ class ToolRegistry:
                 self._record_log_event(
                     channel=LogChannel.SYSTEM,
                     level=LogLevel.ERROR,
-                    source="tool.registry",
+                    source=self._log_source_for_tool(qualified_name),
                     event_type="tool.call_failed",
                     session_id=session_id,
                     utterance_id=utterance_id,
@@ -151,7 +167,7 @@ class ToolRegistry:
                 self._record_log_event(
                     channel=LogChannel.SYSTEM,
                     level=LogLevel.INFO,
-                    source="tool.registry",
+                    source=self._log_source_for_tool(qualified_name),
                     event_type="tool.call_completed",
                     session_id=session_id,
                     utterance_id=utterance_id,
@@ -167,7 +183,7 @@ class ToolRegistry:
                 self._record_log_event(
                     channel=LogChannel.SYSTEM,
                     level=LogLevel.ERROR,
-                    source="tool.registry",
+                    source=self._log_source_for_tool(qualified_name),
                     event_type="tool.call_failed",
                     session_id=session_id,
                     utterance_id=utterance_id,

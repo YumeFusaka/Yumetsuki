@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.text_metrics import clamped_text_width
+from ui.theme import apply_settings_fonts, set_settings_font_role
 
 
 class ConfirmDialog(QDialog):
@@ -79,10 +80,12 @@ class ConfirmDialog(QDialog):
 
         title_label = QLabel(title)
         title_label.setObjectName("titleLabel")
+        set_settings_font_role(title_label, "title")
         layout.addWidget(title_label)
 
         body_label = QLabel(message)
         body_label.setObjectName("bodyLabel")
+        set_settings_font_role(body_label, "body")
         body_label.setWordWrap(True)
         layout.addWidget(body_label)
 
@@ -111,6 +114,7 @@ class ConfirmDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        apply_settings_fonts(self, _system_config(parent))
 
 
 class ToastMessage(QFrame):
@@ -169,8 +173,10 @@ class ToastMessage(QFrame):
 
         body_label = QLabel(message)
         body_label.setObjectName("bodyLabel")
+        set_settings_font_role(body_label, "small")
         body_label.setWordWrap(True)
         layout.addWidget(body_label, 1)
+        apply_settings_fonts(self, _system_config(host))
 
         chrome_width = self._chrome_width()
         max_width = self._available_max_width(host)
@@ -243,6 +249,15 @@ def _toast_list(host: QWidget) -> list[ToastMessage]:
         toasts = []
         host.setProperty("_yumetsuki_toasts", toasts)
     return cast(list[ToastMessage], toasts)
+
+
+def _system_config(parent: QWidget | None):
+    while parent is not None:
+        config = getattr(parent, "_config", None)
+        if config is not None and hasattr(config, "system"):
+            return config.system
+        parent = parent.parent()
+    return None
 
 
 def _reposition_toasts(host: QWidget) -> None:

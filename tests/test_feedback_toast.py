@@ -1,5 +1,9 @@
+from types import SimpleNamespace
+
 from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
+from config.schema import SystemConfig
+from ui.settings.feedback import ConfirmDialog
 from ui.settings.feedback import ToastMessage
 from ui.text_metrics import longest_line_width
 
@@ -28,5 +32,27 @@ def test_toast_expands_to_single_line_text_until_max_width():
         assert toast.width() <= ToastMessage.MAX_WIDTH
         assert toast.width() <= host.width() - ToastMessage.MARGIN * 2
     finally:
+        toast.close()
+        host.close()
+
+
+def test_feedback_dialogs_use_settings_font_tokens():
+    _app()
+    host = QWidget()
+    host._config = SimpleNamespace(system=SystemConfig(font_size=24))
+    host.resize(900, 600)
+
+    confirm = ConfirmDialog("确认", "是否继续？", host)
+    toast = ToastMessage("操作已完成", True, host)
+    try:
+        title = confirm.findChild(QLabel, "titleLabel")
+        body = confirm.findChild(QLabel, "bodyLabel")
+        toast_body = toast.findChild(QLabel, "bodyLabel")
+
+        assert title is not None and "font-size: 20px" in title.styleSheet()
+        assert body is not None and "font-size: 16px" in body.styleSheet()
+        assert toast_body is not None and "font-size: 15px" in toast_body.styleSheet()
+    finally:
+        confirm.close()
         toast.close()
         host.close()

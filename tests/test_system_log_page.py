@@ -318,6 +318,22 @@ def test_system_log_page_toolbar_keeps_keyword_as_only_responsive_field():
     assert page._keyword_filter.minimumWidth() >= 220
 
 
+def test_system_log_page_action_buttons_are_compact_tools():
+    _app()
+    page = SystemLogPage(_FakeLogService())
+
+    buttons = [page._refresh_btn, page._export_btn, page._open_dir_btn, page._copy_btn]
+
+    assert [button.text() for button in buttons] == ["刷新", "导出", "打开目录", "复制详情"]
+    assert all(button.objectName() == "logActionButton" for button in buttons)
+    assert all(button.property("settingsFontRole") == "small" for button in buttons)
+    assert all(button.minimumHeight() == 28 for button in buttons)
+    assert all(button.maximumHeight() <= 34 for button in buttons)
+    assert "QPushButton#logActionButton" in page.styleSheet()
+    assert "font-size: 12px" in page.styleSheet()
+    assert "padding: 5px 10px" in page.styleSheet()
+
+
 def test_system_log_page_filters_sources_by_group_and_specific_source():
     _app()
 
@@ -374,6 +390,8 @@ def test_system_log_page_filters_sources_by_group_and_specific_source():
         "STT",
         "TTS",
         "工具",
+        "插件",
+        "MCP",
         "UI",
         "Agent",
     ]
@@ -854,11 +872,56 @@ def test_system_log_page_known_sources_have_unique_colors():
         source
         for sources in SOURCE_GROUPS.values()
         for source in sources
+        if not source.endswith(".*")
     ]
     colors = [SOURCE_COLORS[source] for source in known_sources]
 
     assert len(colors) == len(set(colors))
     assert SOURCE_COLORS["chat.stt"] != SOURCE_COLORS["stt.faster_whisper"]
+    assert SOURCE_COLORS["plugin.*"] != SOURCE_COLORS["mcp.*"]
+
+
+def test_system_log_page_filters_plugin_and_mcp_prefix_sources():
+    _app()
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "plugin.demo",
+                    "session_id": "session-1",
+                    "event_type": "tool.call_completed",
+                    "summary": "插件完成",
+                    "details": {},
+                },
+                {
+                    "timestamp": "2026-05-24T10:25:40.573",
+                    "level": "info",
+                    "source": "mcp.notes",
+                    "session_id": "session-1",
+                    "event_type": "tool.call_completed",
+                    "summary": "MCP 完成",
+                    "details": {},
+                },
+            ]
+
+    page = SystemLogPage(_Service())
+
+    page._source_group_filter.setCurrentText("插件")
+    page._refresh_view()
+    assert page._event_list.count() == 1
+    assert "插件完成" in page._event_list.item(0).text()
+    assert page._event_list.item(0).foreground().color().name() == SOURCE_COLORS["plugin.*"]
+
+    page._source_group_filter.setCurrentText("MCP")
+    page._refresh_view()
+    assert page._event_list.count() == 1
+    assert "MCP 完成" in page._event_list.item(0).text()
+    assert page._event_list.item(0).foreground().color().name() == SOURCE_COLORS["mcp.*"]
 
 
 def test_system_log_page_selected_item_keeps_source_foreground_color():

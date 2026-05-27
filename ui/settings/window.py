@@ -10,6 +10,7 @@ from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QLinearGradient
 from config.manager import ConfigManager
 from ui.settings.pages.api_page import APIPage
 from ui.settings.pages.character_page import CharacterPage
+from ui.settings.pages.mcp_page import MCPPage
 from ui.settings.pages.plugin_page import PluginPage
 from ui.settings.pages.system_page import SystemPage
 from ui.settings.pages.memory_page import MemoryPage
@@ -23,7 +24,13 @@ from core.plugin_host import PluginHost
 from core.tool_registry import ToolRegistry
 from memory.mem0_store import build_local_mem0_store
 from ui.settings.feedback import confirm_action, show_feedback
-from ui.theme import SAKURA_MENU_STYLE, apply_sakura_menu_theme, install_sakura_menu_theme
+from ui.theme import (
+    SAKURA_MENU_STYLE,
+    apply_sakura_menu_theme,
+    apply_settings_fonts,
+    apply_system_appearance,
+    install_sakura_menu_theme,
+)
 
 try:
     from ctypes import windll, c_int, byref, sizeof, Structure, POINTER
@@ -153,6 +160,14 @@ class SettingsWindow(QMainWindow):
                 color: #6b4a5a; font-size: 13px;
             }}
             QDialog QPushButton:hover {{ background: rgba(255,154,162,0.4); }}
+            QToolTip {{
+                background: #fff0f3;
+                color: #4a3040;
+                border: 1px solid rgba(220,160,180,0.4);
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 12px;
+            }}
             * {{ outline: none; }}
             *:focus {{ border-color: #d4567a; }}
             {GLOBAL_SCROLLBAR}
@@ -164,6 +179,7 @@ class SettingsWindow(QMainWindow):
             system_flush_interval_ms=self._config.system.logging.system_flush_interval_ms,
         )
         self._chat_window = None
+        self._close_callback = None
 
         central = QWidget()
         central.setStyleSheet("background: transparent;")
@@ -190,6 +206,7 @@ class SettingsWindow(QMainWindow):
             ("🧠  记忆", 2),
             ("🤖  Agent", 5),
             ("🧩  插件", 6),
+            ("🔌  MCP", 8),
             ("📝  对话日志", 3),
             ("🧪  平台日志", 4),
             ("⚙  系统", 7),
@@ -218,7 +235,7 @@ class SettingsWindow(QMainWindow):
         self._stack.addWidget(self._api_page)
 
         characters_dir = Path(__file__).parent.parent.parent / "data" / "characters"
-        self._char_page = CharacterPage(characters_dir)
+        self._char_page = CharacterPage(characters_dir, config=self._config)
         self._stack.addWidget(self._char_page)
 
         self._memory_page = MemoryPage(self._config.memory)
@@ -230,14 +247,17 @@ class SettingsWindow(QMainWindow):
         self._system_log_page = SystemLogPage(self._log_service)
         self._stack.addWidget(self._system_log_page)
 
-        self._agent_page = AgentPage(self._config.agent)
+        self._agent_page = AgentPage(self._config.agent, config=self._config)
         self._stack.addWidget(self._agent_page)
 
-        self._plugin_page = PluginPage()
+        self._plugin_page = PluginPage(config=self._config)
         self._stack.addWidget(self._plugin_page)
 
         self._system_page = SystemPage(self._config.system)
         self._stack.addWidget(self._system_page)
+
+        self._mcp_page = MCPPage(config=self._config)
+        self._stack.addWidget(self._mcp_page)
 
         right_layout.addWidget(self._stack, 1)
 
@@ -251,8 +271,8 @@ class SettingsWindow(QMainWindow):
         bottom_layout = QHBoxLayout(bottom)
         bottom_layout.setContentsMargins(20, 0, 20, 0)
 
-        launch_btn = QPushButton("🚀 启动对话")
-        launch_btn.setStyleSheet("""
+        self._launch_btn = QPushButton("🚀 启动对话")
+        self._launch_btn.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                     stop:0 #66bb6a, stop:1 #43a047);
@@ -265,8 +285,8 @@ class SettingsWindow(QMainWindow):
                     stop:0 #81c784, stop:1 #66bb6a);
             }
         """)
-        launch_btn.clicked.connect(self._launch_chat)
-        bottom_layout.addWidget(launch_btn)
+        self._launch_btn.clicked.connect(self._launch_chat)
+        bottom_layout.addWidget(self._launch_btn)
         bottom_layout.addStretch()
 
         self._save_btn = QPushButton("保存配置")
@@ -291,9 +311,32 @@ class SettingsWindow(QMainWindow):
         root.addWidget(right, 1)
 
         self._switch_page(0)
+        self._apply_settings_appearance(refresh_logs=False)
 
     def _apply_menu_theme(self, menu) -> None:
         apply_sakura_menu_theme(menu)
+
+    def set_chat_window(self, chat_window) -> None:
+        self._chat_window = chat_window
+
+    def set_close_callback(self, callback) -> None:
+        self._close_callback = callback
+
+    def _apply_page_settings_appearance(self, index: int) -> None:
+        page = self._stack.widget(index)
+        if page is not None:
+            apply_settings_fonts(page, self._config.system)
+
+    def _apply_settings_appearance(self, refresh_logs: bool = True) -> None:
+        self._apply_page_settings_appearance(self._stack.currentIndex())
+        for button in [*self._nav_buttons, self._launch_btn, self._save_btn]:
+            apply_settings_fonts(button, self._config.system)
+        if not refresh_logs:
+            return
+        for page in (self._conversation_log_page, self._system_log_page):
+            refresh_appearance = getattr(page, "refresh_appearance", None)
+            if callable(refresh_appearance):
+                refresh_appearance()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -303,7 +346,10 @@ class SettingsWindow(QMainWindow):
         current_index = self._stack.currentIndex()
         if current_index == 0 and index != 0:
             self._api_page.reset()
+        if current_index == 7 and index != 7:
+            self._system_page.reset()
         self._stack.setCurrentIndex(index)
+        self._apply_page_settings_appearance(index)
         for btn in self._nav_buttons:
             btn.setChecked(btn.property("page_index") == index)
         self._save_btn.setVisible(index in {0, 7})
@@ -317,8 +363,21 @@ class SettingsWindow(QMainWindow):
         self._config.save_api()
 
     def _apply_and_save_system(self):
+        previous_system = self._config.system.model_copy(deep=True)
         self._system_page.apply()
-        self._config.save_system()
+        try:
+            self._config.save_system()
+        except Exception:
+            self._config.system = previous_system
+            self._system_page._config = self._config.system
+            self._system_page.reset()
+            if self._chat_window is not None and hasattr(self._chat_window, "apply_system_config"):
+                self._chat_window.apply_system_config(self._config.system)
+            raise
+        app = QCoreApplication.instance()
+        if app is not None:
+            apply_system_appearance(app, self._config.system)
+        self._apply_settings_appearance()
         if self._chat_window is not None and hasattr(self._chat_window, "apply_system_config"):
             self._chat_window.apply_system_config(self._config.system)
 
@@ -403,6 +462,15 @@ class SettingsWindow(QMainWindow):
     def _on_memory_failed(self, error_msg):
         show_feedback(self, "记忆加载失败", f"本地记忆未能启动：{error_msg}", success=False)
 
+    def closeEvent(self, event):
+        cleared_by_chat_window = False
+        if self._chat_window is not None and hasattr(self._chat_window, "_clear_settings_window_ref"):
+            self._chat_window._clear_settings_window_ref()
+            cleared_by_chat_window = True
+        if self._close_callback is not None and not cleared_by_chat_window:
+            self._close_callback()
+        super().closeEvent(event)
+
 
 class MemoryLoaderThread(QThread):
     memory_ready = Signal(object)
@@ -422,8 +490,3 @@ class MemoryLoaderThread(QThread):
             self.memory_ready.emit(store)
         except Exception as exc:
             self.memory_failed.emit(str(exc))
-
-    def closeEvent(self, event):
-        if self._chat_window is not None and hasattr(self._chat_window, "_clear_settings_window_ref"):
-            self._chat_window._clear_settings_window_ref()
-        super().closeEvent(event)

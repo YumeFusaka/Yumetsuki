@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from config.schema import APIConfig
 from core.model_catalog import STT_MODELS_DIR, is_stt_model_dir, model_path_key, resolve_model_path, scan_model_dirs
-from ui.theme import SAKURA_COMBO_BOX_STYLE
+from ui.theme import SAKURA_COMBO_BOX_STYLE, settings_page_title
 from ui.widgets.removable_combo_box import RemovableComboBox
 from ui.widgets.rose_spin_box import RoseSpinBox
 
@@ -89,8 +89,7 @@ class APIPage(QWidget):
         layout.setContentsMargins(32, 20, 32, 20)
         layout.setSpacing(12)
 
-        title = QLabel("API 设定")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #7a3a5a;")
+        title = settings_page_title(QLabel("API 设定"))
         layout.addWidget(title)
 
         # LLM Group

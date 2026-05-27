@@ -11,26 +11,19 @@
 - 测试：
   `python -m pytest tests/ -q`
 
-## 规划文档
+## 阶段状态
 
-- 路线图设计：
-  - `docs/superpowers/specs/2026-05-24-phase-4-6-roadmap-design.md`
-- Phase 6 设计：
-  - `docs/superpowers/specs/2026-05-24-phase-6-browser-vision-ecosystem-design.md`
-- 当前实施计划：
-  - `docs/superpowers/plans/2026-05-26-phase-6-plugin-mcp-diagnostics-implementation.md`
-  - `docs/superpowers/plans/2026-05-26-phase-6-browser-session-implementation.md`
-  - `docs/superpowers/plans/2026-05-26-phase-6-ocr-vision-implementation.md`
+- 第四阶段：已完成，主实现和文档已收口到当前架构文档。
+- 第五阶段：已完成，进入稳定化维护。
+- 第六阶段：实现、本地自动化验证和 sub agent 复审已完成；真实浏览器、OCR、MCP、STT / TTS / API 实机验收暂缓。
 - 当前优先级：
-  1. Phase 6：浏览器、视觉与插件生态
-  2. 平台日志真实 API / TTS / STT / 异常场景联调验证
-  3. 更多内置插件能力扩展
+  1. 暂缓中的实机验收恢复后，优先检查浏览器持续会话、OCR、MCP、STT / TTS / API 和平台日志联动
+  2. 更多内置插件能力扩展
 
 说明：
 
-- Phase 4 已完成，当前不再需要继续把所有设计与实施优先绑定到 Phase 4 收口
+- 已完成并被主文档吸收的 spec / plan 应及时删除，避免入口持续指向历史收口材料
 - 日志工作台基础能力已完成，后续只保留真实服务场景联调与增量体验优化
-- 已完成并被主文档吸收的 Phase 4 细分 spec / plan 应及时删除，避免入口持续指向历史收口材料
 - Phase 4 中短期记忆由 `SessionContext` 负责，`mem0` 继续只做长期记忆
 - 文档默认使用中文撰写；代码标识、路径、命令、配置键名和 git commit message 可保留英文
 - 设计阶段中的关键数值（超时、并发数、窗口大小、预算上限等）默认应配置化，避免在 spec 中永久写死
@@ -60,7 +53,7 @@
   系统配置
   当前也承载 `logging` 运行时配置，如日志根目录与平台日志内部 `system` channel 的 flush 间隔
   当前也承载 `chat_display` 与 `passive_interaction`：前者控制聊天字体倍率和气泡倍率；后者包含空闲阈值、被动气泡最大宽度和停留时长。被动状态属于聊天窗运行态，空闲阈值用于自动进入，不再使用系统级启用开关。
-  当前也承载 `vision`：控制 OCR 是否启用、Tesseract 命令、OCR 语言、截图目录、最大文本长度和显式触发策略。
+  当前也承载 `vision`：控制 OCR 是否启用、OCR 后端、OCR 语言、截图目录、最大文本长度和显式触发策略；默认后端为 `rapidocr`，`paddleocr` 为进阶可选后端。对应 UI 位于系统设置的 `视觉 / OCR` 分组，随系统配置保存；当前版本固定仅允许显式读屏触发。
   当前默认值：`chat_display.font_scale=1.3`，`passive_interaction.bubble_max_width=600`。
 - `data/config/mcp.yaml`
   MCP 实际配置；每个 server 可配置 `connect_timeout_seconds`、`request_timeout_seconds` 和 `retry_attempts`
@@ -133,9 +126,7 @@
   - `web_automation.max_extract_length`
   - `vision.enabled`
   - `vision.ocr_engine`
-  - `vision.tesseract_cmd`
   - `vision.language`
-  - `vision.psm`
   - `vision.screenshot_dir`
   - `vision.max_text_chars`
   - `vision.explicit_trigger_only`
@@ -144,7 +135,7 @@
   - TTS 超时、并发、回退、队列长度
   - STT 录音与静音阈值
   - 被动互动频率、停留时长、显示策略
-  - 浏览器自动化超时、OCR 频率、事件刷新频率
+  - 浏览器自动化超时、OCR 显式触发策略、事件刷新频率
 
 ### 对 spec / plan 的要求
 
@@ -219,9 +210,9 @@
   - `MCPHost` 的连接状态、工具名、错误类型、请求超时和重试
   - `ToolRegistry` 的 `source_name` 与 qualified name 兼容
   - `web_automation` 既有搜索 / 提取 / 截图工具不回退，持续浏览器会话工具可打开、导航、等待、提取、点击、填写、查看状态和关闭
-  - `VisionManager` 的禁用状态、截图失败、OCR 失败、文本截断和 Tesseract 命令参数
+  - `VisionManager` 的禁用状态、截图失败、OCR 失败、文本截断和 RapidOCR / PaddleOCR 后端选择
   - `SessionContext.visual_observations` 的 prompt 注入和 SQLite 快照往返
-  - `AgentManager` 仅在显式读屏请求下触发 OCR，普通聊天不读屏
+  - `ChatWindow` 仅在显式读屏请求下主线程预采集截图；`AgentManager` 只处理预采集截图的 OCR 与会话注入，普通聊天不读屏
 - `EventBus` 相关改动优先覆盖：
   - 发布时 handler 快照语义
   - 订阅 / 退订与发布并发下的基本安全性
@@ -324,7 +315,9 @@
 - 系统页面显示 `保存系统配置`
 - 点击后需确认
 - 只保存系统配置
+- 切页即放弃未保存编辑
 - 保存成功后应用到已打开聊天窗，不保存 API 配置
+- 保存失败时回滚内存配置、设置页草稿和已打开聊天窗配置，避免半保存状态
 
 ### 插件 / 角色页面
 

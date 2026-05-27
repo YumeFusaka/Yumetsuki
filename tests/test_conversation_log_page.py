@@ -1,5 +1,8 @@
 from PySide6.QtWidgets import QApplication
+from types import SimpleNamespace
+from PySide6.QtWidgets import QWidget
 
+from config.schema import SystemConfig
 from ui.settings.pages.conversation_log_page import ConversationLogPage
 
 
@@ -265,3 +268,33 @@ def test_conversation_log_page_renders_wider_rounded_inline_emotion_chip():
     )
     assert "padding: 4px 12px" in html
     assert "border-radius: 999px" in html
+
+
+def test_conversation_log_page_refresh_appearance_rerenders_html_with_settings_tokens():
+    _app()
+
+    class _Service:
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "event_type": "conversation.assistant_reply",
+                    "summary": "角色回复",
+                    "details": {"text": "你好呀", "emotion": "happy"},
+                },
+            ]
+
+        def list_conversation_sessions(self, limit=20):
+            return []
+
+    parent = QWidget()
+    parent._config = SimpleNamespace(system=SystemConfig(font_size=24))
+    page = ConversationLogPage(_Service(), parent=parent)
+    captured = []
+    page._timeline.setHtml = lambda html: captured.append(html)
+
+    page.refresh_appearance()
+    parent._config.system.font_size = 12
+    page.refresh_appearance()
+
+    assert "font-size: 16px" in captured[0]
+    assert "font-size: 12px" in captured[-1]

@@ -1,34 +1,81 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit,
-    QComboBox, QLabel, QGroupBox, QScrollArea, QSizePolicy,
+    QCheckBox, QComboBox, QLabel, QGroupBox, QScrollArea, QSizePolicy,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QFontDatabase
 from config.schema import SystemConfig
-from ui.theme import SAKURA_COMBO_BOX_STYLE
+from ui.theme import SettingsFontTokens, font_for_role, sakura_combo_box_style, settings_font_tokens, settings_page_title
 from ui.widgets.rose_spin_box import RoseSpinBox
 
-FORM_STYLE = """
-QLineEdit {
+def system_page_style(system_config_or_tokens: SystemConfig | SettingsFontTokens | None = None) -> str:
+    tokens = (
+        system_config_or_tokens
+        if isinstance(system_config_or_tokens, SettingsFontTokens)
+        else settings_font_tokens(system_config_or_tokens)
+    )
+    return f"""
+QLineEdit {{
     background: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(220, 160, 180, 0.3);
     border-radius: 6px; padding: 8px 12px;
-    color: #4a3040; font-size: 13px;
+    color: #4a3040; font-size: {tokens.body}px;
     min-height: 20px; min-width: 280px;
-}
-QLineEdit:focus {
+}}
+QLineEdit:focus {{
     border-color: #d4567a;
     background: rgba(255, 255, 255, 0.85);
-}
-QLabel { color: #6b4a5a; font-size: 13px; }
-QGroupBox {
-    color: #7a4060; font-size: 15px; font-weight: bold;
+}}
+QLabel {{ color: #6b4a5a; font-size: {tokens.body}px; }}
+QGroupBox {{
+    color: #7a4060; font-size: {tokens.section}px; font-weight: bold;
     border: 1px solid rgba(220, 160, 180, 0.2);
     border-radius: 10px; margin-top: 12px; padding-top: 14px;
     background: rgba(255, 255, 255, 0.35);
-}
-QGroupBox::title { subcontrol-origin: margin; left: 16px; padding: 0 6px; }
-""" + SAKURA_COMBO_BOX_STYLE
+}}
+QGroupBox::title {{ subcontrol-origin: margin; left: 16px; padding: 0 6px; }}
+QCheckBox {{
+    color: #6b4a5a;
+    font-size: {tokens.body}px;
+    spacing: 8px;
+}}
+QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    border: 1px solid rgba(212, 86, 122, 0.45);
+    background: rgba(255, 255, 255, 0.76);
+}}
+QCheckBox::indicator:checked {{
+    background: #d4567a;
+    border-color: #d4567a;
+}}
+""" + sakura_combo_box_style(tokens.body)
+
+
+FORM_STYLE = system_page_style()
+
+
+def _settings_font_token_key(system_config_or_tokens: SystemConfig | SettingsFontTokens | None) -> tuple:
+    tokens = (
+        system_config_or_tokens
+        if isinstance(system_config_or_tokens, SettingsFontTokens)
+        else settings_font_tokens(system_config_or_tokens)
+    )
+    return (
+        tokens.family,
+        tokens.raw,
+        tokens.base,
+        tokens.small,
+        tokens.body,
+        tokens.list,
+        tokens.button,
+        tokens.section,
+        tokens.title,
+        tokens.mono,
+        tokens.html_small,
+        tokens.html_body,
+    )
 
 
 def _font_families(current_font: str) -> list[str]:
@@ -47,7 +94,7 @@ class SystemPage(QWidget):
     def __init__(self, config: SystemConfig, parent=None):
         super().__init__(parent)
         self._config = config
-        self.setStyleSheet(FORM_STYLE)
+        self.setStyleSheet(system_page_style(config))
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -58,23 +105,24 @@ class SystemPage(QWidget):
         layout.setContentsMargins(32, 22, 32, 22)
         layout.setSpacing(14)
 
-        title = QLabel("系统设置")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7a3a5a;")
-        layout.addWidget(title)
+        self._title = settings_page_title(QLabel("系统设置"))
+        layout.addWidget(self._title)
 
         appearance = QGroupBox("基础外观")
         app_form = QFormLayout(appearance)
         self._configure_form(app_form)
 
         self._language = QComboBox()
-        self._language.addItems(["zh-CN", "en-US", "ja-JP"])
-        self._language.setCurrentText(config.language)
+        self._language.addItem("简体中文（当前仅支持）", "zh-CN")
+        self._language.setCurrentIndex(0)
+        self._language.setEnabled(False)
+        self._language.setToolTip("当前仅支持简体中文")
         self._prepare_field(self._language)
         app_form.addRow("语言:", self._language)
 
         self._theme = QComboBox()
-        self._theme.addItems(["sakura"])
-        self._theme.setCurrentText("sakura")
+        self._theme.addItem("Sakura", "sakura")
+        self._theme.setCurrentIndex(0)
         self._prepare_field(self._theme)
         app_form.addRow("主题:", self._theme)
 
@@ -83,8 +131,6 @@ class SystemPage(QWidget):
         self._font_default_font = self._font.font()
         self._populate_font_combo(_font_families(config.font_family))
         self._font.setCurrentText(config.font_family)
-        self._apply_font_preview(config.font_family)
-        self._font.currentTextChanged.connect(self._apply_font_preview)
         self._prepare_field(self._font)
         app_form.addRow("字体:", self._font)
 
@@ -149,6 +195,50 @@ class SystemPage(QWidget):
 
         layout.addWidget(self._bubble_group)
 
+        self._vision_group = QGroupBox("视觉 / OCR")
+        vision_form = QFormLayout(self._vision_group)
+        self._configure_form(vision_form)
+
+        self._vision_enabled = QCheckBox("启用屏幕 OCR")
+        self._vision_enabled.setChecked(config.vision.enabled)
+        self._vision_enabled.setToolTip("启用后，用户显式要求读屏时才会采集屏幕文字。")
+        vision_form.addRow("OCR:", self._vision_enabled)
+
+        self._ocr_engine = QComboBox()
+        self._ocr_engine.addItem("RapidOCR（默认）", "rapidocr")
+        self._ocr_engine.addItem("PaddleOCR（进阶，可选安装）", "paddleocr")
+        self._ocr_engine.setCurrentIndex(max(0, self._ocr_engine.findData(config.vision.ocr_engine)))
+        self._prepare_field(self._ocr_engine)
+        vision_form.addRow("识别后端:", self._ocr_engine)
+
+        self._ocr_language = QComboBox()
+        self._ocr_language.setEditable(True)
+        for language in ("ch", "en", "japan", "korean", "chinese_cht"):
+            self._ocr_language.addItem(language)
+        self._ocr_language.setCurrentText(config.vision.language)
+        self._prepare_field(self._ocr_language)
+        vision_form.addRow("语言:", self._ocr_language)
+
+        self._vision_max_text = RoseSpinBox()
+        self._vision_max_text.setRange(200, 10000)
+        self._vision_max_text.setValue(config.vision.max_text_chars)
+        self._vision_max_text.setSuffix(" 字")
+        self._prepare_field(self._vision_max_text)
+        vision_form.addRow("读屏文字上限:", self._vision_max_text)
+
+        self._vision_screenshot_dir = QLineEdit(config.vision.screenshot_dir)
+        self._vision_screenshot_dir.setPlaceholderText("data/vision")
+        self._prepare_field(self._vision_screenshot_dir)
+        vision_form.addRow("截图目录:", self._vision_screenshot_dir)
+
+        self._vision_explicit_only = QCheckBox("固定仅显式读屏触发")
+        self._vision_explicit_only.setChecked(True)
+        self._vision_explicit_only.setEnabled(False)
+        self._vision_explicit_only.setToolTip("当前版本固定只允许显式读屏触发，避免后台自动采集屏幕。")
+        vision_form.addRow("触发方式:", self._vision_explicit_only)
+
+        layout.addWidget(self._vision_group)
+
         # Network
         network = QGroupBox("网络")
         net_form = QFormLayout(network)
@@ -166,6 +256,30 @@ class SystemPage(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
+        self.apply_settings_font_tree(settings_font_tokens(config))
+
+    def apply_settings_font_tree(self, tokens: SettingsFontTokens) -> bool:
+        token_key = _settings_font_token_key(tokens)
+        if self.property("_settingsFontTreeTokenKey") == token_key:
+            return True
+        self.setStyleSheet(system_page_style(tokens))
+        self._title.setFont(font_for_role(tokens, "title"))
+        self._title.setStyleSheet(
+            f"font-weight: bold; color: #7a3a5a; font-size: {tokens.title}px;"
+        )
+        for spin_box in (
+            self._font_size,
+            self._chat_font_scale,
+            self._idle_threshold,
+            self._bubble_scale,
+            self._bubble_max_width,
+            self._bubble_duration,
+            self._vision_max_text,
+        ):
+            spin_box.apply_settings_tokens(tokens)
+        self.setProperty("_settingsFontTreeTokenKey", token_key)
+        self.setProperty("_settingsFontTokenKey", token_key)
+        return True
 
     @staticmethod
     def _configure_form(form: QFormLayout) -> None:
@@ -204,8 +318,8 @@ class SystemPage(QWidget):
             return False
 
     def apply(self) -> None:
-        self._config.language = self._language.currentText()
-        self._config.theme = self._theme.currentText()
+        self._config.language = self._language.currentData() or "zh-CN"
+        self._config.theme = self._theme.currentData() or "sakura"
         self._config.font_family = self._font.currentText().strip()
         self._config.font_size = self._font_size.value()
         self._config.chat_display.font_scale = self._chat_font_scale.value() / 100.0
@@ -213,4 +327,28 @@ class SystemPage(QWidget):
         self._config.passive_interaction.idle_threshold_seconds = self._idle_threshold.value() * 60
         self._config.passive_interaction.bubble_max_width = self._bubble_max_width.value()
         self._config.passive_interaction.bubble_duration_seconds = self._bubble_duration.value()
+        self._config.vision.enabled = self._vision_enabled.isChecked()
+        self._config.vision.ocr_engine = self._ocr_engine.currentData() or "rapidocr"
+        self._config.vision.language = self._ocr_language.currentText().strip() or "ch"
+        self._config.vision.max_text_chars = self._vision_max_text.value()
+        self._config.vision.screenshot_dir = self._vision_screenshot_dir.text().strip() or "data/vision"
+        self._config.vision.explicit_trigger_only = True
         self._config.proxy = self._proxy.text()
+
+    def reset(self) -> None:
+        self._language.setCurrentIndex(0)
+        self._theme.setCurrentIndex(0)
+        self._font.setCurrentText(self._config.font_family)
+        self._font_size.setValue(self._config.font_size)
+        self._chat_font_scale.setValue(int(self._config.chat_display.font_scale * 100))
+        self._bubble_scale.setValue(int(self._config.chat_display.bubble_scale * 100))
+        self._idle_threshold.setValue(max(1, round(self._config.passive_interaction.idle_threshold_seconds / 60)))
+        self._bubble_max_width.setValue(self._config.passive_interaction.bubble_max_width)
+        self._bubble_duration.setValue(self._config.passive_interaction.bubble_duration_seconds)
+        self._vision_enabled.setChecked(self._config.vision.enabled)
+        self._ocr_engine.setCurrentIndex(max(0, self._ocr_engine.findData(self._config.vision.ocr_engine)))
+        self._ocr_language.setCurrentText(self._config.vision.language)
+        self._vision_max_text.setValue(self._config.vision.max_text_chars)
+        self._vision_screenshot_dir.setText(self._config.vision.screenshot_dir)
+        self._vision_explicit_only.setChecked(True)
+        self._proxy.setText(self._config.proxy)

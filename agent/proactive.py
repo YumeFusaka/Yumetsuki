@@ -33,11 +33,13 @@ class ProactiveScheduler(QObject):
         self,
         config: ProactiveConfig | None = None,
         llm_helper=None,
+        can_fire: Callable[[], bool] | None = None,
         parent=None,
     ):
         super().__init__(parent)
         self._config = config or ProactiveConfig()
         self._llm = llm_helper
+        self._can_fire = can_fire
         self._last_interaction_time = time.time()
         self._last_proactive_time = 0.0
         # 每个事件的最后触发时间
@@ -90,6 +92,14 @@ class ProactiveScheduler(QObject):
     def _tick(self) -> None:
         """定时检查所有触发条件。worker 每秒调用一次。"""
         now = time.time()
+
+        if self._can_fire is not None:
+            try:
+                if not self._can_fire():
+                    return
+            except Exception as exc:
+                logger.warning(f"Proactive can_fire check failed: {exc}")
+                return
 
         # 全局冷却检查
         if now - self._last_proactive_time < self._config.min_interval_minutes * 60:

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from config.manager import ConfigManager
 from config.schema import AgentConfig, ProactiveEventConfig
+from ui.theme import apply_settings_item_font, settings_page_title
 from ui.widgets.rose_spin_box import RoseSpinBox
 
 PAGE_STYLE = """
@@ -109,10 +110,11 @@ class AgentPage(QWidget):
         agent_config: AgentConfig | None = None,
         parent=None,
         event_bus_instance=None,
+        config: ConfigManager | None = None,
     ):
         super().__init__(parent)
-        self._config = agent_config or AgentConfig()
-        self._mgr = ConfigManager()
+        self._mgr = config or ConfigManager()
+        self._config = agent_config or self._mgr.agent
         self._loading = True  # 加载阶段不触发 save
         self.setStyleSheet(PAGE_STYLE)
 
@@ -121,8 +123,7 @@ class AgentPage(QWidget):
         layout.setSpacing(12)
 
         # 标题
-        title = QLabel("Agent 设置")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7a3a5a;")
+        title = settings_page_title(QLabel("Agent 设置"))
         layout.addWidget(title)
 
         desc = QLabel("配置 Agent 的智能行为：意图路由、反思深度、多步推理、主动行为。")
@@ -368,11 +369,14 @@ class AgentPage(QWidget):
         if not self._config.proactive.events:
             item = QListWidgetItem("（无自定义事件）")
             item.setFlags(Qt.ItemFlag.NoItemFlags)
+            apply_settings_item_font(item, self._mgr.system)
             self._events_list.addItem(item)
             return
         for ev in self._config.proactive.events:
             label = f"{ev.name} [{ev.type}] - 冷却 {ev.cooldown_minutes}分钟"
-            self._events_list.addItem(label)
+            item = QListWidgetItem(label)
+            apply_settings_item_font(item, self._mgr.system)
+            self._events_list.addItem(item)
 
     # ---------- 实时保存 ----------
     def _save_live(self) -> None:

@@ -22,7 +22,13 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
 )
 
-from ui.theme import SAKURA_COMBO_BOX_STYLE
+from ui.theme import (
+    SAKURA_COMBO_BOX_STYLE,
+    apply_settings_item_font,
+    set_settings_font_role,
+    settings_font_tokens,
+    settings_page_title,
+)
 
 
 SOURCE_GROUPS = {
@@ -33,6 +39,8 @@ SOURCE_GROUPS = {
     "STT": ["chat.stt", "stt.faster_whisper"],
     "TTS": ["chat.tts", "tts.gptsovits"],
     "工具": ["tool.registry"],
+    "插件": ["plugin.host", "plugin.*"],
+    "MCP": ["mcp.host", "mcp.*"],
     "UI": ["chat.window", "ui.event_bridge"],
     "Agent": ["agent.manager"],
 }
@@ -47,6 +55,12 @@ SOURCE_COLORS = {
     "chat.tts": "#c56b2c",
     "tts.gptsovits": "#a86f18",
     "tool.registry": "#8b5fb2",
+    "plugin.host": "#7d6a22",
+    "plugin.*": "#7d6a22",
+    "plugin.system_control": "#9a7b19",
+    "plugin.web_automation": "#b08c2f",
+    "mcp.host": "#2f6f9f",
+    "mcp.*": "#2f6f9f",
     "chat.window": "#6b4a5a",
     "ui.event_bridge": "#2d7fa3",
     "agent.manager": "#9b3060",
@@ -84,14 +98,16 @@ QLineEdit {
 QLineEdit:focus {
     border-color: #d4567a;
 }
-QPushButton {
+QPushButton#logActionButton {
     background: rgba(255, 245, 250, 0.88);
     border: 1px solid rgba(212, 86, 122, 0.32);
     border-radius: 8px;
-    padding: 8px 14px;
+    padding: 5px 10px;
     color: #6b4a5a;
+    font-size: 12px;
+    min-height: 20px;
 }
-QPushButton:hover {
+QPushButton#logActionButton:hover {
     background: rgba(255, 232, 240, 0.96);
     border-color: rgba(212, 86, 122, 0.48);
 }
@@ -120,6 +136,7 @@ QListWidget::item {
     padding: 8px 10px;
     border-radius: 10px;
     margin-bottom: 4px;
+    font-size: 12px;
 }
 QListWidget::item:selected {
     background: rgba(255, 222, 232, 0.95);
@@ -156,8 +173,7 @@ class SystemLogPage(QWidget):
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(12)
 
-        title = QLabel("系统日志")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7a3a5a;")
+        title = settings_page_title(QLabel("系统日志"))
         layout.addWidget(title)
 
         desc = QLabel("查看 TTS、LLM、工具调用与运行期系统事件。")
@@ -219,21 +235,21 @@ class SystemLogPage(QWidget):
         self._view_mode.currentIndexChanged.connect(self._refresh_view)
         action_row.addWidget(self._view_mode)
 
-        refresh_btn = QPushButton("刷新")
-        refresh_btn.clicked.connect(self._refresh_view)
-        action_row.addWidget(refresh_btn)
+        self._refresh_btn = self._log_action_button("刷新")
+        self._refresh_btn.clicked.connect(self._refresh_view)
+        action_row.addWidget(self._refresh_btn)
 
-        export_btn = QPushButton("导出")
-        export_btn.clicked.connect(self._export_current_view)
-        action_row.addWidget(export_btn)
+        self._export_btn = self._log_action_button("导出")
+        self._export_btn.clicked.connect(self._export_current_view)
+        action_row.addWidget(self._export_btn)
 
-        open_dir_btn = QPushButton("打开目录")
-        open_dir_btn.clicked.connect(self._open_log_directory)
-        action_row.addWidget(open_dir_btn)
+        self._open_dir_btn = self._log_action_button("打开目录")
+        self._open_dir_btn.clicked.connect(self._open_log_directory)
+        action_row.addWidget(self._open_dir_btn)
 
-        copy_btn = QPushButton("复制详情")
-        copy_btn.clicked.connect(self._copy_selected_event_json)
-        action_row.addWidget(copy_btn)
+        self._copy_btn = self._log_action_button("复制详情")
+        self._copy_btn.clicked.connect(self._copy_selected_event_json)
+        action_row.addWidget(self._copy_btn)
         action_row.addStretch()
         controls.addLayout(action_row)
         layout.addLayout(controls)
@@ -264,6 +280,14 @@ class SystemLogPage(QWidget):
         self._refresh_timer.setInterval(1000)
         self._refresh_timer.timeout.connect(self._refresh_view)
         self._refresh_timer.start()
+
+    def _log_action_button(self, text: str) -> QPushButton:
+        button = QPushButton(text)
+        button.setObjectName("logActionButton")
+        set_settings_font_role(button, "small")
+        button.setMinimumHeight(28)
+        button.setMaximumHeight(34)
+        return button
 
     def _set_selected_event(self, event: dict | None) -> None:
         if event == self._selected_event:
@@ -329,6 +353,7 @@ class SystemLogPage(QWidget):
             item = QListWidgetItem(self._render_event_line_text(event))
             item.setForeground(QColor(self._source_color(event.get("source"))))
             item.setData(256, event)
+            apply_settings_item_font(item, self._config_for_fonts())
             self._event_list.addItem(item)
             if selected_key is not None and self._event_key(event) == selected_key:
                 matched_event = event
@@ -347,6 +372,9 @@ class SystemLogPage(QWidget):
             self._set_selected_event(matched_event)
             return
         self._set_selected_event(None)
+
+    def refresh_appearance(self) -> None:
+        self._refresh_view()
 
     def _choose_export_path(self) -> Path | None:
         path, _ = QFileDialog.getSaveFileName(
@@ -384,13 +412,13 @@ class SystemLogPage(QWidget):
     def _filter_events(self, events: list[dict]) -> list[dict]:
         level = self._level_filter.currentData()
         keyword = self._keyword_filter.text().strip().lower()
-        group_sources = set(self._selected_group_sources())
+        group_sources = self._selected_group_sources()
         source = (self._selected_source() or "").lower()
         filtered = events
         if group_sources:
             filtered = [
                 event for event in filtered
-                if str(event.get("source", "")) in group_sources
+                if self._source_matches_group(str(event.get("source", "")), group_sources)
             ]
         if source:
             filtered = [
@@ -414,6 +442,15 @@ class SystemLogPage(QWidget):
     def _selected_group_sources(self) -> list[str]:
         return list(SOURCE_GROUPS.get(self._source_group_filter.currentData() or "全部", []))
 
+    @staticmethod
+    def _source_matches_group(source: str, group_sources: list[str]) -> bool:
+        for pattern in group_sources:
+            if pattern.endswith(".*") and source.startswith(pattern[:-1]):
+                return True
+            if source == pattern:
+                return True
+        return False
+
     def _selected_source(self) -> str | None:
         return self._source_filter.currentData() or None
 
@@ -426,16 +463,26 @@ class SystemLogPage(QWidget):
         return "\n\n".join(self._render_event_line_text(event) for event in events)
 
     def _render_continuous_html(self, events: list[dict]) -> str:
+        tokens = settings_font_tokens(self._config_for_fonts())
         blocks = []
         for event in events:
             color = self._source_color(event.get("source"))
             text = html_escape(self._render_event_line_text(event)).replace("\n", "<br>")
             blocks.append(
                 '<div style="margin: 0 0 12px 0; '
-                f'color: {color}; line-height: 1.55; white-space: pre-wrap;">'
+                f'color: {color}; line-height: 1.55; white-space: pre-wrap; font-size: {tokens.html_body}px;">'
                 f'{text}</div>'
             )
         return "".join(blocks)
+
+    def _config_for_fonts(self):
+        parent = self.parent()
+        while parent is not None:
+            config = getattr(parent, "_config", None)
+            if config is not None and hasattr(config, "system"):
+                return config.system
+            parent = parent.parent()
+        return None
 
     def _render_event_line_text(self, event: dict) -> str:
         timestamp = event.get("timestamp", "")[11:23]
@@ -458,7 +505,14 @@ class SystemLogPage(QWidget):
 
     @staticmethod
     def _source_color(source: str | None) -> str:
-        return SOURCE_COLORS.get(str(source or ""), DEFAULT_SOURCE_COLOR)
+        source_value = str(source or "")
+        if source_value in SOURCE_COLORS:
+            return SOURCE_COLORS[source_value]
+        if source_value.startswith("plugin."):
+            return "#7d6a22"
+        if source_value.startswith("mcp."):
+            return "#2f6f9f"
+        return DEFAULT_SOURCE_COLOR
 
     def _on_event_selected(self, index: int) -> None:
         if index < 0:

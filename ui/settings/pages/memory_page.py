@@ -25,7 +25,7 @@ from core.model_catalog import (
     scan_model_dirs,
 )
 from ui.settings.feedback import confirm_action, show_feedback
-from ui.theme import SAKURA_COMBO_BOX_STYLE
+from ui.theme import SAKURA_COMBO_BOX_STYLE, settings_page_title
 from ui.widgets.rose_spin_box import RoseSpinBox
 
 
@@ -96,8 +96,7 @@ class MemoryPage(QWidget):
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(16)
 
-        title = QLabel("记忆设置")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #7a3a5a;")
+        title = settings_page_title(QLabel("记忆设置"))
         layout.addWidget(title)
 
         desc = QLabel("本地记忆使用 Mem0 OSS，向量存储持久化在本机目录中。")

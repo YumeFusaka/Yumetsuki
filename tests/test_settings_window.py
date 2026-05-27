@@ -1,6 +1,9 @@
-from PySide6.QtGui import QPalette
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QGroupBox, QLabel, QPushButton, QScrollArea, QSizePolicy, QTextEdit
+from types import SimpleNamespace
+
+import yaml
+from PySide6.QtGui import QCloseEvent, QPalette, QWheelEvent
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtWidgets import QApplication, QComboBox, QGroupBox, QLabel, QListWidget, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QTextEdit, QWidget
 
 from config.manager import ConfigManager
 from config.schema import APIConfig
@@ -16,14 +19,18 @@ import ui.settings.pages.api_page as api_page_module
 import ui.settings.pages.character_page as character_page_module
 import ui.settings.pages.conversation_log_page as conversation_log_page_module
 import ui.settings.pages.memory_page as memory_page_module
+import ui.settings.pages.mcp_page as mcp_page_module
 import ui.settings.pages.plugin_page as plugin_page_module
 import ui.settings.pages.system_page as system_page_module
 from ui.settings.pages.api_page import APIPage
 from ui.settings.pages.memory_page import MemoryPage
-from ui.settings.pages.plugin_page import _format_mcp_status_detail, _format_plugin_status_detail
+from ui.settings.pages.mcp_page import _format_mcp_status_detail
+from ui.settings.pages.plugin_page import _format_plugin_status_detail
 from ui.settings.pages.system_page import SystemPage
 from ui.settings.pages.system_log_page import PAGE_STYLE as SYSTEM_LOG_PAGE_STYLE
 from ui.settings.window import SettingsWindow
+from ui.theme import apply_settings_fonts, install_sakura_menu_theme, settings_page_title, sakura_combo_box_style, settings_font_tokens
+from vision.types import OCRResult
 
 
 def _app() -> QApplication:
@@ -83,6 +90,49 @@ def test_system_save_applies_to_existing_chat_window(monkeypatch):
     assert applied == ["Arial"]
 
 
+def test_system_save_applies_font_to_settings_window(monkeypatch):
+    app = _app()
+    saved = []
+    window = SettingsWindow()
+    monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
+    monkeypatch.setattr(window._config, "save_system", lambda: saved.append("save"))
+
+    window._switch_page(7)
+    window._system_page._font.setCurrentText("Courier New")
+    window._system_page._font_size.setValue(16)
+    window._confirm_save()
+
+    assert saved == ["save"]
+    assert app.font().pointSize() == 16
+    assert window._system_page._font_size.font().pointSize() <= 16
+
+
+def test_settings_window_bottom_launch_button_uses_controlled_font_tokens(monkeypatch):
+    _app()
+    window = SettingsWindow()
+
+    window._config.system.font_size = 24
+    window._apply_settings_appearance(refresh_logs=False)
+
+    assert "font-size: 16px" in window._launch_btn.styleSheet()
+
+
+def test_system_page_discards_unsaved_changes_when_switching_away():
+    _app()
+    window = SettingsWindow()
+    original_font = window._config.system.font_family
+    original_size = window._config.system.font_size
+
+    window._switch_page(7)
+    window._system_page._font.setCurrentText("Arial")
+    window._system_page._font_size.setValue(original_size + 1)
+    window._switch_page(1)
+    window._switch_page(7)
+
+    assert window._system_page._font.currentText() == original_font
+    assert window._system_page._font_size.value() == original_size
+
+
 def test_settings_window_navigation_uses_current_labels_icons_and_order():
     _app()
     window = SettingsWindow()
@@ -98,6 +148,7 @@ def test_settings_window_navigation_uses_current_labels_icons_and_order():
         "🧠  记忆",
         "🤖  Agent",
         "🧩  插件",
+        "🔌  MCP",
         "📝  对话日志",
         "🧪  平台日志",
         "⚙  系统",
@@ -118,6 +169,7 @@ def test_settings_window_navigation_click_checks_clicked_target_page():
         "🧠  记忆": 2,
         "🤖  Agent": 5,
         "🧩  插件": 6,
+        "🔌  MCP": 8,
         "📝  对话日志": 3,
         "🧪  平台日志": 4,
         "⚙  系统": 7,
@@ -143,6 +195,7 @@ def test_settings_combo_styles_share_platform_log_combo_style():
         system_page_module.FORM_STYLE,
         character_page_module.DIALOG_STYLE,
         plugin_page_module.DIALOG_STYLE,
+        mcp_page_module.DIALOG_STYLE,
         SYSTEM_LOG_PAGE_STYLE,
     ]
 
@@ -198,6 +251,8 @@ def test_settings_window_context_menu_uses_sakura_theme():
     assert "QMenu" in style
     assert "background: #fffafc" in style
     assert "QMenu::item:selected" in style
+    assert "QToolTip" in style
+    assert "background: #fff0f3" in style
     assert "QMenu" in APP_STYLE
     assert "background: #fffafc" in APP_STYLE
 
@@ -592,11 +647,11 @@ def test_system_page_uses_font_combo_with_system_fonts(monkeypatch):
     assert page._font.itemData(0, Qt.ItemDataRole.FontRole).family() == "Arial"
     assert page._font.itemData(1, Qt.ItemDataRole.FontRole) is None
     assert page._font.itemData(2, Qt.ItemDataRole.FontRole).family() == "Microsoft YaHei"
-    assert page._font.font().family() == "Microsoft YaHei"
+    original_combo_font = page._font.font().family()
 
     page._font.setCurrentText("SimSun")
 
-    assert page._font.font().family() == "SimSun"
+    assert page._font.font().family() == original_combo_font
 
 
 def test_system_page_does_not_preview_unscalable_current_font(monkeypatch):
@@ -617,6 +672,109 @@ def test_system_page_does_not_preview_unscalable_current_font(monkeypatch):
     assert page._font.font().family() != "Fixedsys"
 
 
+def test_settings_font_tokens_clamp_large_system_size_for_settings_center():
+    tokens = settings_font_tokens(SystemConfig(font_family="Courier New", font_size=24))
+
+    assert tokens.family == "Courier New"
+    assert tokens.raw == 24
+    assert tokens.body == 16
+    assert tokens.list == 16
+    assert tokens.button == 16
+    assert tokens.title == 20
+
+
+def test_apply_settings_fonts_uses_controlled_sizes_and_keeps_combo_svg_arrow():
+    _app()
+    root = QWidget()
+    title = settings_page_title(QLabel("标题", root))
+    button = QPushButton("保存", root)
+    item_list = QListWidget(root)
+    item_list.addItem("插件条目")
+    root.setStyleSheet(
+        """
+        QLabel { font-size: 22px; }
+        QPushButton { font-size: 18px; }
+        QListWidget::item { font-size: 12px; }
+        """
+    )
+
+    apply_settings_fonts(root, SystemConfig(font_family="Courier New", font_size=24))
+
+    assert "font-size: 20px" in title.styleSheet()
+    assert "QPushButton { font-size: 16px; }" in root.styleSheet()
+    assert item_list.item(0).font().pointSize() == 16
+    assert "QListWidget::item { font-size: 16px; }" in root.styleSheet()
+    assert "image: url(" in sakura_combo_box_style(16)
+    assert "border-top: 6px solid" not in sakura_combo_box_style(16)
+
+
+def test_apply_settings_fonts_keeps_compact_plugin_and_log_controls_small():
+    _app()
+    root = QWidget()
+    plugin_list = QListWidget(root)
+    plugin_list.setObjectName("pluginList")
+    plugin_list.setProperty("settingsItemFontRole", "small")
+    plugin_list.addItem("插件条目")
+    log_button = QPushButton("刷新", root)
+    log_button.setObjectName("logActionButton")
+    root.setStyleSheet(
+        """
+        QListWidget#pluginList::item { font-size: 12px; }
+        QPushButton#logActionButton { font-size: 12px; }
+        QPushButton { font-size: 18px; }
+        """
+    )
+
+    apply_settings_fonts(root, SystemConfig(font_family="Courier New", font_size=24))
+
+    assert plugin_list.item(0).font().pointSize() == 15
+    assert "QListWidget#pluginList::item { font-size: 15px; }" in root.styleSheet()
+    assert "QPushButton#logActionButton { font-size: 15px; }" in root.styleSheet()
+    assert "QPushButton { font-size: 16px; }" in root.styleSheet()
+
+
+def _wheel_event(delta: int = 120) -> QWheelEvent:
+    return QWheelEvent(
+        QPointF(8, 8),
+        QPointF(8, 8),
+        QPoint(0, 0),
+        QPoint(0, delta),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+
+
+def test_combo_and_spinbox_ignore_wheel_until_focused():
+    app = _app()
+    install_sakura_menu_theme(app)
+    root = QWidget()
+    combo = QComboBox(root)
+    combo.addItems(["低", "中", "高"])
+    spin = QSpinBox(root)
+    spin.setRange(0, 10)
+    spin.setValue(5)
+    root.show()
+    app.processEvents()
+
+    combo.clearFocus()
+    spin.clearFocus()
+    QApplication.sendEvent(combo, _wheel_event(-120))
+    QApplication.sendEvent(spin, _wheel_event(-120))
+
+    assert combo.currentIndex() == 0
+    assert spin.value() == 5
+
+    combo.setFocus()
+    QApplication.sendEvent(combo, _wheel_event(-120))
+    assert combo.currentIndex() != 0
+
+    spin.setFocus()
+    QApplication.sendEvent(spin, _wheel_event(-120))
+    assert spin.value() != 5
+
+
 def test_system_page_layout_is_scrollable_and_keeps_rows_readable():
     _app()
     page = SystemPage(SystemConfig())
@@ -631,7 +789,7 @@ def test_system_page_layout_is_scrollable_and_keeps_rows_readable():
     assert page._idle_threshold.minimumHeight() >= 34
     assert page._bubble_duration.minimumHeight() >= 34
     group_names = [group.title() for group in page.findChildren(QGroupBox)]
-    assert group_names == ["基础外观", "聊天显示", "被动状态", "被动气泡", "网络"]
+    assert group_names == ["基础外观", "聊天显示", "被动状态", "被动气泡", "视觉 / OCR", "网络"]
 
 
 def test_system_page_keeps_bubble_controls_in_single_group():
@@ -643,6 +801,317 @@ def test_system_page_keeps_bubble_controls_in_single_group():
     assert page._bubble_group.layout().indexOf(page._bubble_duration) >= 0
     assert page._display_group.layout().indexOf(page._bubble_scale) < 0
     assert page._passive_group.layout().indexOf(page._bubble_max_width) < 0
+
+
+def test_system_page_exposes_vision_ocr_settings():
+    _app()
+    config = SystemConfig()
+    page = SystemPage(config)
+
+    engine_values = [page._ocr_engine.itemData(i) for i in range(page._ocr_engine.count())]
+
+    assert page._vision_enabled.isChecked() is False
+    assert engine_values == ["rapidocr", "paddleocr"]
+    assert page._ocr_engine.currentData() == "rapidocr"
+    assert page._ocr_language.currentText() == "ch"
+    assert page._vision_max_text.value() == 2000
+    assert page._vision_screenshot_dir.text() == "data/vision"
+    assert page._vision_explicit_only.isChecked() is True
+    assert page._vision_explicit_only.isEnabled() is False
+    assert "tesseract" not in engine_values
+
+
+def test_system_page_apply_updates_vision_config():
+    _app()
+    config = SystemConfig()
+    page = SystemPage(config)
+
+    page._vision_enabled.setChecked(True)
+    page._ocr_engine.setCurrentIndex(page._ocr_engine.findData("paddleocr"))
+    page._ocr_language.setCurrentText("en")
+    page._vision_max_text.setValue(3600)
+    page._vision_screenshot_dir.setText("runtime/vision")
+    page.apply()
+
+    assert config.vision.enabled is True
+    assert config.vision.ocr_engine == "paddleocr"
+    assert config.vision.language == "en"
+    assert config.vision.max_text_chars == 3600
+    assert config.vision.screenshot_dir == "runtime/vision"
+    assert config.vision.explicit_trigger_only is True
+
+
+def test_settings_window_discards_unsaved_vision_changes_when_switching_away():
+    _app()
+    window = SettingsWindow()
+
+    window._switch_page(7)
+    window._system_page._vision_enabled.setChecked(True)
+    window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
+    window._system_page._ocr_language.setCurrentText("en")
+    window._system_page._vision_max_text.setValue(4000)
+    window._system_page._vision_screenshot_dir.setText("runtime/vision")
+    window._system_page._vision_explicit_only.setChecked(False)
+    window._switch_page(1)
+    window._switch_page(7)
+
+    assert window._system_page._vision_enabled.isChecked() == window._config.system.vision.enabled
+    assert window._system_page._ocr_engine.currentData() == window._config.system.vision.ocr_engine
+    assert window._system_page._ocr_language.currentText() == window._config.system.vision.language
+    assert window._system_page._vision_max_text.value() == window._config.system.vision.max_text_chars
+    assert window._system_page._vision_screenshot_dir.text() == window._config.system.vision.screenshot_dir
+    assert window._system_page._vision_explicit_only.isChecked() == window._config.system.vision.explicit_trigger_only
+
+
+def test_system_save_persists_vision_settings(monkeypatch):
+    _app()
+    saved = []
+    window = SettingsWindow()
+    monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
+    monkeypatch.setattr(window._config, "save_system", lambda: saved.append("save"))
+
+    window._switch_page(7)
+    window._system_page._vision_enabled.setChecked(True)
+    window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
+    window._system_page._ocr_language.setCurrentText("en")
+    window._system_page._vision_max_text.setValue(4200)
+    window._system_page._vision_screenshot_dir.setText("runtime/vision")
+    window._confirm_save()
+
+    assert window._config.system.vision.enabled is True
+    assert window._config.system.vision.ocr_engine == "paddleocr"
+    assert window._config.system.vision.language == "en"
+    assert window._config.system.vision.max_text_chars == 4200
+    assert window._config.system.vision.screenshot_dir == "runtime/vision"
+    assert window._config.system.vision.explicit_trigger_only is True
+    assert saved == ["save"]
+
+
+def test_settings_window_system_save_writes_vision_config_to_disk(tmp_path, monkeypatch):
+    _app()
+    monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
+    monkeypatch.setattr("ui.settings.window.ConfigManager", lambda: ConfigManager(config_dir=tmp_path))
+    window = SettingsWindow()
+
+    window._switch_page(7)
+    window._system_page._vision_enabled.setChecked(True)
+    window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
+    window._system_page._ocr_language.setCurrentText("en")
+    window._system_page._vision_max_text.setValue(4200)
+    window._system_page._vision_screenshot_dir.setText("runtime/vision")
+    window._confirm_save()
+
+    saved = yaml.safe_load((tmp_path / "system_config.yaml").read_text(encoding="utf-8"))
+    assert saved["vision"]["enabled"] is True
+    assert saved["vision"]["ocr_engine"] == "paddleocr"
+    assert saved["vision"]["language"] == "en"
+    assert saved["vision"]["max_text_chars"] == 4200
+    assert saved["vision"]["screenshot_dir"] == "runtime/vision"
+    assert saved["vision"]["explicit_trigger_only"] is True
+
+    reloaded = ConfigManager(config_dir=tmp_path)
+
+    assert reloaded.system.vision.enabled is True
+    assert reloaded.system.vision.ocr_engine == "paddleocr"
+    assert reloaded.system.vision.language == "en"
+    assert reloaded.system.vision.max_text_chars == 4200
+    assert reloaded.system.vision.screenshot_dir == "runtime/vision"
+    assert reloaded.system.vision.explicit_trigger_only is True
+
+
+def test_chat_window_injects_vision_manager_into_agent(monkeypatch):
+    _app()
+    captured = {}
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    class CapturingAgentManager:
+        def __init__(self, *args, **kwargs):
+            captured["vision_manager"] = kwargs.get("vision_manager")
+
+    monkeypatch.setattr("ui.chat.window.AgentManager", CapturingAgentManager)
+
+    config = SystemConfig()
+    window = ChatWindow(LLMConfig(), system_config=config)
+
+    assert captured["vision_manager"] is window._vision_manager
+    assert window._vision_manager._config == config.vision
+    assert window._vision_manager._config is not config.vision
+
+
+def test_chat_window_pre_captures_screen_before_starting_llm_worker(monkeypatch):
+    _app()
+    events = []
+    captured = {}
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    class FakeAgentManager:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def should_capture_screen(self, text):
+            return True
+
+    class FakeWorker:
+        def __init__(self, chat_engine, user_input, visual_capture=None):
+            events.append("worker_init")
+            captured["user_input"] = user_input
+            captured["visual_capture"] = visual_capture
+            self.chunk_received = type("S", (), {"connect": lambda self, *_: None})()
+            self.finished_signal = type("S", (), {"connect": lambda self, *_: None})()
+            self.error_signal = type("S", (), {"connect": lambda self, *_: None})()
+            self.finished = type("S", (), {"connect": lambda self, *_: None})()
+
+        def start(self):
+            events.append("worker_start")
+            captured["started"] = True
+
+    monkeypatch.setattr("ui.chat.window.AgentManager", FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.LLMWorker", FakeWorker)
+    window = ChatWindow(LLMConfig(), system_config=SystemConfig())
+    monkeypatch.setattr(
+        window._vision_manager,
+        "capture_screen_image",
+        lambda: events.append("capture") or OCRResult(ok=True, image_path="data/vision/main-thread.png"),
+    )
+    window._input.setText("帮我看看屏幕")
+
+    window._on_send()
+
+    assert events == ["capture", "worker_init", "worker_start"]
+    assert captured["user_input"] == "帮我看看屏幕"
+    assert captured["visual_capture"].image_path == "data/vision/main-thread.png"
+    assert captured["started"] is True
+
+
+def test_chat_window_apply_system_config_updates_vision_manager(monkeypatch):
+    _app()
+    from vision.ocr import PaddleOCRAdapter
+
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    window = ChatWindow(LLMConfig(), system_config=SystemConfig())
+    initial_adapter = window._vision_manager._ocr
+    new_config = SystemConfig()
+    new_config.vision.enabled = True
+    new_config.vision.ocr_engine = "paddleocr"
+
+    window.apply_system_config(new_config)
+
+    assert window._vision_manager._config == new_config.vision
+    assert window._vision_manager._config is not new_config.vision
+    assert window._vision_manager._ocr is not initial_adapter
+    assert isinstance(window._vision_manager._ocr, PaddleOCRAdapter)
+
+
+def test_system_save_updates_existing_chat_window_vision_config(monkeypatch):
+    _app()
+    from vision.ocr import PaddleOCRAdapter
+
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+    window = SettingsWindow()
+    chat_window = ChatWindow(LLMConfig(), system_config=SystemConfig())
+    window._chat_window = chat_window
+    monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
+    monkeypatch.setattr(window._config, "save_system", lambda: None)
+
+    window._switch_page(7)
+    window._system_page._vision_enabled.setChecked(True)
+    window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
+    window._system_page._ocr_language.setCurrentText("en")
+    window._confirm_save()
+
+    assert chat_window._vision_manager._config == window._config.system.vision
+    assert chat_window._vision_manager._config is not window._config.system.vision
+    assert chat_window._vision_manager._config.ocr_engine == "paddleocr"
+    assert chat_window._vision_manager._config.language == "en"
+    assert isinstance(chat_window._vision_manager._ocr, PaddleOCRAdapter)
+
+
+def test_system_save_rebuilds_existing_chat_window_vision_adapter_with_shared_config(monkeypatch):
+    _app()
+    from vision.ocr import PaddleOCRAdapter
+
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+    window = SettingsWindow()
+    chat_window = ChatWindow(LLMConfig(), system_config=window._config.system)
+    initial_adapter = chat_window._vision_manager._ocr
+    window._chat_window = chat_window
+    monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
+    monkeypatch.setattr(window._config, "save_system", lambda: None)
+
+    window._switch_page(7)
+    window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
+    window._system_page._ocr_language.setCurrentText("en")
+    window._confirm_save()
+
+    assert chat_window._vision_manager._config == window._config.system.vision
+    assert chat_window._vision_manager._config is not window._config.system.vision
+    assert chat_window._vision_manager._ocr is not initial_adapter
+    assert isinstance(chat_window._vision_manager._ocr, PaddleOCRAdapter)
+
+
+def test_system_save_failure_rolls_back_shared_chat_window_vision_config(monkeypatch):
+    _app()
+
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+    window = SettingsWindow()
+    chat_window = ChatWindow(LLMConfig(), system_config=window._config.system)
+    initial_adapter = chat_window._vision_manager._ocr
+    window._chat_window = chat_window
+    monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
+
+    def fail_save():
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(window._config, "save_system", fail_save)
+
+    window._switch_page(7)
+    original_font = window._config.system.font_family
+    window._system_page._font.setCurrentText("Arial")
+    window._system_page._vision_enabled.setChecked(True)
+    window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
+    window._system_page._ocr_language.setCurrentText("en")
+    window._confirm_save()
+
+    assert window._config.system.font_family == original_font
+    assert window._system_page._font.currentText() == original_font
+    assert window._config.system.vision.enabled is False
+    assert window._config.system.vision.ocr_engine == "rapidocr"
+    assert chat_window._vision_manager._config == window._config.system.vision
+    assert chat_window._vision_manager._config is not window._config.system.vision
+    assert chat_window._vision_manager._ocr is initial_adapter
+
+
+def test_settings_window_close_clears_chat_window_reference():
+    _app()
+    cleared = []
+    window = SettingsWindow()
+    window._chat_window = SimpleNamespace(_clear_settings_window_ref=lambda: cleared.append("clear"))
+
+    window.closeEvent(QCloseEvent())
+
+    assert cleared == ["clear"]
+
+
+def test_settings_window_close_runs_registered_callback():
+    _app()
+    cleared = []
+    window = SettingsWindow()
+    window.set_close_callback(lambda: cleared.append("callback"))
+
+    window.closeEvent(QCloseEvent())
+
+    assert cleared == ["callback"]
 
 
 def test_system_page_apply_does_not_save_until_settings_window_save(monkeypatch):
@@ -729,6 +1198,45 @@ def test_chat_window_reuses_existing_settings_window(monkeypatch):
     assert created[0].show_calls == 2
     assert created[0].raise_calls == 2
     assert created[0].activate_calls == 2
+
+
+def test_chat_window_binds_real_settings_window_for_save_and_close(monkeypatch):
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    created = []
+
+    class BindingSettingsWindow(SettingsWindow):
+        def __init__(self):
+            super().__init__()
+            created.append(self)
+
+    monkeypatch.setattr("ui.settings.window.SettingsWindow", BindingSettingsWindow)
+    window = ChatWindow(LLMConfig())
+
+    window._open_settings()
+    settings_window = created[0]
+    monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
+    monkeypatch.setattr(settings_window._config, "save_system", lambda: None)
+
+    assert settings_window._chat_window is window
+    assert settings_window._config.system.vision.ocr_engine == "rapidocr"
+
+    settings_window._switch_page(7)
+    settings_window._system_page._ocr_engine.setCurrentIndex(
+        settings_window._system_page._ocr_engine.findData("paddleocr")
+    )
+    settings_window._confirm_save()
+
+    assert window._vision_manager._config == settings_window._config.system.vision
+    assert window._vision_manager._config is not settings_window._config.system.vision
+    assert window._vision_manager._config.ocr_engine == "paddleocr"
+
+    settings_window.closeEvent(QCloseEvent())
+
+    assert window._settings_window is None
 
 
 def test_chat_window_recreates_settings_window_after_close(monkeypatch):

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LLMConfig(BaseModel):
@@ -75,19 +75,53 @@ class PassiveInteractionConfig(BaseModel):
 
 
 class VisionConfig(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+
     enabled: bool = False
-    ocr_engine: str = "tesseract"
-    tesseract_cmd: str = "tesseract"
-    language: str = "chi_sim+eng"
-    psm: int = 6
+    ocr_engine: str = "rapidocr"
+    language: str = "ch"
     screenshot_dir: str = "data/vision"
     max_text_chars: int = 2000
     explicit_trigger_only: bool = True
 
+    @field_validator("ocr_engine", mode="before")
+    @classmethod
+    def normalize_ocr_engine(cls, value):
+        engine = str(value or "rapidocr").strip().lower()
+        if engine == "tesseract":
+            return "rapidocr"
+        if engine in {"rapidocr", "paddleocr"}:
+            return engine
+        return "rapidocr"
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def normalize_ocr_language(cls, value):
+        language = str(value or "ch").strip().lower()
+        legacy_languages = {
+            "chi_sim",
+            "chi_sim+eng",
+            "chi_tra",
+            "chi_tra+eng",
+            "zh",
+            "zh-cn",
+            "zh_cn",
+        }
+        if language in legacy_languages:
+            return "ch"
+        if language in {"eng", "english"}:
+            return "en"
+        return language or "ch"
+
+    @field_validator("explicit_trigger_only", mode="before")
+    @classmethod
+    def keep_explicit_trigger_only(cls, value):
+        return True
+
 
 class SystemConfig(BaseModel):
     language: str = "zh-CN"
-    theme: str = "dark"
+    theme: str = "sakura"
     font_family: str = "Microsoft YaHei"
     font_size: int = 14
     proxy: str = ""

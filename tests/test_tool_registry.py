@@ -68,3 +68,24 @@ def test_tool_registry_refreshes_snapshot(tmp_path):
     registry.refresh()
     assert registry.tool_specs()[0]["function"]["name"] == "demo__echo"
     assert registry.counts_by_source() == {"plugin": 1, "mcp": 0}
+
+
+def test_tool_registry_records_plugin_and_mcp_specific_log_sources(tmp_path):
+    class FakeLogService:
+        def __init__(self):
+            self.events = []
+
+        def record(self, event):
+            self.events.append(event)
+
+    plugin_host = PluginHost(tmp_path / "plugins")
+    plugin_host.plugins = [DemoPlugin()]
+    mcp_host = MCPHost([MCPServerConfig(name="notes", transport="stdio", command="python server.py")], session_factory=FakeMCPSession)
+    mcp_host.connect_all()
+    log_service = FakeLogService()
+    registry = ToolRegistry(plugin_host=plugin_host, mcp_host=mcp_host, log_service=log_service)
+
+    registry.call_tool("demo__echo", {"text": "hi"})
+    registry.call_tool("notes__search", {"query": "today"})
+
+    assert [event.source for event in log_service.events] == ["plugin.demo", "mcp.notes"]
