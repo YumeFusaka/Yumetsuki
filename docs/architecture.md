@@ -244,10 +244,17 @@ yumetsuki/
 → 翻译前会对拟声词、语气词、拖长音、重复音节做音感保护标注，提示模型优先保留发音感觉与节奏
 → 翻译结果进入 GPT-SoVITS 合成
 → GPT-SoVITS 依据 `audio_mode` 返回完整 WAV 或 PCM chunk stream
-→ ChatWindow 按句段顺序驱动 `WavPlaybackBackend` 或 `PcmStreamPlaybackBackend`
+→ ChatWindow 按句段顺序驱动 WAV 临时文件播放或 `PcmStreamPlaybackBackend`
 → 翻译 worker / TTS worker 受 `AgentConfig.tts_runtime` 限流，超额句段先进入待处理队列
-→ Qt 多媒体按句序播放音频；PCM 在首个可播 chunk 到达后尽快起播
+→ Qt 多媒体按句序播放音频；PCM 在首个可播 chunk 到达后尽快起播，WAV 句段落到临时文件后以本地文件 URL 播放
 ```
+
+TTS 音频事件必须避免在 Qt 主线程做长时间同步工作：
+
+- 句段事件队列使用 `deque`，避免大量 chunk 到达时 `pop(0)` 造成 O(n) 消费成本。
+- GPT-SoVITS PCM 回包使用固定 chunk size 读取，WAV 回包按有界块发出，避免单个 queued signal 携带超大 bytes。
+- PCM 播放缓冲会回收已读前缀，避免长语音让内存缓冲持续增长。
+- WAV 句段不再在主线程聚合为整段 bytes 后塞入 `QBuffer`，而是写入进程临时文件，播放完成、取消当前轮或关闭窗口时统一清理。
 
 Phase 5 改进后的 STT 适配路径将固定为：
 

@@ -17,6 +17,19 @@ def test_streaming_audio_buffer_reads_appended_bytes_in_order():
     assert bytes(buffer.readData(4)) == b"abcd"
 
 
+def test_streaming_audio_buffer_compacts_read_prefix():
+    buffer = StreamingAudioBuffer()
+    buffer.append_chunk(b"a" * 8192)
+
+    assert bytes(buffer.readData(4096)) == b"a" * 4096
+
+    buffer.append_chunk(b"bc")
+
+    assert buffer._offset < 4096
+    assert bytes(buffer.readData(4098)) == b"a" * 4096 + b"bc"
+    assert buffer.bytesAvailable() == 0
+
+
 def test_pcm_backend_marks_audio_as_started_after_first_chunk():
     _app()
     backend = PcmStreamPlaybackBackend()

@@ -5,6 +5,8 @@ from tts.types import TTSAudioFormat
 
 
 class StreamingAudioBuffer(QIODevice):
+    _COMPACT_THRESHOLD = 4096
+
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
         self._chunks = bytearray()
@@ -15,6 +17,7 @@ class StreamingAudioBuffer(QIODevice):
     def append_chunk(self, data: bytes) -> None:
         if not data:
             return
+        self._compact_if_needed()
         self._chunks.extend(data)
         self.readyRead.emit()
 
@@ -40,7 +43,14 @@ class StreamingAudioBuffer(QIODevice):
         end = min(len(self._chunks), self._offset + maxlen)
         data = bytes(self._chunks[self._offset:end])
         self._offset = end
+        self._compact_if_needed()
         return data
+
+    def _compact_if_needed(self) -> None:
+        if self._offset < self._COMPACT_THRESHOLD:
+            return
+        del self._chunks[:self._offset]
+        self._offset = 0
 
     def writeData(self, _data, _length: int) -> int:
         return -1

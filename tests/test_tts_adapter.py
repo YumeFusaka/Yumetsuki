@@ -666,6 +666,7 @@ def test_gptsovits_strict_original_mode_never_attempts_session_retry(monkeypatch
 
 def test_gptsovits_pcm_stream_mode_uses_low_latency_payload(monkeypatch):
     captured = {}
+    chunk_sizes = []
 
     class _FakeResponse:
         status_code = 200
@@ -676,6 +677,7 @@ def test_gptsovits_pcm_stream_mode_uses_low_latency_payload(monkeypatch):
         }
 
         def iter_content(self, chunk_size=None):
+            chunk_sizes.append(chunk_size)
             yield b"\x00\x01"
             yield b"\x02\x03"
 
@@ -701,6 +703,7 @@ def test_gptsovits_pcm_stream_mode_uses_low_latency_payload(monkeypatch):
     assert captured["json"]["parallel_infer"] is False
     assert captured["json"]["session_id"] == "sess-1"
     assert captured["stream"] is True
+    assert chunk_sizes == [GPTSoVITSAdapter.PCM_STREAM_CHUNK_SIZE]
     assert [event.kind for event in events] == ["start", "chunk", "chunk", "end"]
 
 
@@ -741,6 +744,35 @@ def test_gptsovits_auto_mode_retries_as_wav_and_locks_session(monkeypatch):
     assert calls[0]["media_type"] == "raw"
     assert calls[1]["media_type"] == "wav"
     assert adapter.get_session_audio_mode() == "wav"
+
+
+def test_gptsovits_wav_response_is_emitted_in_bounded_chunks(monkeypatch):
+    payload = b"x" * (GPTSoVITSAdapter.WAV_RESPONSE_CHUNK_SIZE * 2 + 7)
+
+    class _FakeResponse:
+        status_code = 200
+        content = payload
+        headers = {}
+
+        def iter_content(self, chunk_size=None):
+            return iter(())
+
+    class _FakeSession:
+        def get(self, *args, **kwargs):
+            raise AssertionError("not used")
+
+        def post(self, url, json=None, timeout=None, stream=None):
+            return _FakeResponse()
+
+    monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: _FakeSession())
+    adapter = GPTSoVITSAdapter(TTSConfig(engine="gptsovits", api_url="http://fake:9880", audio_mode="wav"))
+
+    events = list(adapter.stream_synthesize("hello"))
+    chunks = [event.data for event in events if event.kind == "chunk"]
+
+    assert [event.kind for event in events] == ["start", "chunk", "chunk", "chunk", "end"]
+    assert b"".join(chunks) == payload
+    assert all(len(chunk) <= GPTSoVITSAdapter.WAV_RESPONSE_CHUNK_SIZE for chunk in chunks if chunk)
 
 
 def test_gptsovits_without_session_extension_keeps_original_reference_flow(monkeypatch):

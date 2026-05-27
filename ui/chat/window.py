@@ -1,16 +1,17 @@
+from collections import deque
 from pathlib import Path
 import getpass
 import re
+import tempfile
 import time
 import unicodedata
 import uuid
 from html import escape
-from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QPushButton, QMenu,
     QApplication, QSizePolicy, QScrollArea,
 )
-from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize, QBuffer, QByteArray, QIODevice, QTimer, QEvent
+from PySide6.QtCore import Qt, QThread, Signal, QPoint, QSize, QBuffer, QByteArray, QIODevice, QTimer, QEvent, QUrl
 from PySide6.QtGui import QPixmap, QCursor, QAction, QPainter, QColor, QPainterPath, QBrush, QPen, QIcon
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from ui.chat.sprite import SpriteManager
@@ -296,10 +297,11 @@ class ChatWindow(QWidget):
         self._current_utterance_id = 0
         self._next_segment_id = 0
         self._next_play_id = 0
-        self._segment_results: dict[tuple[int, int], bytes] = {}
-        self._wav_segment_buffers: dict[tuple[int, int], bytearray] = {}
+        self._segment_results: dict[tuple[int, int], bytes | Path] = {}
+        self._wav_segment_files: dict[tuple[int, int], Path] = {}
+        self._wav_segment_handles: dict[tuple[int, int], object] = {}
         self._segment_states: dict[tuple[int, int], str] = {}
-        self._segment_events: dict[tuple[int, int], list[TTSStreamEvent]] = {}
+        self._segment_events: dict[tuple[int, int], deque[TTSStreamEvent]] = {}
         self._segment_backends: dict[tuple[int, int], object] = {}
         self._active_segment_key: tuple[int, int] | None = None
         self._active_tts_workers = []
@@ -320,7 +322,8 @@ class ChatWindow(QWidget):
         self._audio_player = None
         self._audio_buffer = None
         self._is_audio_playing = False
-        self._pending_audio_queue: list[bytes] = []
+        self._active_audio_file: Path | None = None
+        self._pending_audio_queue: list[bytes | Path] = []
         self._stt_manager = (
             STTManager(self._asr_config, log_service=log_service, session_id=self._tts_session_id)
             if self._is_stt_enabled()
@@ -700,7 +703,9 @@ class ChatWindow(QWidget):
             or self._segment_backends
             or any(events for events in self._segment_events.values())
             or self._segment_results
-            or self._wav_segment_buffers
+            or self._wav_segment_files
+            or self._wav_segment_handles
+            or self._pending_audio_queue
             or self._is_audio_playing
         )
 
@@ -1491,21 +1496,22 @@ class ChatWindow(QWidget):
         self._tts_pending_buffer = ""
         self._next_segment_id = 0
         self._next_play_id = 0
-        self._segment_results.clear()
-        self._wav_segment_buffers.clear()
+        self._clear_segment_results()
+        self._cleanup_all_wav_segment_files()
         self._segment_states.clear()
         self._segment_events.clear()
         self._stop_all_segment_backends()
         self._active_segment_key = None
-        self._pending_audio_queue.clear()
+        self._clear_pending_audio_queue()
         self._pending_tts_segments.clear()
         self._pending_translation_segments.clear()
         if self._audio_player is not None:
             self._is_audio_playing = False
             self._audio_player.stop()
         self._release_audio_buffer()
+        self._cleanup_active_audio_file()
 
-    def _complete_tts_segment(self, utterance_id: int, segment_id: int, audio: bytes | None) -> None:
+    def _complete_tts_segment(self, utterance_id: int, segment_id: int, audio: bytes | Path | None) -> None:
         key = (utterance_id, segment_id)
         if audio:
             self._tts_pipeline.mark_played(key)
@@ -1530,7 +1536,7 @@ class ChatWindow(QWidget):
         if utterance_id != self._current_utterance_id:
             return
         key = (utterance_id, segment_id)
-        self._segment_events.setdefault(key, []).append(event)
+        self._segment_events.setdefault(key, deque()).append(event)
         self._segment_states.setdefault(key, "pending")
         self._advance_ready_segments()
 
@@ -1587,10 +1593,10 @@ class ChatWindow(QWidget):
             events = self._segment_events.get(key)
             if not events:
                 return
-            event = events.pop(0)
+            event = events.popleft()
             if event.kind == "start" and event.format is not None:
                 if event.format.transport == "wav":
-                    self._wav_segment_buffers[key] = bytearray()
+                    self._start_wav_segment_file(key)
                     self._segment_states[key] = "buffering_wav"
                     continue
                 self._tts_pipeline.mark_streaming(key)
@@ -1599,25 +1605,71 @@ class ChatWindow(QWidget):
                 continue
             if event.kind == "chunk" and event.data is not None:
                 if self._segment_states.get(key) == "buffering_wav":
-                    self._wav_segment_buffers.setdefault(key, bytearray()).extend(event.data)
+                    self._write_wav_segment_chunk(key, event.data)
                     continue
                 self._append_segment_chunk(key, event.data)
                 continue
             if event.kind == "end":
                 if self._segment_states.get(key) == "buffering_wav":
-                    wav_bytes = bytes(self._wav_segment_buffers.pop(key, bytearray()))
+                    wav_file = self._finish_wav_segment_file(key)
                     self._segment_states.pop(key, None)
                     self._active_segment_key = None
-                    self._complete_tts_segment(key[0], key[1], wav_bytes)
+                    self._complete_tts_segment(key[0], key[1], wav_file)
                     self._advance_ready_segments()
                     return
                 self._segment_states[key] = "ended"
                 self._finish_segment_backend(key)
                 return
             if event.kind == "error":
-                self._wav_segment_buffers.pop(key, None)
+                self._cleanup_wav_segment_file(key)
                 self._fail_segment(key, event.message)
                 continue
+
+    def _start_wav_segment_file(self, key: tuple[int, int]) -> None:
+        self._cleanup_wav_segment_file(key)
+        handle = tempfile.NamedTemporaryFile(prefix="yumetsuki-tts-", suffix=".wav", delete=False)
+        self._wav_segment_handles[key] = handle
+        self._wav_segment_files[key] = Path(handle.name)
+
+    def _write_wav_segment_chunk(self, key: tuple[int, int], data: bytes) -> None:
+        handle = self._wav_segment_handles.get(key)
+        if handle is None:
+            return
+        handle.write(data)
+
+    def _finish_wav_segment_file(self, key: tuple[int, int]) -> Path | None:
+        handle = self._wav_segment_handles.pop(key, None)
+        if handle is not None:
+            handle.close()
+        path = self._wav_segment_files.pop(key, None)
+        if path is None:
+            return None
+        try:
+            if path.stat().st_size > 0:
+                return path
+        except OSError:
+            pass
+        self._unlink_audio_file(path)
+        return None
+
+    def _cleanup_wav_segment_file(self, key: tuple[int, int]) -> None:
+        handle = self._wav_segment_handles.pop(key, None)
+        if handle is not None:
+            handle.close()
+        path = self._wav_segment_files.pop(key, None)
+        if path is not None:
+            self._unlink_audio_file(path)
+
+    def _cleanup_all_wav_segment_files(self) -> None:
+        keys = set(self._wav_segment_files.keys()) | set(self._wav_segment_handles.keys())
+        for key in keys:
+            self._cleanup_wav_segment_file(key)
+
+    def _clear_segment_results(self) -> None:
+        for audio in self._segment_results.values():
+            if isinstance(audio, Path):
+                self._unlink_audio_file(audio)
+        self._segment_results.clear()
 
     def _start_segment_backend(self, key: tuple[int, int], audio_format: TTSAudioFormat) -> None:
         self._stop_segment_backend(key)
@@ -1669,6 +1721,7 @@ class ChatWindow(QWidget):
         self._tts_pipeline.mark_failed(key)
         self._segment_states.pop(key, None)
         self._segment_events.pop(key, None)
+        self._cleanup_wav_segment_file(key)
         self._stop_segment_backend(key)
         if self._active_segment_key == key or key[1] == self._next_play_id:
             self._next_play_id += 1
@@ -1699,7 +1752,9 @@ class ChatWindow(QWidget):
             if key not in self._segment_results:
                 break
             audio = self._segment_results.pop(key)
-            if audio:
+            if isinstance(audio, Path):
+                self._play_audio_file(audio)
+            elif audio:
                 self._play_audio_bytes(audio)
             self._next_play_id += 1
 
@@ -1722,13 +1777,44 @@ class ChatWindow(QWidget):
         self._audio_buffer.deleteLater()
         self._audio_buffer = None
 
+    def _cleanup_active_audio_file(self) -> None:
+        if self._active_audio_file is None:
+            return
+        if self._audio_player is not None:
+            self._audio_player.setSource(QUrl())
+        self._unlink_audio_file(self._active_audio_file)
+        self._active_audio_file = None
+
+    def _clear_pending_audio_queue(self) -> None:
+        for item in self._pending_audio_queue:
+            if isinstance(item, Path):
+                self._unlink_audio_file(item)
+        self._pending_audio_queue.clear()
+
+    @staticmethod
+    def _unlink_audio_file(path: Path) -> None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
     def _start_audio_playback(self, audio: bytes) -> None:
         self._ensure_audio_backend()
         self._release_audio_buffer()
+        self._cleanup_active_audio_file()
         self._audio_buffer = QBuffer(self)
         self._audio_buffer.setData(QByteArray(audio))
         self._audio_buffer.open(QIODevice.OpenModeFlag.ReadOnly)
         self._audio_player.setSourceDevice(self._audio_buffer)
+        self._is_audio_playing = True
+        self._audio_player.play()
+
+    def _start_audio_file_playback(self, path: Path) -> None:
+        self._ensure_audio_backend()
+        self._release_audio_buffer()
+        self._cleanup_active_audio_file()
+        self._active_audio_file = path
+        self._audio_player.setSource(QUrl.fromLocalFile(str(path)))
         self._is_audio_playing = True
         self._audio_player.play()
 
@@ -1740,14 +1826,26 @@ class ChatWindow(QWidget):
             return
         self._start_audio_playback(audio)
 
+    def _play_audio_file(self, path: Path) -> None:
+        if not path:
+            return
+        if self._is_audio_playing:
+            self._pending_audio_queue.append(path)
+            return
+        self._start_audio_file_playback(path)
+
     def _on_audio_playback_state_changed(self, state) -> None:
         if state != QMediaPlayer.PlaybackState.StoppedState or not self._is_audio_playing:
             return
         self._is_audio_playing = False
         self._release_audio_buffer()
+        self._cleanup_active_audio_file()
         if self._pending_audio_queue:
             next_audio = self._pending_audio_queue.pop(0)
-            self._start_audio_playback(next_audio)
+            if isinstance(next_audio, Path):
+                self._start_audio_file_playback(next_audio)
+            else:
+                self._start_audio_playback(next_audio)
             return
         self._clear_turn_status_if_idle()
 
@@ -2252,9 +2350,12 @@ class ChatWindow(QWidget):
             QTimer.singleShot(200, self.close)
             return
         self._stop_all_segment_backends()
-        self._pending_audio_queue.clear()
+        self._clear_segment_results()
+        self._cleanup_all_wav_segment_files()
+        self._clear_pending_audio_queue()
         if self._audio_player is not None:
             self._is_audio_playing = False
             self._audio_player.stop()
         self._release_audio_buffer()
+        self._cleanup_active_audio_file()
         super().closeEvent(event)

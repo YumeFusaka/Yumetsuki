@@ -1,3 +1,5 @@
+from collections import deque
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -241,12 +243,27 @@ def test_handle_tts_stream_event_starts_pcm_backend_on_first_chunk(chat_window, 
     assert chunks == [(key, b"\x00\x01")]
 
 
-def test_wav_stream_event_uses_shared_audio_player_path(chat_window, monkeypatch):
+def test_tts_stream_events_use_deque_for_fast_front_consumption(chat_window):
+    key = (chat_window._current_utterance_id, 1)
+
+    chat_window._handle_tts_stream_event(key[0], key[1], TTSStreamEvent(kind="chunk", data=b"queued"))
+
+    assert isinstance(chat_window._segment_events[key], deque)
+
+
+def test_wav_stream_event_uses_temp_file_player_path(chat_window, monkeypatch):
     starts = []
+    played_files = []
     monkeypatch.setattr(
         chat_window,
         "_start_segment_backend",
         lambda key, audio_format: starts.append((key, audio_format.transport)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        chat_window,
+        "_play_audio_file",
+        lambda path: played_files.append(path),
         raising=False,
     )
 
@@ -263,7 +280,53 @@ def test_wav_stream_event_uses_shared_audio_player_path(chat_window, monkeypatch
     chat_window._handle_tts_stream_event(key[0], key[1], TTSStreamEvent(kind="end"))
 
     assert starts == []
-    assert chat_window._played_audio == [b"wav-bytes"]
+    assert chat_window._played_audio == []
+    assert len(played_files) == 1
+    played_path = Path(played_files[0])
+    try:
+        assert played_path.read_bytes() == b"wav-bytes"
+    finally:
+        played_path.unlink(missing_ok=True)
+
+
+def test_begin_new_tts_turn_removes_pending_wav_file(chat_window, tmp_path):
+    pending_file = tmp_path / "pending.wav"
+    pending_file.write_bytes(b"wav")
+    chat_window._segment_results[(chat_window._current_utterance_id, 0)] = pending_file
+
+    chat_window._begin_new_tts_turn()
+
+    assert not pending_file.exists()
+
+
+def test_empty_wav_stream_marks_segment_failed_without_playing_file(chat_window, monkeypatch):
+    played_files = []
+    monkeypatch.setattr(
+        chat_window,
+        "_play_audio_file",
+        lambda path: played_files.append(path),
+        raising=False,
+    )
+
+    key = (chat_window._current_utterance_id, 0)
+    chat_window._tts_pipeline.enqueue_text_segment(
+        utterance_id=key[0],
+        segment_id=key[1],
+        text="empty",
+        needs_translation=False,
+    )
+    chat_window._handle_tts_stream_event(
+        key[0],
+        key[1],
+        TTSStreamEvent(
+            kind="start",
+            format=TTSAudioFormat(transport="wav", sample_rate=0, channels=0, sample_width=0),
+        ),
+    )
+    chat_window._handle_tts_stream_event(key[0], key[1], TTSStreamEvent(kind="end"))
+
+    assert played_files == []
+    assert chat_window._tts_pipeline.segments[key].status == TTSSegmentStatus.FAILED
 
 
 def test_next_segment_waits_until_current_segment_finishes(chat_window):

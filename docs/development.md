@@ -215,6 +215,15 @@
   - `VisionManager` 的禁用状态、截图失败、OCR 失败、文本截断和 RapidOCR / PaddleOCR 后端选择
   - `SessionContext.visual_observations` 的 prompt 注入和 SQLite 快照往返
   - `ChatWindow` 仅在显式读屏请求下主线程预采集截图；`AgentManager` 只处理预采集截图的 OCR 与会话注入，普通聊天不读屏
+- TTS 性能相关改动优先覆盖：
+  - GPT-SoVITS PCM 读取必须使用有界 chunk size，不得回退到 `chunk_size=None`
+  - GPT-SoVITS WAV 回包必须按有界块发出，避免单个 Qt queued signal 携带整段音频
+  - `ChatWindow` TTS 事件队列必须保持头部消费为 O(1)
+  - PCM 播放缓冲读取后必须回收已读前缀，避免长语音内存持续增长
+  - WAV 句段临时文件必须在播放完成、取消当前轮和关闭窗口时清理
+- 启动窗口相关改动优先覆盖：
+  - 无边框启动加载窗应支持左键拖拽移动
+  - 内部 shell、标题、状态文字和进度条区域的鼠标事件也应能移动父窗口
 - `EventBus` 相关改动优先覆盖：
   - 发布时 handler 快照语义
   - 订阅 / 退订与发布并发下的基本安全性

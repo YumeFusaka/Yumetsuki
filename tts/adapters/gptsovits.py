@@ -11,6 +11,8 @@ from tts.types import TTSAudioFormat, TTSStreamEvent
 
 class GPTSoVITSAdapter(TTSAdapter):
     _REFERENCE_CAPABILITY_CACHE: dict[str, str] = {}
+    PCM_STREAM_CHUNK_SIZE = 32 * 1024
+    WAV_RESPONSE_CHUNK_SIZE = 64 * 1024
 
     REFERENCE_MODE_AUTO = "auto"
     REFERENCE_MODE_INLINE = "inline"
@@ -348,7 +350,9 @@ class GPTSoVITSAdapter(TTSAdapter):
             kind="start",
             format=TTSAudioFormat(transport="wav", sample_rate=0, channels=0, sample_width=0),
         )
-        yield TTSStreamEvent(kind="chunk", data=getattr(resp, "content", b""))
+        content = getattr(resp, "content", b"") or b""
+        for offset in range(0, len(content), self.WAV_RESPONSE_CHUNK_SIZE):
+            yield TTSStreamEvent(kind="chunk", data=content[offset : offset + self.WAV_RESPONSE_CHUNK_SIZE])
         yield TTSStreamEvent(kind="end")
         return True
 
@@ -365,7 +369,7 @@ class GPTSoVITSAdapter(TTSAdapter):
         )
         emitted = False
         try:
-            for chunk in resp.iter_content(chunk_size=None):
+            for chunk in resp.iter_content(chunk_size=self.PCM_STREAM_CHUNK_SIZE):
                 if not chunk:
                     continue
                 emitted = True
