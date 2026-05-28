@@ -16,9 +16,28 @@
 - 第四阶段：已完成，主实现和文档已收口到当前架构文档。
 - 第五阶段：已完成，进入稳定化维护。
 - 第六阶段：实现、本地自动化验证和 sub agent 复审已完成；真实浏览器、OCR、MCP、STT / TTS / API 实机验收暂缓。
+- Phase 7：已形成诊断能力实施计划，尚未进入实现；计划入口为 `docs/superpowers/plans/2026-05-28-phase-7-diagnostics.md`。
+- Phase 8 / Phase 9：已形成阶段设计草案，但尚未进入实施计划；草案入口为 `docs/superpowers/specs/2026-05-28-phase-8-9-design.md`。
 - 当前优先级：
-  1. 暂缓中的实机验收恢复后，优先检查浏览器持续会话、OCR、MCP、STT / TTS / API 和平台日志联动
-  2. 更多内置插件能力扩展
+  1. 按 Phase 7 计划补齐平台日志 trace / request_id / stage、脱敏诊断包、配置健康检查、工具执行审计、诊断页入口和聊天窗最小失败恢复
+  2. 暂缓中的实机验收恢复后，优先检查浏览器持续会话、OCR、MCP、STT / TTS / API 和平台日志联动
+
+## 1.0 验收门
+
+进入 1.0 完成状态前，必须同时满足：
+
+- 自动化测试通过，至少覆盖当前聚焦回归入口和受影响模块。
+- API、TTS、STT、OCR、MCP、Playwright Edge 的实机矩阵通过，并记录结果。
+- 诊断包人工抽查通过，确认无 API key、私有 URL 凭据、截图原图、音频、本地模型完整路径或长 OCR 原文泄露。
+- 干净 Windows 环境可完成安装、启动和基础聊天链路运行。
+- 文档入口、配置说明、故障排查说明和插件说明没有过期入口或误导性状态。
+- 未完成项全部分类为 `post-1.0`、`maintenance` 或 `won't do`。
+
+Post-1.0 分类策略：
+
+- `post-1.0`：有明确产品价值，但不影响 1.0 基础可用性或安全边界。
+- `maintenance`：缺陷修复、兼容性、文档维护、依赖更新和稳定性补强。
+- `won't do`：与项目目标冲突、隐私或权限风险过高、破坏原版兼容，或维护成本明显高于收益。
 
 说明：
 
@@ -264,7 +283,7 @@
   - 拟声词、语气词、拖长音、重复音节在翻译时优先保留音感，不被语义意译破坏
   - 避免依赖真实 GPT-SoVITS 服务或真实音频设备
 
-### 当前聚焦回归入口
+### 当前可运行聚焦回归入口
 
 - Agent / EventBus：
   - `python -m pytest tests/test_config_agent.py -q`
@@ -280,6 +299,15 @@
   - 当前这些用例主要覆盖无真实设备的配置、气泡、录音、本地 faster-whisper 库 mock、被动状态状态机、聊天窗状态条、流式显示合帧、立绘缓存、带字体预览的系统字体下拉框、系统页保存应用和聊天窗主链路；真实麦克风、真实 faster-whisper 模型转写和真实 STT / TTS 互锁仍需本地手工联调验证
 - 语法检查：
   - 当前 UI / 日志关键实现：`python -m py_compile config/schema.py core/log_service.py ui/settings/window.py ui/settings/pages/api_page.py ui/settings/pages/system_page.py ui/settings/pages/conversation_log_page.py ui/settings/pages/system_log_page.py ui/chat/window.py ui/chat/sprite.py ui/chat/stt_recorder.py stt/types.py stt/adapter.py stt/adapters/faster_whisper.py stt/manager.py`
+
+### Phase 7 实现后新增回归入口
+
+- Phase 7 诊断与审计：
+  - `python -m pytest tests/test_log_sanitizer.py tests/test_log_service.py tests/test_diagnostic_bundle.py -q`
+  - `python -m pytest tests/test_config_health.py tests/test_diagnostic_runner.py tests/test_diagnostics_page.py -q`
+  - `python -m pytest tests/test_tool_registry.py tests/test_system_log_page.py tests/test_settings_window.py -q`
+  - `python -m pytest tests/test_chat_stt_flow.py tests/test_chat_tts_flow.py -q`
+  - 这些命令对应 Phase 7 计划内未来新增 / 修改的聚焦测试；Phase 7 尚未实现前，不应把新增测试文件视为当前可运行入口。
 
 ### TTS 归因边界
 
