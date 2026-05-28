@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QApplication
 from types import SimpleNamespace
 from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QTextCursor
 
 from config.schema import SystemConfig
 from ui.settings.pages.conversation_log_page import ConversationLogPage
@@ -256,6 +257,23 @@ def test_conversation_log_page_uses_same_card_structure_for_user_and_assistant_a
     assert "情绪 happy" not in page._timeline.toPlainText()
 
 
+def test_conversation_log_page_renders_metadata_strip_below_message_body():
+    _app()
+
+    page = ConversationLogPage(_FakeLogService())
+    html = page._render_message_card(
+        speaker="梦月",
+        timestamp="19:14",
+        text="搜索魔仓杏铃",
+        inline_suffix="",
+        tags=["工具 system_control__open_browser", "关联记忆 20 条"],
+        title_color="#9b3060",
+    )
+
+    assert html.index("搜索魔仓杏铃") < html.index("工具 system_control__open_browser")
+    assert "border-top" in html
+
+
 def test_conversation_log_page_renders_wider_rounded_inline_emotion_chip():
     _app()
 
@@ -314,3 +332,83 @@ def test_conversation_log_page_refresh_appearance_rerenders_html_with_settings_t
 
     assert "font-size: 16px" in captured[0]
     assert "font-size: 12px" in captured[-1]
+
+
+def test_conversation_log_page_auto_refresh_preserves_scroll_when_reading_old_messages():
+    _app()
+
+    base_events = [
+        {
+            "timestamp": f"2026-05-24T10:{i // 60:02d}:{i % 60:02d}.000",
+            "event_type": "conversation.user_input" if i % 2 == 0 else "conversation.assistant_reply",
+            "summary": f"消息 {i}",
+            "details": {"text": "这是一条比较长的对话日志内容 " * 4 + str(i)},
+        }
+        for i in range(80)
+    ]
+
+    class _Service:
+        def __init__(self):
+            self.events = list(base_events)
+
+        def query_events(self, **kwargs):
+            return list(self.events)
+
+        def list_conversation_sessions(self, limit=20):
+            return []
+
+    service = _Service()
+    page = ConversationLogPage(service)
+    page.resize(640, 320)
+    page.show()
+    page._refresh_view()
+    QApplication.processEvents()
+
+    bar = page._timeline.verticalScrollBar()
+    bar.setValue(max(0, bar.maximum() // 2))
+    preserved_value = bar.value()
+
+    service.events.append(
+        {
+            "timestamp": "2026-05-24T11:30:00.000",
+            "event_type": "conversation.assistant_reply",
+            "summary": "新消息",
+            "details": {"text": "新追加的日志内容"},
+        }
+    )
+    page._refresh_view()
+    QApplication.processEvents()
+
+    assert bar.value() == preserved_value
+
+
+def test_conversation_log_page_auto_refresh_skips_while_text_is_selected():
+    _app()
+    calls = []
+
+    class _Service:
+        def query_events(self, **kwargs):
+            calls.append(kwargs)
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "event_type": "conversation.user_input",
+                    "summary": "用户输入",
+                    "details": {"text": "这是一条对话日志"},
+                }
+            ]
+
+        def list_conversation_sessions(self, limit=20):
+            return []
+
+    page = ConversationLogPage(_Service())
+    page._refresh_view()
+    before = len(calls)
+    cursor = page._timeline.textCursor()
+    cursor.setPosition(0)
+    cursor.setPosition(5, QTextCursor.MoveMode.KeepAnchor)
+    page._timeline.setTextCursor(cursor)
+
+    page._refresh_if_enabled()
+
+    assert len(calls) == before

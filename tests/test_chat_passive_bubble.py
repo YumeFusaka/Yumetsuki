@@ -9,8 +9,17 @@ def _app() -> QApplication:
 
 
 class _FakeSignal:
+    def __init__(self):
+        self._callbacks = []
+
     def connect(self, *_args, **_kwargs):
+        if _args:
+            self._callbacks.append(_args[0])
         return None
+
+    def emit(self, *args):
+        for callback in self._callbacks:
+            callback(*args)
 
 
 class _FakeLLMWorker:
@@ -284,5 +293,59 @@ def test_passive_bubble_is_capped_by_window_available_width(monkeypatch):
         assert geometry.right() <= window.width()
         assert geometry.width() <= available_width
         assert window._passive_bubble.maximumWidth() <= available_width
+    finally:
+        window.close()
+
+
+def test_passive_state_can_capture_screen_observation(monkeypatch):
+    from vision.types import OCRResult
+
+    config = SystemConfig()
+    config.vision.enabled = True
+    config.vision.passive_observation_enabled = True
+    config.vision.passive_observation_interval_seconds = 10
+    window = _make_window(monkeypatch, config)
+    captured = []
+    recorded = []
+    proactive_context = []
+
+    class FakePassiveVisionWorker:
+        def __init__(self, _vision_manager, capture):
+            self._capture = capture
+            self.result_ready = _FakeSignal()
+            self.error_signal = _FakeSignal()
+            self.finished = _FakeSignal()
+
+        def start(self):
+            self.result_ready.emit(OCRResult(ok=True, text="屏幕上有搜索结果", image_path=self._capture.image_path))
+            self.finished.emit()
+
+        def isRunning(self):
+            return False
+
+    class FakeChatEngine:
+        def record_visual_observation_result(self, result):
+            recorded.append(result)
+
+    class FakeProactiveScheduler:
+        def set_visual_context(self, context):
+            proactive_context.append(context)
+
+        def stop(self):
+            return None
+
+    monkeypatch.setattr("ui.chat.window.PassiveVisionWorker", FakePassiveVisionWorker)
+    window._vision_manager.capture_screen_image = (
+        lambda: captured.append("capture") or OCRResult(ok=True, image_path="data/vision/passive.png")
+    )
+    window._chat_engine = FakeChatEngine()
+    window._proactive_scheduler = FakeProactiveScheduler()
+
+    try:
+        window._enter_passive_state()
+
+        assert captured == ["capture"]
+        assert recorded[0].text == "屏幕上有搜索结果"
+        assert proactive_context == ["屏幕上有搜索结果"]
     finally:
         window.close()

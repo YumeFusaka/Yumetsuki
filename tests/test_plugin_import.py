@@ -300,7 +300,7 @@ def test_plugin_page_tooltips_use_sakura_light_style(tmp_path):
     try:
         style = page.styleSheet()
         assert "QToolTip" in style
-        assert "background: #fffafc" in style
+        assert "background: #fff0f3" in style
         assert "color: #4a3040" in style
     finally:
         page.close()

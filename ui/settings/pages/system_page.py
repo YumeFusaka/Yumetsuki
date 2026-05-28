@@ -231,6 +231,42 @@ class SystemPage(QWidget):
         self._prepare_field(self._vision_screenshot_dir)
         vision_form.addRow("截图目录:", self._vision_screenshot_dir)
 
+        self._vision_retention_hours = RoseSpinBox()
+        self._vision_retention_hours.setRange(1, 720)
+        self._vision_retention_hours.setValue(config.vision.screenshot_retention_hours)
+        self._vision_retention_hours.setSuffix(" 小时")
+        self._prepare_field(self._vision_retention_hours)
+        vision_form.addRow("截图保留:", self._vision_retention_hours)
+
+        self._vision_max_files = RoseSpinBox()
+        self._vision_max_files.setRange(10, 10000)
+        self._vision_max_files.setValue(config.vision.screenshot_max_files)
+        self._vision_max_files.setSuffix(" 张")
+        self._prepare_field(self._vision_max_files)
+        vision_form.addRow("最多截图:", self._vision_max_files)
+
+        self._vision_cleanup_interval = RoseSpinBox()
+        self._vision_cleanup_interval.setRange(1, 1440)
+        self._vision_cleanup_interval.setValue(config.vision.screenshot_cleanup_interval_minutes)
+        self._vision_cleanup_interval.setSuffix(" 分钟")
+        self._prepare_field(self._vision_cleanup_interval)
+        vision_form.addRow("清理间隔:", self._vision_cleanup_interval)
+
+        self._passive_vision_enabled = QCheckBox("被动状态定时读屏")
+        self._passive_vision_enabled.setChecked(config.vision.passive_observation_enabled)
+        self._passive_vision_enabled.setToolTip("进入被动状态后按间隔自动读取屏幕，仅在用户显式开启时生效。")
+        vision_form.addRow("被动定时:", self._passive_vision_enabled)
+
+        self._passive_vision_interval = RoseSpinBox()
+        self._passive_vision_interval.setRange(3, 300)
+        self._passive_vision_interval.setValue(config.vision.passive_observation_interval_seconds)
+        self._passive_vision_interval.setSuffix(" 秒")
+        self._prepare_field(self._passive_vision_interval)
+        vision_form.addRow("读屏间隔:", self._passive_vision_interval)
+        self._passive_vision_interval.setEnabled(config.vision.passive_observation_enabled)
+        self._passive_vision_enabled.toggled.connect(self._passive_vision_interval.setEnabled)
+        self._passive_vision_enabled.toggled.connect(lambda checked: self._vision_enabled.setChecked(True) if checked else None)
+
         self._vision_explicit_only = QCheckBox("固定仅显式读屏触发")
         self._vision_explicit_only.setChecked(True)
         self._vision_explicit_only.setEnabled(False)
@@ -275,6 +311,7 @@ class SystemPage(QWidget):
             self._bubble_max_width,
             self._bubble_duration,
             self._vision_max_text,
+            self._passive_vision_interval,
         ):
             spin_box.apply_settings_tokens(tokens)
         self.setProperty("_settingsFontTreeTokenKey", token_key)
@@ -327,11 +364,16 @@ class SystemPage(QWidget):
         self._config.passive_interaction.idle_threshold_seconds = self._idle_threshold.value() * 60
         self._config.passive_interaction.bubble_max_width = self._bubble_max_width.value()
         self._config.passive_interaction.bubble_duration_seconds = self._bubble_duration.value()
-        self._config.vision.enabled = self._vision_enabled.isChecked()
+        self._config.vision.enabled = self._vision_enabled.isChecked() or self._passive_vision_enabled.isChecked()
         self._config.vision.ocr_engine = self._ocr_engine.currentData() or "rapidocr"
         self._config.vision.language = self._ocr_language.currentText().strip() or "ch"
         self._config.vision.max_text_chars = self._vision_max_text.value()
         self._config.vision.screenshot_dir = self._vision_screenshot_dir.text().strip() or "data/vision"
+        self._config.vision.screenshot_retention_hours = self._vision_retention_hours.value()
+        self._config.vision.screenshot_max_files = self._vision_max_files.value()
+        self._config.vision.screenshot_cleanup_interval_minutes = self._vision_cleanup_interval.value()
+        self._config.vision.passive_observation_enabled = self._passive_vision_enabled.isChecked()
+        self._config.vision.passive_observation_interval_seconds = self._passive_vision_interval.value()
         self._config.vision.explicit_trigger_only = True
         self._config.proxy = self._proxy.text()
 
@@ -350,5 +392,11 @@ class SystemPage(QWidget):
         self._ocr_language.setCurrentText(self._config.vision.language)
         self._vision_max_text.setValue(self._config.vision.max_text_chars)
         self._vision_screenshot_dir.setText(self._config.vision.screenshot_dir)
+        self._vision_retention_hours.setValue(self._config.vision.screenshot_retention_hours)
+        self._vision_max_files.setValue(self._config.vision.screenshot_max_files)
+        self._vision_cleanup_interval.setValue(self._config.vision.screenshot_cleanup_interval_minutes)
+        self._passive_vision_enabled.setChecked(self._config.vision.passive_observation_enabled)
+        self._passive_vision_interval.setValue(self._config.vision.passive_observation_interval_seconds)
+        self._passive_vision_interval.setEnabled(self._passive_vision_enabled.isChecked())
         self._vision_explicit_only.setChecked(True)
         self._proxy.setText(self._config.proxy)

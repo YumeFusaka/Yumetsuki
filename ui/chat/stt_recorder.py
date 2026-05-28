@@ -23,12 +23,14 @@ class STTRecorder(QObject):
         record_timeout_seconds: int,
         silence_threshold: float,
         silence_duration_ms: int,
+        initial_silence_grace_ms: int = 3000,
         parent: QObject | None = None,
     ):
         super().__init__(parent)
         self._record_timeout_seconds = max(3, int(record_timeout_seconds))
         self._silence_threshold = max(0.001, float(silence_threshold))
         self._silence_duration_ms = max(300, int(silence_duration_ms))
+        self._initial_silence_grace_ms = max(0, int(initial_silence_grace_ms))
         self._source: QAudioSource | None = None
         self._device = None
         self._buffer = bytearray()
@@ -104,8 +106,11 @@ class STTRecorder(QObject):
         else:
             self._silent_ms = 0
 
-        minimum_audio_bytes = self.SAMPLE_RATE * self.CHANNELS * self.SAMPLE_WIDTH
-        if not self._stopping and self._silent_ms >= self._silence_duration_ms and len(self._buffer) >= minimum_audio_bytes:
+        if (
+            not self._stopping
+            and self._recorded_ms() >= self._initial_silence_grace_ms
+            and self._silent_ms >= self._silence_duration_ms
+        ):
             self.stop()
 
     def _is_silent(self, pcm: bytes) -> bool:
@@ -130,6 +135,12 @@ class STTRecorder(QObject):
             wav_file.setframerate(self.SAMPLE_RATE)
             wav_file.writeframes(pcm)
         return output.getvalue()
+
+    def _recorded_ms(self) -> int:
+        bytes_per_second = self.SAMPLE_RATE * self.CHANNELS * self.SAMPLE_WIDTH
+        if bytes_per_second <= 0:
+            return 0
+        return int(len(self._buffer) * 1000 / bytes_per_second)
 
     def _release_source(self) -> None:
         if self._source is not None:

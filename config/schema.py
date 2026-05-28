@@ -32,6 +32,7 @@ class ASRConfig(BaseModel):
     record_timeout_seconds: int = 20
     silence_threshold: float = 0.02
     silence_duration_ms: int = 1200
+    initial_silence_grace_ms: int = 3000
 
 
 class MCPServerConfig(BaseModel):
@@ -83,6 +84,11 @@ class VisionConfig(BaseModel):
     screenshot_dir: str = "data/vision"
     max_text_chars: int = 2000
     explicit_trigger_only: bool = True
+    passive_observation_enabled: bool = False
+    passive_observation_interval_seconds: int = 10
+    screenshot_retention_hours: int = 24
+    screenshot_max_files: int = 200
+    screenshot_cleanup_interval_minutes: int = 30
 
     @field_validator("ocr_engine", mode="before")
     @classmethod
@@ -117,6 +123,38 @@ class VisionConfig(BaseModel):
     @classmethod
     def keep_explicit_trigger_only(cls, value):
         return True
+
+    @field_validator("passive_observation_interval_seconds", mode="before")
+    @classmethod
+    def normalize_passive_observation_interval(cls, value):
+        try:
+            return max(1, int(value or 10))
+        except Exception:
+            return 10
+
+    @field_validator("screenshot_retention_hours", mode="before")
+    @classmethod
+    def normalize_screenshot_retention_hours(cls, value):
+        try:
+            return max(1, min(int(value or 24), 24 * 30))
+        except Exception:
+            return 24
+
+    @field_validator("screenshot_max_files", mode="before")
+    @classmethod
+    def normalize_screenshot_max_files(cls, value):
+        try:
+            return max(10, min(int(value or 200), 10000))
+        except Exception:
+            return 200
+
+    @field_validator("screenshot_cleanup_interval_minutes", mode="before")
+    @classmethod
+    def normalize_screenshot_cleanup_interval_minutes(cls, value):
+        try:
+            return max(1, min(int(value or 30), 24 * 60))
+        except Exception:
+            return 30
 
 
 class SystemConfig(BaseModel):

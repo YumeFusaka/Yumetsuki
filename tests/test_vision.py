@@ -1,11 +1,13 @@
 from pathlib import Path
 from types import SimpleNamespace
+import os
+import time
 
 from config.schema import VisionConfig
 from vision.manager import VisionManager
 import vision.ocr as ocr_module
 from vision.ocr import PaddleOCRAdapter, RapidOCRAdapter, create_ocr_adapter
-from vision.screen_capture import build_screenshot_path
+from vision.screen_capture import build_screenshot_path, cleanup_screenshots
 from vision.types import OCRResult, ScreenRegion, VisualObservation
 
 
@@ -36,6 +38,63 @@ def test_build_screenshot_path_uses_configured_dir(tmp_path):
     path = build_screenshot_path(str(tmp_path), now_text="20260526_120000")
 
     assert path == tmp_path / "screen_20260526_120000.png"
+
+
+def test_build_screenshot_path_default_name_is_unique_for_high_frequency_capture(tmp_path):
+    first = build_screenshot_path(str(tmp_path))
+    second = build_screenshot_path(str(tmp_path))
+
+    assert first != second
+    assert first.name.startswith("screen_")
+    assert first.suffix == ".png"
+
+
+def test_cleanup_screenshots_removes_old_and_excess_files(tmp_path):
+    now = time.time()
+    recent_files = []
+    for index in range(12):
+        path = tmp_path / f"screen_20260528_12000{index}.png"
+        path.write_text("x", encoding="utf-8")
+        mtime = now - index * 60
+        os.utime(path, (mtime, mtime))
+        recent_files.append(path)
+    old = tmp_path / "screen_20260527_000000.png"
+    old.write_text("x", encoding="utf-8")
+    old_mtime = now - 48 * 3600
+    os.utime(old, (old_mtime, old_mtime))
+    keep = tmp_path / "keep.png"
+    keep.write_text("x", encoding="utf-8")
+
+    removed = cleanup_screenshots(str(tmp_path), retention_hours=24, max_files=10, now=now)
+
+    assert removed == 3
+    assert all(path.exists() for path in recent_files[:10])
+    assert not recent_files[10].exists()
+    assert not recent_files[11].exists()
+    assert not old.exists()
+    assert keep.exists()
+
+
+def test_vision_manager_runs_cleanup_before_capture(monkeypatch, tmp_path):
+    old = tmp_path / "screen_old.png"
+    old.write_text("old", encoding="utf-8")
+    old_time = time.time() - 48 * 3600
+    os.utime(old, (old_time, old_time))
+    image = tmp_path / "screen_new.png"
+
+    monkeypatch.setattr("vision.manager.capture_screen", lambda screenshot_dir, region=None: image)
+    manager = VisionManager(VisionConfig(
+        enabled=True,
+        screenshot_dir=str(tmp_path),
+        screenshot_retention_hours=24,
+        screenshot_max_files=200,
+        screenshot_cleanup_interval_minutes=30,
+    ))
+
+    result = manager.capture_screen_image()
+
+    assert result.image_path == str(image)
+    assert not old.exists()
 
 
 def test_rapidocr_adapter_uses_optional_engine(monkeypatch, tmp_path):

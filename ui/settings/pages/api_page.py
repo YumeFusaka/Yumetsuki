@@ -284,6 +284,12 @@ class APIPage(QWidget):
         self._asr_silence_duration.setSuffix(" ms")
         asr_form.addRow("静音结束:", self._asr_silence_duration)
 
+        self._asr_initial_silence_grace = RoseSpinBox()
+        self._asr_initial_silence_grace.setRange(0, 10000)
+        self._asr_initial_silence_grace.setValue(config.asr.initial_silence_grace_ms)
+        self._asr_initial_silence_grace.setSuffix(" ms")
+        asr_form.addRow("起始等待:", self._asr_initial_silence_grace)
+
         layout.addWidget(asr_group)
         layout.addStretch()
 
@@ -373,6 +379,7 @@ class APIPage(QWidget):
         self._config.asr.record_timeout_seconds = self._asr_timeout.value()
         self._config.asr.silence_threshold = self._asr_silence_threshold.value() / 100.0
         self._config.asr.silence_duration_ms = self._asr_silence_duration.value()
+        self._config.asr.initial_silence_grace_ms = self._asr_initial_silence_grace.value()
 
     def reset(self) -> None:
         self._provider.setCurrentText(self._config.llm.provider)
@@ -400,3 +407,4 @@ class APIPage(QWidget):
         self._asr_timeout.setValue(self._config.asr.record_timeout_seconds)
         self._asr_silence_threshold.setValue(int(self._config.asr.silence_threshold * 100))
         self._asr_silence_duration.setValue(self._config.asr.silence_duration_ms)
+        self._asr_initial_silence_grace.setValue(self._config.asr.initial_silence_grace_ms)

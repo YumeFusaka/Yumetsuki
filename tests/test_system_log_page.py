@@ -1,15 +1,18 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPalette
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QPalette, QTextCursor
+from PySide6.QtWidgets import QApplication, QSplitter, QWidget
 from PySide6.QtWidgets import QStyle
 from PySide6.QtWidgets import QStyleOptionViewItem
 
+from config.schema import SystemConfig
 from ui.settings.pages.agent_page import AgentPage
 from ui.settings.pages.system_log_page import SOURCE_COLORS
 from ui.settings.pages.system_log_page import SOURCE_GROUPS
 from ui.settings.pages.system_log_page import SystemLogPage
+from ui.theme import settings_font_tokens
 
 
 def _app() -> QApplication:
@@ -376,6 +379,161 @@ def test_system_log_page_action_buttons_are_compact_tools():
     assert "padding: 5px 10px" in page.styleSheet()
 
 
+def test_system_log_page_structured_list_uses_compact_item_style():
+    _app()
+    page = SystemLogPage(_FakeLogService())
+
+    style = page.styleSheet()
+    assert "padding: 1px 4px" in style
+    assert "margin-bottom: 0px" in style
+    assert "font-size: 11px" in style
+    assert "border-radius: 4px" in style
+    assert page._event_list.wordWrap() is True
+    assert page._event_list.textElideMode() == Qt.TextElideMode.ElideNone
+    assert page._event_list.uniformItemSizes() is False
+    assert page._event_list.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert "QToolTip" in style
+    assert page._event_list.toolTip() == ""
+    assert page._content_splitter.orientation() == Qt.Orientation.Vertical
+    assert isinstance(page._content_splitter, QSplitter)
+    assert page._content_splitter.count() == 2
+    assert page._log_view_stack.count() == 2
+    assert page._log_view_stack.currentWidget() is page._event_list
+
+
+def test_system_log_page_line_text_includes_event_type_and_tool_decision_details():
+    _app()
+    page = SystemLogPage(_FakeLogService())
+
+    text = page._render_event_line_text(
+        {
+            "timestamp": "2026-05-24T10:25:39.573",
+            "level": "info",
+            "source": "agent.manager",
+            "session_id": "session-1",
+            "event_type": "agent.planner_decided",
+            "summary": "Planner decided: tool system_control__search_in_browser",
+            "details": {
+                "tool_name": "system_control__search_in_browser",
+                "arguments_summary": {"query": "天气预报"},
+                "input_preview": "搜索天气预报",
+            },
+        }
+    )
+
+    assert "\n" in text
+    assert "agent.planner_decided" in text
+    assert "system_control__search_in_browser" in text
+    assert '"query":"天气预报"' in text
+    assert "搜索天气预报" in text
+    assert "…" in text or "session-" in text
+
+
+def test_system_log_page_wrapped_list_keeps_complete_key_summary_without_horizontal_scroll():
+    _app()
+    long_preview = "长文本" * 120
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "plugin.web_automation",
+                    "session_id": "8baccf194d224698890a4bcf40902e7f",
+                    "event_type": "tool.call_completed",
+                    "summary": "web_automation__web_session_open completed",
+                    "details": {
+                        "qualified_name": "web_automation__web_session_open",
+                        "arguments_summary": {"headless": False},
+                        "result_preview": long_preview,
+                        "reason": "manual review",
+                    },
+                }
+            ]
+
+    page = SystemLogPage(_Service())
+    page.resize(640, 320)
+    page.show()
+    page._refresh_view()
+    QApplication.processEvents()
+
+    item = page._event_list.item(0)
+    text = item.text()
+    assert page._event_list.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    assert "qualified_name=web_automation__web_session_open" in text
+    assert '"headless":false' in text
+    assert "result_preview=" in text
+    assert "reason=manual review" in text
+    assert item.toolTip() == ""
+    assert page._event_list.sizeHintForRow(0) > 20
+
+
+def test_system_log_page_structured_list_items_use_small_font_role():
+    _app()
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "agent.manager",
+                    "session_id": "session-1",
+                    "event_type": "agent.planner_decided",
+                    "summary": "Planner decided",
+                    "details": {},
+                },
+            ]
+
+    parent = QWidget()
+    parent._config = SimpleNamespace(system=SystemConfig(font_size=24))
+    page = SystemLogPage(_Service(), parent=parent)
+
+    page._refresh_view()
+
+    assert page._event_list.item(0).font().pointSize() == settings_font_tokens(parent._config.system).small
+
+
+def test_system_log_page_auto_refresh_skips_while_text_is_selected():
+    _app()
+    calls = []
+
+    class _Service:
+        log_root = "."
+
+        def query_events(self, **kwargs):
+            calls.append(kwargs)
+            return [
+                {
+                    "timestamp": "2026-05-24T10:25:39.573",
+                    "level": "info",
+                    "source": "chat.tts",
+                    "session_id": "session-1",
+                    "event_type": "tts.segment_enqueued",
+                    "summary": "segment enqueued",
+                    "details": {"text": "第一句"},
+                },
+            ]
+
+    page = SystemLogPage(_Service())
+    page._view_mode.setCurrentText("连续文本")
+    page._refresh_view()
+    before = len(calls)
+    cursor = page._continuous_text.textCursor()
+    cursor.setPosition(0)
+    cursor.setPosition(5, QTextCursor.MoveMode.KeepAnchor)
+    page._continuous_text.setTextCursor(cursor)
+
+    page._refresh_if_not_selecting_text()
+
+    assert len(calls) == before
+
+
 def test_system_log_page_filters_sources_by_group_and_specific_source():
     _app()
 
@@ -498,8 +656,7 @@ def test_system_log_page_continuous_text_view_renders_filtered_plain_text():
     page._view_mode.setCurrentText("连续文本")
     page._refresh_view()
 
-    assert page._event_list.isHidden()
-    assert not page._continuous_text.isHidden()
+    assert page._log_view_stack.currentWidget() is page._continuous_text
     assert page._continuous_text.isReadOnly()
     assert page._continuous_text.toPlainText().strip()
     assert "segment enqueued" in page._continuous_text.toPlainText()
@@ -1003,7 +1160,8 @@ def test_system_log_page_selected_item_keeps_source_foreground_color():
 
     assert "QListWidget::item:selected" in page.styleSheet()
     assert "QListWidget::item:selected {\n    background" in page.styleSheet()
-    assert "color: #4a3040;\n    border" not in page.styleSheet()
+    selected_block = page.styleSheet().split("QListWidget::item:selected {", 1)[1].split("}", 1)[0]
+    assert "color:" not in selected_block
     assert page._event_list.currentItem().foreground().color().name() == SOURCE_COLORS["llm.manager"]
 
 

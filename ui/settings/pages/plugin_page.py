@@ -33,6 +33,7 @@ from core.plugin_host import PluginHost
 from ui.settings.feedback import confirm_action, show_feedback
 from ui.theme import (
     SAKURA_COMBO_BOX_STYLE,
+    SAKURA_TOOLTIP_STYLE,
     apply_settings_fonts,
     font_for_role,
     set_settings_font_role,
@@ -110,14 +111,7 @@ QPushButton#dangerButton {
 }
 QPushButton#dangerButton:hover { background: rgba(255, 218, 226, 0.88); }
 QSplitter::handle { background: rgba(220, 160, 180, 0.16); }
-QToolTip {
-    background: #fffafc;
-    color: #4a3040;
-    border: 1px solid rgba(212, 86, 122, 0.32);
-    border-radius: 6px;
-    padding: 6px 8px;
-}
-""" + SAKURA_COMBO_BOX_STYLE
+""" + SAKURA_COMBO_BOX_STYLE + SAKURA_TOOLTIP_STYLE
 
 
 @dataclass(frozen=True)

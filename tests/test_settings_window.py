@@ -29,7 +29,7 @@ from ui.settings.pages.plugin_page import _format_plugin_status_detail
 from ui.settings.pages.system_page import SystemPage
 from ui.settings.pages.system_log_page import PAGE_STYLE as SYSTEM_LOG_PAGE_STYLE
 from ui.settings.window import SettingsWindow
-from ui.theme import apply_settings_fonts, install_sakura_menu_theme, settings_page_title, sakura_combo_box_style, settings_font_tokens
+from ui.theme import SAKURA_TOOLTIP_STYLE, apply_settings_fonts, install_sakura_menu_theme, settings_page_title, sakura_combo_box_style, settings_font_tokens
 from vision.types import OCRResult
 
 
@@ -255,6 +255,7 @@ def test_settings_window_context_menu_uses_sakura_theme():
     assert "QMenu::item:selected" in style
     assert "QToolTip" in style
     assert "background: #fff0f3" in style
+    assert SAKURA_TOOLTIP_STYLE in style
     assert "QMenu" in APP_STYLE
     assert "background: #fffafc" in APP_STYLE
 
@@ -456,6 +457,7 @@ def test_api_page_asr_uses_faster_whisper_local_model_fields(monkeypatch):
     page._asr_timeout.setValue(15)
     page._asr_silence_threshold.setValue(3)
     page._asr_silence_duration.setValue(900)
+    page._asr_initial_silence_grace.setValue(4500)
     page.apply()
 
     assert config.asr.engine == "faster_whisper"
@@ -467,6 +469,7 @@ def test_api_page_asr_uses_faster_whisper_local_model_fields(monkeypatch):
     assert config.asr.record_timeout_seconds == 15
     assert config.asr.silence_threshold == 0.03
     assert config.asr.silence_duration_ms == 900
+    assert config.asr.initial_silence_grace_ms == 4500
 
     config.asr.engine = "none"
     config.asr.model_path = "data/models/stt/faster-whisper-large-v3-turbo"
@@ -477,6 +480,7 @@ def test_api_page_asr_uses_faster_whisper_local_model_fields(monkeypatch):
     config.asr.record_timeout_seconds = 20
     config.asr.silence_threshold = 0.02
     config.asr.silence_duration_ms = 1200
+    config.asr.initial_silence_grace_ms = 3000
     page.reset()
 
     assert page._asr_engine.currentText() == "none"
@@ -490,6 +494,7 @@ def test_api_page_asr_uses_faster_whisper_local_model_fields(monkeypatch):
     assert page._asr_timeout.value() == 20
     assert page._asr_silence_threshold.value() == 2
     assert page._asr_silence_duration.value() == 1200
+    assert page._asr_initial_silence_grace.value() == 3000
 
     monkeypatch.setattr(
         "ui.settings.pages.api_page.QFileDialog.getExistingDirectory",
@@ -818,6 +823,12 @@ def test_system_page_exposes_vision_ocr_settings():
     assert page._ocr_language.currentText() == "ch"
     assert page._vision_max_text.value() == 2000
     assert page._vision_screenshot_dir.text() == "data/vision"
+    assert page._vision_retention_hours.value() == 24
+    assert page._vision_max_files.value() == 200
+    assert page._vision_cleanup_interval.value() == 30
+    assert page._passive_vision_enabled.isChecked() is False
+    assert page._passive_vision_interval.value() == 10
+    assert page._passive_vision_interval.isEnabled() is False
     assert page._vision_explicit_only.isChecked() is True
     assert page._vision_explicit_only.isEnabled() is False
     assert "tesseract" not in engine_values
@@ -833,6 +844,11 @@ def test_system_page_apply_updates_vision_config():
     page._ocr_language.setCurrentText("en")
     page._vision_max_text.setValue(3600)
     page._vision_screenshot_dir.setText("runtime/vision")
+    page._vision_retention_hours.setValue(48)
+    page._vision_max_files.setValue(120)
+    page._vision_cleanup_interval.setValue(5)
+    page._passive_vision_enabled.setChecked(True)
+    page._passive_vision_interval.setValue(15)
     page.apply()
 
     assert config.vision.enabled is True
@@ -840,6 +856,11 @@ def test_system_page_apply_updates_vision_config():
     assert config.vision.language == "en"
     assert config.vision.max_text_chars == 3600
     assert config.vision.screenshot_dir == "runtime/vision"
+    assert config.vision.screenshot_retention_hours == 48
+    assert config.vision.screenshot_max_files == 120
+    assert config.vision.screenshot_cleanup_interval_minutes == 5
+    assert config.vision.passive_observation_enabled is True
+    assert config.vision.passive_observation_interval_seconds == 15
     assert config.vision.explicit_trigger_only is True
 
 
@@ -853,6 +874,11 @@ def test_settings_window_discards_unsaved_vision_changes_when_switching_away():
     window._system_page._ocr_language.setCurrentText("en")
     window._system_page._vision_max_text.setValue(4000)
     window._system_page._vision_screenshot_dir.setText("runtime/vision")
+    window._system_page._vision_retention_hours.setValue(48)
+    window._system_page._vision_max_files.setValue(120)
+    window._system_page._vision_cleanup_interval.setValue(5)
+    window._system_page._passive_vision_enabled.setChecked(True)
+    window._system_page._passive_vision_interval.setValue(18)
     window._system_page._vision_explicit_only.setChecked(False)
     window._switch_page(1)
     window._switch_page(8)
@@ -862,6 +888,11 @@ def test_settings_window_discards_unsaved_vision_changes_when_switching_away():
     assert window._system_page._ocr_language.currentText() == window._config.system.vision.language
     assert window._system_page._vision_max_text.value() == window._config.system.vision.max_text_chars
     assert window._system_page._vision_screenshot_dir.text() == window._config.system.vision.screenshot_dir
+    assert window._system_page._vision_retention_hours.value() == window._config.system.vision.screenshot_retention_hours
+    assert window._system_page._vision_max_files.value() == window._config.system.vision.screenshot_max_files
+    assert window._system_page._vision_cleanup_interval.value() == window._config.system.vision.screenshot_cleanup_interval_minutes
+    assert window._system_page._passive_vision_enabled.isChecked() == window._config.system.vision.passive_observation_enabled
+    assert window._system_page._passive_vision_interval.value() == window._config.system.vision.passive_observation_interval_seconds
     assert window._system_page._vision_explicit_only.isChecked() == window._config.system.vision.explicit_trigger_only
 
 
@@ -878,6 +909,11 @@ def test_system_save_persists_vision_settings(monkeypatch):
     window._system_page._ocr_language.setCurrentText("en")
     window._system_page._vision_max_text.setValue(4200)
     window._system_page._vision_screenshot_dir.setText("runtime/vision")
+    window._system_page._vision_retention_hours.setValue(36)
+    window._system_page._vision_max_files.setValue(160)
+    window._system_page._vision_cleanup_interval.setValue(7)
+    window._system_page._passive_vision_enabled.setChecked(True)
+    window._system_page._passive_vision_interval.setValue(16)
     window._confirm_save()
 
     assert window._config.system.vision.enabled is True
@@ -885,6 +921,11 @@ def test_system_save_persists_vision_settings(monkeypatch):
     assert window._config.system.vision.language == "en"
     assert window._config.system.vision.max_text_chars == 4200
     assert window._config.system.vision.screenshot_dir == "runtime/vision"
+    assert window._config.system.vision.screenshot_retention_hours == 36
+    assert window._config.system.vision.screenshot_max_files == 160
+    assert window._config.system.vision.screenshot_cleanup_interval_minutes == 7
+    assert window._config.system.vision.passive_observation_enabled is True
+    assert window._config.system.vision.passive_observation_interval_seconds == 16
     assert window._config.system.vision.explicit_trigger_only is True
     assert saved == ["save"]
 
@@ -901,6 +942,11 @@ def test_settings_window_system_save_writes_vision_config_to_disk(tmp_path, monk
     window._system_page._ocr_language.setCurrentText("en")
     window._system_page._vision_max_text.setValue(4200)
     window._system_page._vision_screenshot_dir.setText("runtime/vision")
+    window._system_page._vision_retention_hours.setValue(40)
+    window._system_page._vision_max_files.setValue(180)
+    window._system_page._vision_cleanup_interval.setValue(9)
+    window._system_page._passive_vision_enabled.setChecked(True)
+    window._system_page._passive_vision_interval.setValue(17)
     window._confirm_save()
 
     saved = yaml.safe_load((tmp_path / "system_config.yaml").read_text(encoding="utf-8"))
@@ -909,6 +955,11 @@ def test_settings_window_system_save_writes_vision_config_to_disk(tmp_path, monk
     assert saved["vision"]["language"] == "en"
     assert saved["vision"]["max_text_chars"] == 4200
     assert saved["vision"]["screenshot_dir"] == "runtime/vision"
+    assert saved["vision"]["screenshot_retention_hours"] == 40
+    assert saved["vision"]["screenshot_max_files"] == 180
+    assert saved["vision"]["screenshot_cleanup_interval_minutes"] == 9
+    assert saved["vision"]["passive_observation_enabled"] is True
+    assert saved["vision"]["passive_observation_interval_seconds"] == 17
     assert saved["vision"]["explicit_trigger_only"] is True
 
     reloaded = ConfigManager(config_dir=tmp_path)
@@ -918,6 +969,11 @@ def test_settings_window_system_save_writes_vision_config_to_disk(tmp_path, monk
     assert reloaded.system.vision.language == "en"
     assert reloaded.system.vision.max_text_chars == 4200
     assert reloaded.system.vision.screenshot_dir == "runtime/vision"
+    assert reloaded.system.vision.screenshot_retention_hours == 40
+    assert reloaded.system.vision.screenshot_max_files == 180
+    assert reloaded.system.vision.screenshot_cleanup_interval_minutes == 9
+    assert reloaded.system.vision.passive_observation_enabled is True
+    assert reloaded.system.vision.passive_observation_interval_seconds == 17
     assert reloaded.system.vision.explicit_trigger_only is True
 
 
@@ -985,6 +1041,81 @@ def test_chat_window_pre_captures_screen_before_starting_llm_worker(monkeypatch)
     assert captured["user_input"] == "帮我看看屏幕"
     assert captured["visual_capture"].image_path == "data/vision/main-thread.png"
     assert captured["started"] is True
+
+
+def test_chat_window_current_page_read_request_pre_captures_screen(monkeypatch):
+    _app()
+    events = []
+    captured = {}
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    class FakeAgentManager:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def should_capture_screen(self, text):
+            return "这个页面" in text
+
+    class FakeWorker:
+        def __init__(self, chat_engine, user_input, visual_capture=None):
+            captured["user_input"] = user_input
+            captured["visual_capture"] = visual_capture
+            self.chunk_received = type("S", (), {"connect": lambda self, *_: None})()
+            self.finished_signal = type("S", (), {"connect": lambda self, *_: None})()
+            self.error_signal = type("S", (), {"connect": lambda self, *_: None})()
+            self.finished = type("S", (), {"connect": lambda self, *_: None})()
+
+        def start(self):
+            events.append("worker_start")
+
+    monkeypatch.setattr("ui.chat.window.AgentManager", FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.LLMWorker", FakeWorker)
+    window = ChatWindow(LLMConfig(), system_config=SystemConfig())
+    monkeypatch.setattr(
+        window._vision_manager,
+        "capture_screen_image",
+        lambda: events.append("capture") or OCRResult(ok=True, image_path="data/vision/page.png"),
+    )
+    window._input.setText("看看你搜索的这个页面有什么内容")
+
+    window._on_send()
+
+    assert events == ["capture", "worker_start"]
+    assert captured["user_input"] == "看看你搜索的这个页面有什么内容"
+    assert captured["visual_capture"].image_path == "data/vision/page.png"
+
+
+def test_chat_window_runs_periodic_vision_cleanup(monkeypatch):
+    _app()
+    events = []
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    window = ChatWindow(LLMConfig(), system_config=SystemConfig())
+    monkeypatch.setattr(window._vision_manager, "cleanup_screenshot_dir", lambda force=False: 4)
+    window._record_log_event = lambda **kwargs: events.append(kwargs)
+
+    window._run_vision_cleanup()
+
+    assert events[0]["event_type"] == "vision.screenshot_cleanup_completed"
+    assert events[0]["details"] == {"removed": 4}
+
+
+def test_chat_window_apply_system_config_updates_vision_cleanup_timer(monkeypatch):
+    _app()
+    monkeypatch.setattr("ui.chat.window.LLMManager", _FakeLLMManager)
+    monkeypatch.setattr("ui.chat.window.AgentManager", _FakeAgentManager)
+    monkeypatch.setattr("ui.chat.window.SpriteManager", _FakeSpriteManager)
+
+    window = ChatWindow(LLMConfig(), system_config=SystemConfig())
+    new_config = SystemConfig()
+    new_config.vision.screenshot_cleanup_interval_minutes = 5
+
+    window.apply_system_config(new_config)
+
+    assert window._vision_cleanup_timer.interval() == 5 * 60 * 1000
 
 
 def test_chat_window_apply_system_config_updates_vision_manager(monkeypatch):

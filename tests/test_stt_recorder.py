@@ -64,11 +64,17 @@ class _FakeAudioSource:
         self.delete_count += 1
 
 
-def _recorder(record_timeout_seconds=20, silence_threshold=0.02, silence_duration_ms=1200):
+def _recorder(
+    record_timeout_seconds=20,
+    silence_threshold=0.02,
+    silence_duration_ms=1200,
+    initial_silence_grace_ms=3000,
+):
     recorder = STTRecorder(
         record_timeout_seconds=record_timeout_seconds,
         silence_threshold=silence_threshold,
         silence_duration_ms=silence_duration_ms,
+        initial_silence_grace_ms=initial_silence_grace_ms,
     )
     recorder._poll_timer = _FakeTimer()
     recorder._timeout_timer = _FakeTimer()
@@ -114,11 +120,17 @@ def test_stt_recorder_builds_wav_bytes():
 
 
 def test_stt_recorder_clamps_runtime_settings():
-    recorder = STTRecorder(record_timeout_seconds=1, silence_threshold=0, silence_duration_ms=10)
+    recorder = STTRecorder(
+        record_timeout_seconds=1,
+        silence_threshold=0,
+        silence_duration_ms=10,
+        initial_silence_grace_ms=-1,
+    )
 
     assert recorder._record_timeout_seconds == 3
     assert recorder._silence_threshold == 0.001
     assert recorder._silence_duration_ms == 300
+    assert recorder._initial_silence_grace_ms == 0
 
 
 def test_stt_recorder_start_stop_is_idempotent_and_releases_audio(monkeypatch):
@@ -181,7 +193,7 @@ def test_stt_recorder_poll_audio_aggregates_chunks():
 def test_stt_recorder_poll_audio_stops_after_silence_threshold(monkeypatch):
     silent_chunk = b"\x00\x00" * (STTRecorder.SAMPLE_RATE // 10)
     _patch_audio(monkeypatch, [silent_chunk] * 10)
-    recorder = _recorder(silence_duration_ms=300)
+    recorder = _recorder(silence_duration_ms=300, initial_silence_grace_ms=1000)
     emitted = []
     recorder.audio_ready.connect(emitted.append)
 
@@ -195,6 +207,29 @@ def test_stt_recorder_poll_audio_stops_after_silence_threshold(monkeypatch):
     assert _wav_pcm(emitted[0]) == silent_chunk * 10
     assert recorder._source is None
     assert recorder._device is None
+
+
+def test_stt_recorder_waits_initial_grace_before_silence_auto_stop(monkeypatch):
+    silent_chunk = b"\x00\x00" * (STTRecorder.SAMPLE_RATE // 10)
+    _patch_audio(monkeypatch, [silent_chunk] * 30)
+    recorder = _recorder(silence_duration_ms=300, initial_silence_grace_ms=3000)
+    emitted = []
+    recorder.audio_ready.connect(emitted.append)
+
+    recorder.start()
+    for _ in range(20):
+        recorder._poll_audio()
+
+    assert emitted == []
+    assert recorder._source is not None
+
+    for _ in range(10):
+        recorder._poll_audio()
+        if emitted:
+            break
+
+    assert len(emitted) == 1
+    assert _wav_pcm(emitted[0]) == silent_chunk * 30
 
 
 def test_stt_recorder_pcm16_handles_empty_odd_and_negative_samples():

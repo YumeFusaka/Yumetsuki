@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from threading import RLock
+import time
 
 from config.schema import VisionConfig
 from vision.ocr import create_ocr_adapter
-from vision.screen_capture import capture_screen
+from vision.screen_capture import capture_screen, cleanup_screenshots
 from vision.types import OCRResult, ScreenRegion
 
 
@@ -15,6 +16,8 @@ class VisionManager:
         self._config = self._snapshot_config(config)
         self._runtime_key = self._make_runtime_key(self._config)
         self._ocr = ocr_adapter or create_ocr_adapter(self._config)
+        self._last_cleanup_monotonic = 0.0
+        self.cleanup_screenshot_dir(force=True)
 
     def update_config(self, config: VisionConfig) -> None:
         with self._lock:
@@ -40,11 +43,26 @@ class VisionManager:
             screenshot_dir = self._config.screenshot_dir
         if not enabled:
             return OCRResult(ok=False, error="视觉 OCR 未启用")
+        self.cleanup_screenshot_dir()
         try:
             image_path = capture_screen(screenshot_dir, region)
         except Exception as exc:
             return OCRResult(ok=False, error=f"屏幕截图失败：{exc}")
         return OCRResult(ok=True, image_path=str(image_path))
+
+    def cleanup_screenshot_dir(self, force: bool = False) -> int:
+        with self._lock:
+            config = self._config
+            interval_seconds = max(1, int(config.screenshot_cleanup_interval_minutes)) * 60
+        now = time.monotonic()
+        if not force and now - self._last_cleanup_monotonic < interval_seconds:
+            return 0
+        self._last_cleanup_monotonic = now
+        return cleanup_screenshots(
+            config.screenshot_dir,
+            retention_hours=config.screenshot_retention_hours,
+            max_files=config.screenshot_max_files,
+        )
 
     def recognize_image_text(self, image_path: Path | str) -> OCRResult:
         with self._lock:

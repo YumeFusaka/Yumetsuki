@@ -67,6 +67,7 @@ web_automation:
 - `web_session_status` 返回当前 URL 和标题。
 - `web_session_close` 负责释放浏览器和 Playwright 资源。
 - 持续会话不复用用户系统默认浏览器窗口；需要系统默认浏览器时仍走 `system_control`。
+- Planner、AgentManager 和 LLM 工具调用边界都会拦截未明确要求自动化浏览器的 `web_session_open`，避免“点击默认浏览器里的条目”“看看你搜索的这个页面”误开一个空白 Playwright 会话。
 
 ## 与系统默认浏览器的分工
 
@@ -79,6 +80,8 @@ web_automation:
   - “截图网页” → `web_screenshot`
   - “展示自动化搜索过程” → `web_search_visible`
   - “在自动化浏览器里继续操作这个网页” → `web_session_*`
+- 默认浏览器上下文：
+  - “打开第二个条目”“点第二个”“看看这个结果”这类短句如果发生在默认浏览器打开 / 搜索之后，会优先走屏幕 OCR 和当前页面上下文，不自动接管为 Playwright 会话
 
 ## 内部结构
 

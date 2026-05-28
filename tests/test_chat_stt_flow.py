@@ -209,6 +209,7 @@ def test_stt_success_text_enters_send_path(monkeypatch):
         window._on_stt_result(STTResult(text="  你好呀  "))
 
         assert window._input.text() == ""
+        assert window._input.placeholderText() == "输入消息..."
         assert _FakeLLMWorker.instances[-1].user_input == "你好呀"
         assert _FakeLLMWorker.instances[-1].start_count == 1
         assert window._mic_btn.text() == ""

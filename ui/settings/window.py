@@ -27,6 +27,7 @@ from memory.mem0_store import build_local_mem0_store
 from ui.settings.feedback import confirm_action, show_feedback
 from ui.theme import (
     SAKURA_MENU_STYLE,
+    SAKURA_TOOLTIP_STYLE,
     apply_sakura_menu_theme,
     apply_settings_fonts,
     apply_system_appearance,
@@ -161,18 +162,10 @@ class SettingsWindow(QMainWindow):
                 color: #6b4a5a; font-size: 13px;
             }}
             QDialog QPushButton:hover {{ background: rgba(255,154,162,0.4); }}
-            QToolTip {{
-                background: #fff0f3;
-                color: #4a3040;
-                border: 1px solid rgba(220,160,180,0.4);
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-size: 12px;
-            }}
             * {{ outline: none; }}
             *:focus {{ border-color: #d4567a; }}
             {GLOBAL_SCROLLBAR}
-        """ + SAKURA_MENU_STYLE)
+        """ + SAKURA_MENU_STYLE + SAKURA_TOOLTIP_STYLE)
 
         self._config = ConfigManager()
         self._log_service = LogService(

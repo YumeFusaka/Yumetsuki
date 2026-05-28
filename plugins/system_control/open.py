@@ -61,9 +61,10 @@ def do_open_application(name: str) -> str:
 
 def do_open_browser() -> str:
     try:
-        os.startfile(_DEFAULT_BROWSER_HOME_URL)
+        if not webbrowser.open(_DEFAULT_BROWSER_HOME_URL, new=0):
+            os.startfile(_DEFAULT_BROWSER_HOME_URL)
         return "已打开系统默认浏览器"
-    except OSError as e:
+    except Exception as e:
         return f"打开浏览器失败：{e}"
 
 
@@ -74,9 +75,10 @@ def do_search_in_browser(query: str, engine: str = "") -> str:
     else:
         url = f"https://www.bing.com/search?q={quote_plus(query)}"
     try:
-        os.startfile(url)
+        if not webbrowser.open(url, new=0):
+            os.startfile(url)
         return f"已使用默认浏览器搜索：{query}"
-    except OSError as e:
+    except Exception as e:
         return f"打开浏览器失败：{e}"
 
 

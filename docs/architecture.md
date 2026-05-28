@@ -42,11 +42,11 @@ yumetsuki/
 - `ui/settings/window.py`
   设置中心主窗口；导航顺序固定为 `API / 角色 / 记忆 / Agent / 插件 / MCP / 对话日志 / 平台日志 / 系统`
 - `ui/theme.py`
-  Sakura 主题共享模块，集中提供右键菜单浅色主题、设置中心下拉框样式与公共 UI 资源路径
+  Sakura 主题共享模块，集中提供右键菜单浅色主题、浅色 tooltip、设置中心下拉框样式与公共 UI 资源路径，并通过应用 palette 兜底避免系统黑底 tooltip 泄漏
 - `ui/settings/pages/api_page.py`
   API 配置页面
 - `ui/settings/pages/system_page.py`
-  系统设置页面；当前已将外观相关配置拆分为基础外观、聊天显示、被动状态、被动气泡和网络区域，字体下拉框按字体自身样式预览
+  系统设置页面；当前已将外观相关配置拆分为基础外观、聊天显示、被动状态、被动气泡、视觉 / OCR 和网络区域，字体下拉框按字体自身样式预览；视觉 / OCR 分组包含被动状态定时读屏、读屏间隔、截图保留时长、截图数量上限和清理间隔
 - `ui/settings/pages/character_page.py`
   角色页面；角色根目录核心文件 `prompt.md`、`soul.md`、`SKILL.md`、`sprites.yaml` 在 UI 中禁止删除，避免误破坏角色包
 - `ui/settings/pages/plugin_page.py`
@@ -54,9 +54,9 @@ yumetsuki/
 - `ui/settings/pages/mcp_page.py`
   MCP 管理页面；管理 MCP server、连接诊断和 MCP 工具列表，新增 / 编辑弹窗覆盖 transport、命令或 URL、连接超时、请求超时和失败重试，展示连接状态、工具数量、错误类型和诊断详情
 - `ui/settings/pages/conversation_log_page.py`
-  对话日志页面，展示会话级结构化事件
+  对话日志页面，展示会话级结构化事件；正文优先展示，工具调用和关联记忆作为底部 meta strip，自动刷新不会打断用户拖选文本
 - `ui/settings/pages/system_log_page.py`
-  平台日志页面，展示 TTS / LLM / STT / Tool 等运行期平台事件；内部日志 channel 与落盘目录仍沿用 `system`
+  平台日志页面，展示 TTS / LLM / STT / Tool 等运行期平台事件；结构化列表和连续文本视图共享上方 stack，下方 JSON 详情区通过 splitter 可拉伸；长条目自动换行且不要求横向滚动，内部日志 channel 与落盘目录仍沿用 `system`
 - `ui/chat/window.py`
   桌宠聊天窗（长文本滚动、显示配置、被动互动气泡、STT 语音输入、整体缩放、对话面板布局、聊天运行状态条、停止 / 重试 / 打开日志入口、流式回复显示合帧、句级增量 TTS、TTS `session_id` 生命周期、句段流式状态机、总超时轮询；WAV 句段聚合后走共享播放器，PCM 句段走流式 backend；同时产出 TTS 句段与播放相关系统日志）
   被动互动已从系统设置开关改为聊天窗运行态：空闲阈值自动进入、右键菜单手动切换、被动状态下主动消息走气泡
@@ -75,7 +75,7 @@ yumetsuki/
 
 - `config/schema.py`
   Pydantic 配置模型
-  当前已包含 `SessionContextConfig`、`TTSRuntimeConfig`、`EventBusRuntimeConfig`、`ChatDisplayConfig`、`PassiveInteractionConfig`、`VisionConfig`，其中 `ASRConfig` 已收敛为本地 faster-whisper 模型目录与录音参数，`PassiveInteractionConfig` 已收敛为被动运行态阈值和气泡显示参数
+  当前已包含 `SessionContextConfig`、`TTSRuntimeConfig`、`EventBusRuntimeConfig`、`ChatDisplayConfig`、`PassiveInteractionConfig`、`VisionConfig`，其中 `ASRConfig` 已收敛为本地 faster-whisper 模型目录、转写超时、录音超时、静音阈值、静音结束时长和起始静音等待，`PassiveInteractionConfig` 已收敛为被动运行态阈值和气泡显示参数，`VisionConfig` 除显式读屏外还可选配置被动状态定时读屏间隔、截图保留时长、截图数量上限和清理间隔
 - `config/manager.py`
   YAML 读写，当前支持：
   - `api.yaml`
@@ -154,11 +154,12 @@ yumetsuki/
 - `vision/types.py`
   `ScreenRegion`、`OCRResult`、`VisualObservation`
 - `vision/screen_capture.py`
-  使用 Qt 主屏截图并保存到 `SystemConfig.vision.screenshot_dir`
+  使用 Qt 主屏截图并保存到 `SystemConfig.vision.screenshot_dir`；默认截图名包含微秒、纳秒片段和进程内计数器，避免高频读屏同秒覆盖；只清理该目录下非递归的 `screen_*.png`
 - `vision/ocr.py`
   `RapidOCRAdapter` 作为默认本地 OCR 后端，`PaddleOCRAdapter` 作为进阶可选后端
 - `vision/manager.py`
   `VisionManager.capture_screen_image()` 负责主线程截图封装，`recognize_image_text()` 负责 OCR 与截断；`capture_screen_text()` 仅保留为兼容旧调用的组合方法
+  被动状态定时读屏会先在主线程截图，再由后台 worker 做 OCR，结果回写 `SessionContext.visual_observations` 并作为主动发言参考；启动、截图前和聊天窗定时器都会按配置清理过期或超量截图
 
 ### `core/`
 
@@ -226,13 +227,13 @@ yumetsuki/
 → STTManager 调用当前 STT 适配器转写
 → ChatWindow 将识别文本写入输入框并调用 _on_send()
 用户文本输入
-→ ChatWindow 判断是否为显式读屏请求
+→ ChatWindow 判断是否为显式读屏、当前页面阅读或浏览器上下文读屏请求
 → 如需读屏，则 ChatWindow 在 Qt 主线程通过 VisionManager.capture_screen_image() 预采集截图
 → AgentManager 编排当前轮
 → SessionContextManager 同步更新当前会话短期记忆
 → 若本轮有预采集截图，则 AgentManager 在后台 OCR 并写入 SessionContext.visual_observations
 → LLMManager 按“角色提示 → SessionContext 热上下文 → 长期记忆补充 → 当前输入”组装 messages
-→ ToolRegistry 注入 tool schemas
+→ ToolRegistry 按当前轮权限注入 tool schemas；当前页面阅读、默认浏览器直接上下文和已有默认浏览器上下文下的点击 / 阅读请求会禁用 LLM 工具调用
 → OpenAI-compatible API 流式返回
 → TextProcessor 解析 emotion
 → 如有 tool call，则通过 ToolRegistry 分发执行
@@ -317,6 +318,10 @@ Agent 层采用分层智能架构，核心设计原则：**简单对话零开销
 
 - “打开浏览器”优先走系统控制插件的默认浏览器工具
 - “用浏览器搜索 xxx”优先走系统控制插件的默认浏览器搜索工具
+- “搜索 xxx”“帮我搜一下 xxx”会在无更具体工具命中时归一化为真实关键词后走默认浏览器搜索；Planner 决策会写入 `agent.planner_decided`
+- “看看你搜索的这个页面有什么内容”“总结当前网页”这类当前页面阅读请求是硬边界：Planner 不升级到 LLM judge，AgentManager 在执行工具前也会二次强制回 chat + OCR
+- “点击浏览器里的条目”这类针对用户已打开系统默认浏览器的指令不得自动打开 `web_session_open`；除非用户明确要求 Playwright / 自动化浏览器 / 持续会话
+- 执行过默认浏览器打开或默认浏览器搜索后，AgentManager 会记录当前处于默认浏览器上下文；后续“打开第二个条目”“点第二个”“看看这个结果”等省略“浏览器”的短句会优先触发 OCR 并禁用 LLM 工具调用，避免误开第二个浏览器或把阅读意图当作搜索词
 - “后台搜索并返回结果”“提取网页内容”“截图网页”优先走 `web_automation`
 - `web_search_visible` 仅用于明确要求展示 Playwright 自动化搜索过程的场景
 
@@ -378,7 +383,7 @@ Agent 通过 `EventBus` 发布内部行为事件：
 - `对话日志`
   面向聊天回看，突出用户 / 角色主线，并补充时间、情绪、工具、记忆摘要；页面不可见时暂停自动刷新，避免后台重建日志视图抢占 UI 主线程
 - `平台日志`
-  面向排障与运行回看，展示完整程序运行时间线；默认上半区为高密度日志流，下半区按选中事件显示详情；页面不可见时暂停自动刷新，选中详情和滚动位置在刷新时保持稳定
+  面向排障与运行回看，展示完整程序运行时间线；默认上半区为高密度日志流，下半区按选中事件显示详情；结构化列表展示时间、级别、来源、事件类型、短 session id 和关键参数摘要，完整 JSON 保留在详情区；页面不可见时暂停自动刷新，选中详情、拖选文本和滚动位置在刷新时保持稳定
   页面名为“平台日志”，内部日志 channel 与落盘目录仍沿用 `system`
 
 当前边界：

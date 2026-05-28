@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QApplication
 from config.manager import ConfigManager
 from ui.settings.window import SettingsWindow
 from ui.startup import StartupLoadingWindow
-from ui.theme import SAKURA_MENU_STYLE, apply_system_appearance, install_sakura_menu_theme
+from ui.theme import SAKURA_MENU_STYLE, SAKURA_TOOLTIP_STYLE, apply_system_appearance, install_sakura_menu_theme
 
 APP_STYLE = """
 QDialog, QInputDialog, QMessageBox {
@@ -33,13 +33,7 @@ QDialog QComboBox, QInputDialog QComboBox {
     border-radius: 6px; padding: 6px 10px;
     color: #4a3040; font-size: 13px;
 }
-QToolTip {
-    background: #fff0f3; color: #4a3040;
-    border: 1px solid rgba(220,160,180,0.4);
-    border-radius: 4px; padding: 4px 8px;
-    font-size: 12px;
-}
-""" + SAKURA_MENU_STYLE
+""" + SAKURA_MENU_STYLE + SAKURA_TOOLTIP_STYLE
 
 
 def bring_window_to_front(window) -> None:

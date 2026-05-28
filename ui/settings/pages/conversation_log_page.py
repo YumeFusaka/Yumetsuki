@@ -1,7 +1,8 @@
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from html import escape as html_escape
 
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QHBoxLayout,
@@ -12,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.theme import SAKURA_COMBO_BOX_STYLE, settings_font_tokens, settings_page_title
+from ui.theme import SAKURA_COMBO_BOX_STYLE, SAKURA_TOOLTIP_STYLE, settings_font_tokens, settings_page_title
 
 
 PAGE_STYLE = """
@@ -57,7 +58,9 @@ QCheckBox::indicator:checked {
     background: #d4567a;
     border-color: #d4567a;
 }
-""" + SAKURA_COMBO_BOX_STYLE
+""" + SAKURA_COMBO_BOX_STYLE + SAKURA_TOOLTIP_STYLE
+
+SCROLL_BOTTOM_THRESHOLD = 2
 
 
 class ConversationLogPage(QWidget):
@@ -65,6 +68,8 @@ class ConversationLogPage(QWidget):
         super().__init__(parent)
         self._log_service = log_service
         self._current_session_id: str | None = None
+        self._last_timeline_html = ""
+        self._last_timeline_plain = "暂无对话日志。"
         self.setStyleSheet(PAGE_STYLE)
 
         layout = QVBoxLayout(self)
@@ -126,6 +131,7 @@ class ConversationLogPage(QWidget):
         self._refresh_timer.stop()
 
     def _refresh_view(self) -> None:
+        scroll_state = self._capture_scroll_state(self._timeline)
         session_id = self._current_session_id
         if self._scope_selector.currentText() == "全部会话":
             session_id = None
@@ -134,9 +140,21 @@ class ConversationLogPage(QWidget):
             session_id=session_id,
         )
         if not events:
-            self._timeline.setPlainText("暂无对话日志。")
+            text = "暂无对话日志。"
+            if text != self._last_timeline_plain:
+                self._timeline.setPlainText(text)
+                self._last_timeline_plain = text
+                self._last_timeline_html = ""
+            self._restore_scroll_state(self._timeline, scroll_state)
+            self._restore_scroll_state_later(self._timeline, scroll_state)
             return
-        self._timeline.setHtml("".join(self._render_event_block(event) for event in events))
+        html = "".join(self._render_event_block(event) for event in events)
+        if html != self._last_timeline_html:
+            self._timeline.setHtml(html)
+            self._last_timeline_html = html
+            self._last_timeline_plain = ""
+        self._restore_scroll_state(self._timeline, scroll_state)
+        self._restore_scroll_state_later(self._timeline, scroll_state)
 
     def refresh_appearance(self) -> None:
         self._refresh_view()
@@ -187,7 +205,7 @@ class ConversationLogPage(QWidget):
         self._session_selector.blockSignals(False)
 
     def _refresh_if_enabled(self) -> None:
-        if self._auto_refresh.isChecked():
+        if self._auto_refresh.isChecked() and not self._is_user_selecting_text():
             self._refresh_view()
 
     def _render_event_block(self, event: dict) -> str:
@@ -218,8 +236,6 @@ class ConversationLogPage(QWidget):
             )
 
         tags = []
-        if emotion:
-            pass
         tool_names = details.get("tool_names") or []
         if tool_names:
             tags.append("工具 " + ", ".join(html_escape(str(name)) for name in tool_names))
@@ -263,7 +279,8 @@ class ConversationLogPage(QWidget):
         tag_html = ""
         if tags:
             tag_html = (
-                '<div style="margin-top: 10px;">'
+                '<div style="margin-top: 10px; padding-top: 9px; '
+                'border-top: 1px solid rgba(220, 160, 180, 0.18);">'
                 + "".join(
                     f'<span style="display:inline-block; margin: 0 8px 8px 0; padding: 5px 10px; '
                     'background: rgba(255, 236, 242, 0.96); border: 1px solid rgba(212, 86, 122, 0.18); '
@@ -282,3 +299,34 @@ class ConversationLogPage(QWidget):
             f'{tag_html}'
             '</div>'
         )
+
+    def _is_user_selecting_text(self) -> bool:
+        if self._timeline.textCursor().hasSelection():
+            return True
+        if not QApplication.mouseButtons() & Qt.MouseButton.LeftButton:
+            return False
+        focus_widget = QApplication.focusWidget()
+        return focus_widget is self._timeline or self._timeline.isAncestorOf(focus_widget)
+
+    @staticmethod
+    def _capture_scroll_state(widget) -> tuple[bool, int]:
+        scrollbar = widget.verticalScrollBar()
+        distance_to_bottom = scrollbar.maximum() - scrollbar.value()
+        is_near_bottom = distance_to_bottom <= SCROLL_BOTTOM_THRESHOLD
+        return is_near_bottom, scrollbar.value()
+
+    @staticmethod
+    def _restore_scroll_state(widget, state: tuple[bool, int]) -> None:
+        is_near_bottom, previous_value = state
+        try:
+            scrollbar = widget.verticalScrollBar()
+        except RuntimeError:
+            return
+        if is_near_bottom:
+            scrollbar.setValue(scrollbar.maximum())
+            return
+        scrollbar.setValue(min(previous_value, scrollbar.maximum()))
+
+    @staticmethod
+    def _restore_scroll_state_later(widget, state: tuple[bool, int]) -> None:
+        QTimer.singleShot(0, lambda: ConversationLogPage._restore_scroll_state(widget, state))

@@ -4,6 +4,8 @@ import time
 from types import SimpleNamespace
 
 from agent.manager import AgentManager
+from agent.planner import AgentPlanner
+from core.tool_registry import ToolEntry
 from core.log_types import LogLevel
 from llm.text_processor import ProcessedText
 from session.context import WorkingFact
@@ -98,6 +100,53 @@ class FakeToolRegistry:
 
     def entries(self):
         return []
+
+
+class BrowserToolRegistry:
+    def __init__(self):
+        self.calls = []
+
+    def tool_specs(self):
+        return []
+
+    def entries(self):
+        return [
+            ToolEntry(
+                name="search_in_browser",
+                source="plugin",
+                qualified_name="system_control__search_in_browser",
+                schema={
+                    "description": "使用系统默认浏览器直接搜索关键词，适用于用浏览器搜索",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"query": {"type": "string"}},
+                        "required": ["query"],
+                    },
+                },
+            ),
+            ToolEntry(
+                name="open_browser",
+                source="plugin",
+                qualified_name="system_control__open_browser",
+                schema={
+                    "description": "打开系统默认浏览器",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            ),
+            ToolEntry(
+                name="web_session_open",
+                source="plugin",
+                qualified_name="web_automation__web_session_open",
+                schema={
+                    "description": "打开一个由 Playwright 控制的持续浏览器会话",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            ),
+        ]
+
+    def call_tool(self, name, arguments):
+        self.calls.append({"name": name, "arguments": arguments})
+        return f"{name} ok"
 
 
 class FakeSessionManager:
@@ -291,8 +340,14 @@ def test_agent_manager_does_not_capture_for_broad_window_phrase():
     assert manager.should_capture_screen("这个窗口真可爱") is False
     assert manager.should_capture_screen("不要显示在屏幕上") is False
     assert manager.should_capture_screen("不要在屏幕上显示提示") is False
+    assert manager.should_capture_screen("不要看屏幕") is False
     assert manager.should_capture_screen("优化屏幕内容布局") is False
     assert manager.should_capture_screen("帮我看看屏幕上写了什么") is True
+    assert manager.should_capture_screen("请看屏幕") is True
+    assert manager.should_capture_screen("你能看到屏幕吗") is True
+    assert manager.should_capture_screen("帮我看一下当前页面") is True
+    assert manager.should_capture_screen("识别一下这个界面") is True
+    assert manager.should_capture_screen("看看你搜索的这个页面有什么内容") is True
     assert vision.called is False
 
 
@@ -315,6 +370,114 @@ def test_agent_manager_executes_tool_then_calls_llm():
 
     assert results[-1].clean_text == "我帮你查到了"
     assert "找到 3 条待办" in manager._llm_manager.calls[0]["extra_context"]
+
+
+def test_agent_manager_records_planner_decision_with_arguments_and_steps():
+    log_service = RecordingLogService()
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("[emotion:开心]明白了"),
+        planner=FakePlanner(FakePlan(
+            mode="tool",
+            goal="search notes",
+            tool_name="notes__search",
+            arguments={"query": "天气预报"},
+            steps=["打开浏览器", "搜索天气预报"],
+        )),
+        executor=FakeExecutor("找到结果"),
+        memory_store=FakeMemoryStore(),
+        tool_registry=FakeToolRegistry(),
+        user_id="u1",
+        session_id="s1",
+        log_service=log_service,
+    )
+
+    list(manager.chat_stream("搜索天气预报"))
+
+    planner_events = [event for event in log_service.events if event.event_type == "agent.planner_decided"]
+    assert len(planner_events) == 1
+    assert planner_events[0].stage == "planner"
+    assert planner_events[0].details["arguments"] == {"query": "天气预报"}
+    assert planner_events[0].details["steps"] == ["打开浏览器", "搜索天气预报"]
+    assert planner_events[0].details["input_preview"] == "搜索天气预报"
+
+
+def test_agent_manager_disables_llm_tools_for_current_page_read_request():
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("[emotion:开心]我会看当前页面"),
+        planner=AgentPlanner(),
+        executor=FakeExecutor(""),
+        memory_store=FakeMemoryStore(),
+        tool_registry=FakeToolRegistry(),
+        user_id="u1",
+        vision_manager=FakeVisionManager(),
+    )
+
+    list(manager.chat_stream(
+        "看看你搜索的这个页面有什么内容",
+        visual_capture=OCRResult(ok=True, image_path="data/vision/page.png"),
+    ))
+
+    call = manager._llm_manager.calls[0]
+    assert call["allow_tools"] is False
+    assert manager._vision_manager.called is True
+
+
+def test_agent_manager_disables_llm_tools_for_default_browser_click_context():
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("[emotion:开心]我需要先看屏幕"),
+        planner=AgentPlanner(),
+        executor=FakeExecutor(""),
+        memory_store=FakeMemoryStore(),
+        tool_registry=FakeToolRegistry(),
+        user_id="u1",
+    )
+
+    list(manager.chat_stream("点击浏览器里的第二个条目"))
+
+    assert manager._llm_manager.calls[0]["allow_tools"] is False
+
+
+def test_agent_manager_browser_chain_reads_existing_page_instead_of_opening_new_browser():
+    registry = BrowserToolRegistry()
+    vision = FakeVisionManager()
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("[emotion:开心]我先看当前页面"),
+        planner=AgentPlanner(),
+        memory_store=FakeMemoryStore(),
+        tool_registry=registry,
+        user_id="u1",
+        vision_manager=vision,
+    )
+
+    list(manager.chat_stream("搜索天气预报"))
+    assert registry.calls == [
+        {"name": "system_control__search_in_browser", "arguments": {"query": "天气预报"}}
+    ]
+    assert manager.should_capture_screen("打开第二个条目") is True
+
+    list(manager.chat_stream(
+        "打开第二个条目",
+        visual_capture=OCRResult(ok=True, image_path="data/vision/result.png"),
+    ))
+
+    assert len(registry.calls) == 1
+    assert manager._llm_manager.calls[-1]["allow_tools"] is False
+    assert vision.called is True
+
+
+def test_agent_manager_keeps_llm_tools_for_normal_chat():
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("[emotion:开心]好的"),
+        planner=AgentPlanner(),
+        executor=FakeExecutor(""),
+        memory_store=FakeMemoryStore(),
+        tool_registry=FakeToolRegistry(),
+        user_id="u1",
+    )
+
+    list(manager.chat_stream("今天聊点什么？"))
+
+    assert manager._llm_manager.calls[0]["allow_tools"] is True
 
 
 def test_agent_manager_tool_mode_disables_followup_llm_tools():

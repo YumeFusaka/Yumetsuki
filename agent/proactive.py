@@ -48,6 +48,7 @@ class ProactiveScheduler(QObject):
         self._custom_triggers: dict[str, Callable[[], bool]] = {}
         self._worker: _SchedulerWorker | None = None
         self._character_context = ""
+        self._visual_context = ""
 
     def start(self) -> None:
         """启动调度器后台线程。"""
@@ -86,6 +87,10 @@ class ProactiveScheduler(QObject):
     def set_character_context(self, context: str) -> None:
         """更新主动消息使用的角色上下文。"""
         self._character_context = (context or "").strip()
+
+    def set_visual_context(self, context: str) -> None:
+        """更新主动消息可参考的最近屏幕观察。"""
+        self._visual_context = (context or "").strip()
 
     # --- 内部方法（供 worker 调用）---
 
@@ -213,6 +218,8 @@ class ProactiveScheduler(QObject):
                 f"{system_prompt}\n"
                 "如果角色有可用情绪，输出必须以 `[emotion:情绪名]` 开头，情绪名必须来自角色可用情绪。"
             )
+        if self._visual_context:
+            prompt = f"最近屏幕观察:\n{self._visual_context}\n\n{prompt}"
         return self._llm.judge(system_prompt, prompt, max_tokens=120)
 
     def _emit_message(self, message: str, source: str) -> None:

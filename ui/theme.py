@@ -161,6 +161,18 @@ QMenu::separator {
 """
 
 
+SAKURA_TOOLTIP_STYLE = """
+QToolTip {
+    background: #fff0f3;
+    color: #4a3040;
+    border: 1px solid rgba(220, 160, 180, 0.45);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+"""
+
+
 def apply_sakura_menu_theme(menu: QMenu) -> None:
     menu.setStyleSheet(SAKURA_MENU_STYLE)
     palette = menu.palette()
@@ -220,6 +232,10 @@ def apply_system_appearance(app: QApplication, system_config) -> None:
     font = QFont(system_config.font_family or "Microsoft YaHei")
     font.setPointSize(max(1, int(system_config.font_size)))
     app.setFont(font)
+    palette = app.palette()
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#fff0f3"))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#4a3040"))
+    app.setPalette(palette)
     install_sakura_menu_theme(app)
 
 

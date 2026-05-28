@@ -44,25 +44,27 @@ def test_open_application_not_found(mock_which):
     assert "找不到" in result or "not found" in result.lower()
 
 
-@patch("plugins.system_control.open.os.startfile")
-def test_open_browser_uses_default_browser(mock_startfile):
+@patch("plugins.system_control.open.webbrowser.open", return_value=True)
+def test_open_browser_uses_default_browser(mock_open):
     result = do_open_browser()
-    mock_startfile.assert_called_once()
-    opened_target = mock_startfile.call_args.args[0]
+    mock_open.assert_called_once()
+    opened_target = mock_open.call_args.args[0]
     assert opened_target.startswith("http")
+    assert mock_open.call_args.kwargs["new"] == 0
     assert "默认浏览器" in result
 
 
-@patch("plugins.system_control.open.os.startfile")
-def test_search_in_browser_opens_search_url(mock_startfile):
+@patch("plugins.system_control.open.webbrowser.open", return_value=True)
+def test_search_in_browser_opens_search_url(mock_open):
     from plugins.system_control.open import do_search_in_browser
 
     result = do_search_in_browser("Python 教程", engine="bing")
 
-    mock_startfile.assert_called_once()
-    opened_target = mock_startfile.call_args.args[0]
+    mock_open.assert_called_once()
+    opened_target = mock_open.call_args.args[0]
     assert opened_target.startswith("https://www.bing.com/search?q=")
     assert "Python" in opened_target or "%E6%95%99%E7%A8%8B" in opened_target
+    assert mock_open.call_args.kwargs["new"] == 0
     assert "搜索" in result
 
 

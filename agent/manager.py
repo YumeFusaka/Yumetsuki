@@ -8,6 +8,7 @@ from agent.executor import AgentExecutor
 from agent.multi_step import MultiStepRunner
 from agent.planner import AgentPlanner, AgentPlan
 from agent.reflector import AgentReflector, Reflection
+from agent.tool_argument_normalizer import is_current_page_read_request
 from config.schema import AgentConfig
 from core.event_bus import event_bus
 from core.log_types import LogChannel, LogLevel, build_log_event
@@ -72,6 +73,7 @@ class AgentManager:
         self._log_service = log_service
         self._vision_manager = vision_manager
         self._memory_ledger = MemoryLedgerEvaluator()
+        self._browser_context_active = False
 
     def chat_stream(
         self,
@@ -103,11 +105,27 @@ class AgentManager:
 
         tool_entries = self._tool_registry.entries() if self._tool_registry else []
         plan = self._planner.plan(user_input, tool_entries)
-        self._event_bus.publish(AgentEvents.PLANNER_DECIDED, self._plan_to_dict(plan))
+        plan = self._apply_context_guard_to_plan(user_input, plan)
+        plan_details = self._plan_to_dict(plan)
+        self._event_bus.publish(AgentEvents.PLANNER_DECIDED, plan_details)
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="agent.manager",
+            event_type=AgentEvents.PLANNER_DECIDED,
+            session_id=self._session_id,
+            summary=f"Planner decided: {plan.mode} {plan.tool_name or ''}".strip(),
+            details={
+                **plan_details,
+                "input_preview": user_input[:120],
+                "available_tool_count": len(tool_entries),
+            },
+            stage="planner",
+        )
 
         tool_result = ""
         tool_calls: list[dict] | None = None
-        allow_tools = True
+        allow_tools = not self._should_disable_llm_tools(user_input, plan)
         if plan.needs_multi_step and self._config.multi_step.enabled:
             # 多步推理模式
             multi_step_runner = MultiStepRunner(
@@ -127,6 +145,7 @@ class AgentManager:
             tool_result = str(result)
             tool_calls = [{"name": plan.tool_name, "result": tool_result}]
             allow_tools = False
+            self._update_browser_context_after_tool(plan.tool_name)
             self._event_bus.publish(AgentEvents.TOOL_EXECUTED, {
                 "tool": plan.tool_name,
                 "result": tool_result[:200],
@@ -269,32 +288,164 @@ class AgentManager:
             "mode": plan.mode,
             "goal": plan.goal,
             "tool_name": plan.tool_name,
+            "arguments": dict(plan.arguments or {}),
             "needs_multi_step": plan.needs_multi_step,
+            "steps": list(plan.steps or []),
         }
+
+    def _should_disable_llm_tools(self, user_input: str, plan: AgentPlan) -> bool:
+        if plan.mode != "chat":
+            return False
+        if is_current_page_read_request(user_input):
+            return True
+        if self._browser_context_active and self._is_ambiguous_browser_context_request(user_input):
+            return True
+        return self._is_default_browser_direct_context_request(user_input)
+
+    def _apply_context_guard_to_plan(self, user_input: str, plan: AgentPlan) -> AgentPlan:
+        if is_current_page_read_request(user_input):
+            return AgentPlan(mode="chat", goal="read current page with visual context")
+        if self._is_default_browser_direct_context_request(user_input):
+            return AgentPlan(mode="chat", goal="browser context needs visual observation or explicit automation session")
+        if self._browser_context_active and self._is_ambiguous_browser_context_request(user_input):
+            return AgentPlan(mode="chat", goal="active browser context needs visual observation")
+        return plan
+
+    def _update_browser_context_after_tool(self, tool_name: str | None) -> None:
+        if tool_name in {"system_control__open_browser", "system_control__search_in_browser"}:
+            self._browser_context_active = True
+
+    @staticmethod
+    def _is_default_browser_direct_context_request(user_input: str) -> bool:
+        text = str(user_input or "").lower()
+        compact = "".join(str(user_input or "").split()).lower()
+        if "浏览器" not in user_input and "browser" not in text:
+            return False
+        if any(keyword in user_input for keyword in ("搜索", "搜", "查询", "查找", "查一下", "重新搜索", "再搜索")):
+            return False
+        if any(marker in compact for marker in ("自动化浏览器", "playwright", "websession", "web_session")):
+            return False
+        direct_words = ("点击", "点开", "打开第", "选择", "输入", "填写", "按下", "看看", "看一下", "阅读", "总结")
+        return any(word in user_input for word in direct_words)
+
+    @staticmethod
+    def _is_ambiguous_browser_context_request(user_input: str) -> bool:
+        text = "".join(str(user_input or "").split()).lower()
+        if not text:
+            return False
+        if any(marker in text for marker in ("搜索", "搜一下", "重新搜索", "再搜索", "查询", "查找")):
+            return False
+        if any(marker in text for marker in ("自动化浏览器", "playwright", "websession", "web_session")):
+            return False
+        direct_markers = (
+            "打开第",
+            "点第",
+            "点击第",
+            "第二个",
+            "第三个",
+            "第一个",
+            "上一条",
+            "下一条",
+            "这个结果",
+            "这个页面",
+            "这个网页",
+            "当前页面",
+            "当前网页",
+            "看看这个",
+            "看一下这个",
+            "告诉我内容",
+            "有什么内容",
+            "总结一下",
+            "总结这个",
+        )
+        return any(marker in text for marker in direct_markers)
 
     def should_capture_screen(self, user_input: str) -> bool:
         if self._vision_manager is None:
             return False
-        text = user_input.strip()
+        text = "".join(user_input.strip().split())
         explicit_triggers = (
             "看看屏幕",
             "看一下屏幕",
+            "看屏幕",
+            "看到屏幕",
+            "看一下当前画面",
+            "看看当前画面",
+            "看一下当前窗口",
+            "看看当前窗口",
+            "看一下当前页面",
+            "看看当前页面",
+            "看一下这个界面",
+            "看看这个界面",
             "读屏幕",
             "识别屏幕",
+            "识别一下屏幕",
+            "识别一下当前画面",
+            "识别一下当前窗口",
+            "识别一下当前页面",
+            "识别一下这个界面",
             "读取屏幕",
             "屏幕截图",
             "屏幕上写",
         )
+        blocked_triggers = (
+            "不要看屏幕",
+            "别看屏幕",
+            "不用看屏幕",
+            "不要读屏",
+            "别读屏",
+            "不用读屏",
+            "不要识别屏幕",
+            "别识别屏幕",
+        )
+        if any(blocked in text for blocked in blocked_triggers):
+            return False
         if any(trigger in text for trigger in explicit_triggers):
             return True
-        has_screen_target = any(target in text for target in ("屏幕", "当前画面", "当前窗口"))
-        has_read_intent = any(intent in text for intent in ("看看", "看下", "看一下", "识别", "读取", "读一下"))
-        return has_screen_target and has_read_intent
+        if is_current_page_read_request(user_input):
+            return True
+        if self._browser_context_active and self._is_ambiguous_browser_context_request(user_input):
+            return True
+        has_screen_target = any(
+            target in text
+            for target in (
+                "屏幕",
+                "当前画面",
+                "当前窗口",
+                "当前页面",
+                "这个界面",
+                "这页",
+                "页面",
+                "画面",
+            )
+        )
+        has_read_intent = any(
+            intent in text
+            for intent in (
+                "看看",
+                "看下",
+                "看一下",
+                "看",
+                "看到",
+                "识别",
+                "读取",
+                "读一下",
+                "读",
+                "检查",
+                "观察",
+            )
+        )
+        asks_visual_content = any(question in text for question in ("写了什么", "有什么", "是什么"))
+        return has_screen_target and (has_read_intent or asks_visual_content)
 
     def _process_visual_capture(self, session_ctx, capture: OCRResult) -> str:
         if not capture.ok:
             return self._record_ocr_result(session_ctx, capture)
         result = self._vision_manager.recognize_image_text(capture.image_path)
+        return self._record_ocr_result(session_ctx, result)
+
+    def record_visual_observation_result(self, result: OCRResult) -> str:
+        session_ctx = self._session_manager.get_or_create(self._user_id, self._session_id)
         return self._record_ocr_result(session_ctx, result)
 
     def _record_ocr_result(self, session_ctx, result: OCRResult) -> str:

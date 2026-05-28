@@ -63,6 +63,29 @@ class LLMWorker(QThread):
                 self.error_signal.emit(str(exc))
 
 
+class PassiveVisionWorker(QThread):
+    result_ready = Signal(object)
+    error_signal = Signal(str)
+
+    def __init__(self, vision_manager, capture: OCRResult):
+        super().__init__()
+        self._vision_manager = vision_manager
+        self._capture = capture
+
+    def run(self):
+        try:
+            if not self._capture.ok:
+                self.result_ready.emit(self._capture)
+                return
+            result = self._vision_manager.recognize_image_text(self._capture.image_path)
+            if self.isInterruptionRequested():
+                return
+            self.result_ready.emit(result)
+        except Exception as exc:
+            if not self.isInterruptionRequested():
+                self.error_signal.emit(str(exc))
+
+
 class TTSWorker(QThread):
     event_ready = Signal(int, int, object)
 
@@ -277,6 +300,9 @@ class ChatWindow(QWidget):
         self._current_trace_id = ""
         self._current_request_id = ""
         self._vision_manager = VisionManager(self._system_config.vision)
+        self._vision_cleanup_timer = QTimer(self)
+        self._vision_cleanup_timer.timeout.connect(self._run_vision_cleanup)
+        self._sync_vision_cleanup_timer()
         runtime_config = (agent_config or AgentConfig()).tts_runtime
         self._tts_pipeline = TTSPipelineController(
             max_translation_workers=runtime_config.max_translation_workers,
@@ -338,6 +364,8 @@ class ChatWindow(QWidget):
         self._is_closing = False
         self._is_passive = False
         self._last_interaction_at = time.monotonic()
+        self._last_passive_vision_at = 0.0
+        self._passive_vision_worker = None
         self._passive_idle_timer = QTimer(self)
         self._passive_idle_timer.setInterval(1000)
         self._passive_idle_timer.timeout.connect(self._check_passive_idle)
@@ -750,8 +778,12 @@ class ChatWindow(QWidget):
         self._refresh_interaction(exit_passive=True)
 
     def _enter_passive_state(self) -> None:
+        was_passive = self._is_passive
         self._is_passive = True
         self._panel.hide()
+        if not was_passive:
+            self._last_passive_vision_at = 0.0
+            self._maybe_capture_passive_screen_observation(force=True)
 
     def _exit_passive_state(self) -> None:
         self._is_passive = False
@@ -762,6 +794,93 @@ class ChatWindow(QWidget):
         threshold = max(1, int(self._system_config.passive_interaction.idle_threshold_seconds))
         if time.monotonic() - self._last_interaction_at >= threshold:
             self._enter_passive_state()
+            self._maybe_capture_passive_screen_observation()
+
+    def _maybe_capture_passive_screen_observation(self, force: bool = False) -> None:
+        vision = self._system_config.vision
+        if (
+            not self._is_passive
+            or not vision.enabled
+            or not vision.passive_observation_enabled
+            or self._worker is not None
+            or self._is_stt_recording
+            or self._is_stt_worker_busy()
+            or self._is_passive_vision_busy()
+        ):
+            return
+        now = time.monotonic()
+        interval = max(1, int(vision.passive_observation_interval_seconds))
+        if not force and now - self._last_passive_vision_at < interval:
+            return
+        self._last_passive_vision_at = now
+        self._capture_passive_screen_observation()
+
+    def _is_passive_vision_busy(self) -> bool:
+        return self._passive_vision_worker is not None and (
+            not hasattr(self._passive_vision_worker, "isRunning")
+            or self._passive_vision_worker.isRunning()
+        )
+
+    def _capture_passive_screen_observation(self) -> None:
+        capture = self._vision_manager.capture_screen_image()
+        if not capture.ok:
+            self._record_log_event(
+                channel=LogChannel.SYSTEM,
+                level=LogLevel.WARN,
+                source="chat.vision",
+                event_type="vision.passive_capture_failed",
+                session_id=self._tts_session_id,
+                utterance_id=self._current_utterance_id,
+                summary=f"被动读屏截图失败: {(capture.error or '')[:80]}",
+                details={"error": capture.error},
+            )
+            return
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="chat.vision",
+            event_type="vision.passive_capture_started",
+            session_id=self._tts_session_id,
+            utterance_id=self._current_utterance_id,
+            summary="被动读屏截图已采集，正在识别。",
+            details={"image_path": capture.image_path},
+            sensitive=True,
+        )
+        worker = PassiveVisionWorker(self._vision_manager, capture)
+        self._passive_vision_worker = worker
+        worker.result_ready.connect(
+            lambda result, worker=worker: self._on_passive_vision_result(worker, result),
+            Qt.ConnectionType.QueuedConnection,
+        )
+        worker.error_signal.connect(
+            lambda message, worker=worker: self._on_passive_vision_error(worker, message),
+            Qt.ConnectionType.QueuedConnection,
+        )
+        worker.start()
+
+    def _on_passive_vision_result(self, worker, result: OCRResult) -> None:
+        if self._passive_vision_worker is not worker:
+            return
+        if hasattr(self._chat_engine, "record_visual_observation_result"):
+            self._chat_engine.record_visual_observation_result(result)
+        if self._proactive_scheduler is not None:
+            self._proactive_scheduler.set_visual_context(result.summary(240) if result.ok and result.text.strip() else "")
+        self._passive_vision_worker = None
+
+    def _on_passive_vision_error(self, worker, message: str) -> None:
+        if self._passive_vision_worker is not worker:
+            return
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.WARN,
+            source="chat.vision",
+            event_type="vision.passive_ocr_failed",
+            session_id=self._tts_session_id,
+            utterance_id=self._current_utterance_id,
+            summary=f"被动读屏 OCR 失败: {message[:80]}",
+            details={"error": message},
+        )
+        self._passive_vision_worker = None
 
     def _show_passive_bubble(self, text: str) -> None:
         config = self._system_config.passive_interaction
@@ -1874,6 +1993,7 @@ class ChatWindow(QWidget):
             record_timeout_seconds=self._asr_config.record_timeout_seconds,
             silence_threshold=self._asr_config.silence_threshold,
             silence_duration_ms=self._asr_config.silence_duration_ms,
+            initial_silence_grace_ms=getattr(self._asr_config, "initial_silence_grace_ms", 3000),
             parent=self,
         )
         self._stt_recorder.audio_ready.connect(
@@ -1948,6 +2068,7 @@ class ChatWindow(QWidget):
                 "record_timeout_seconds": self._asr_config.record_timeout_seconds,
                 "silence_threshold": self._asr_config.silence_threshold,
                 "silence_duration_ms": self._asr_config.silence_duration_ms,
+                "initial_silence_grace_ms": getattr(self._asr_config, "initial_silence_grace_ms", 3000),
             },
         )
 
@@ -2075,6 +2196,7 @@ class ChatWindow(QWidget):
             summary="STT result ready",
             details={"language": result.language, "text_length": len(text)},
         )
+        self._input.setPlaceholderText("输入消息...")
         self._input.setText(text)
         self._on_send()
 
@@ -2152,6 +2274,7 @@ class ChatWindow(QWidget):
         self._current_trace_id = uuid.uuid4().hex
         self._current_request_id = uuid.uuid4().hex
         self._input.clear()
+        self._input.setPlaceholderText("输入消息...")
         self._last_user_input = text
         self._begin_new_tts_turn()
         self._set_chat_status("正在思考...", busy=True)
@@ -2291,6 +2414,7 @@ class ChatWindow(QWidget):
     def apply_system_config(self, config: SystemConfig) -> None:
         self._system_config = config
         self._vision_manager.update_config(config.vision)
+        self._sync_vision_cleanup_timer()
         self._display_font_family = config.font_family or SystemConfig().font_family
         self._display_font_size = max(1, int(config.font_size))
         self._display_font_scale = max(0.1, float(config.chat_display.font_scale))
@@ -2302,9 +2426,31 @@ class ChatWindow(QWidget):
     def set_memory_store(self, memory_store) -> None:
         self._chat_engine.set_memory_store(memory_store)
 
+    def _sync_vision_cleanup_timer(self) -> None:
+        interval_minutes = max(1, int(getattr(self._system_config.vision, "screenshot_cleanup_interval_minutes", 30)))
+        self._vision_cleanup_timer.setInterval(interval_minutes * 60 * 1000)
+        if not self._vision_cleanup_timer.isActive():
+            self._vision_cleanup_timer.start()
+
+    def _run_vision_cleanup(self) -> None:
+        removed = self._vision_manager.cleanup_screenshot_dir(force=True)
+        if removed <= 0:
+            return
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="chat.vision",
+            event_type="vision.screenshot_cleanup_completed",
+            session_id=self._tts_session_id,
+            utterance_id=self._current_utterance_id,
+            summary=f"已清理 {removed} 张过期读屏截图",
+            details={"removed": removed},
+        )
+
     def _thread_workers(self) -> list[object]:
         workers = [
             self._worker,
+            self._passive_vision_worker,
             self._stt_worker,
             *self._expired_stt_workers,
             self._tts_prepare_worker,
@@ -2356,6 +2502,8 @@ class ChatWindow(QWidget):
             self._passive_bubble_timer.stop()
         if hasattr(self, "_passive_idle_timer"):
             self._passive_idle_timer.stop()
+        if hasattr(self, "_vision_cleanup_timer"):
+            self._vision_cleanup_timer.stop()
         if self._stt_recorder is not None:
             self._stt_recorder.cancel()
         self._tts_timeout_timer.stop()

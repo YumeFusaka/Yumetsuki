@@ -1,6 +1,7 @@
 from typing import Generator
 import json
 
+from agent.tool_argument_normalizer import normalize_tool_arguments, should_block_web_session_open
 from config.schema import LLMConfig
 from core.log_types import LogChannel, LogLevel, build_log_event
 from llm.adapter import LLMAdapter, LLMStreamChunk, ToolCall
@@ -118,7 +119,7 @@ class LLMManager:
                 }
                 messages.append(assistant_message)
                 for call in tool_calls:
-                    messages.append(self._execute_tool_call(call))
+                    messages.append(self._execute_tool_call(call, user_input=user_input))
             else:
                 full_response += "\n\n工具调用次数过多，已停止继续执行。"
                 last_progress_log_length = self._record_stream_progress(
@@ -170,9 +171,10 @@ class LLMManager:
             },
         }
 
-    def _execute_tool_call(self, call: ToolCall) -> dict:
+    def _execute_tool_call(self, call: ToolCall, user_input: str = "") -> dict:
         try:
             arguments = json.loads(call.arguments or "{}")
+            arguments, normalization = normalize_tool_arguments(call.name, arguments, user_input)
             self._record_log_event(
                 channel=LogChannel.SYSTEM,
                 level=LogLevel.INFO,
@@ -180,8 +182,38 @@ class LLMManager:
                 event_type="llm.tool_call_requested",
                 session_id=self._session_id,
                 summary=f"{call.name} requested",
-                details={"arguments": arguments},
+                details={
+                    "arguments": arguments,
+                    "argument_normalization": normalization,
+                    "input_preview": user_input[:120],
+                },
             )
+            if should_block_web_session_open(call.name, user_input):
+                content = (
+                    "Tool blocked: web_session_open 会打开 Playwright 自动化浏览器，"
+                    "不能接管用户已经打开的系统默认浏览器。需要用户明确要求自动化浏览器会话后才会执行。"
+                )
+                self._record_log_event(
+                    channel=LogChannel.SYSTEM,
+                    level=LogLevel.WARN,
+                    source="llm.manager",
+                    event_type="llm.tool_call_blocked",
+                    session_id=self._session_id,
+                    summary=f"{call.name} blocked",
+                    details={
+                        "tool_name": call.name,
+                        "reason": "web_session_open_requires_explicit_automation_request",
+                        "input_preview": user_input[:120],
+                        "arguments": arguments,
+                    },
+                    stage="tool_guard",
+                )
+                return {
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "name": call.name,
+                    "content": content,
+                }
             result = self._dispatch_tool(call.name, arguments)
             content = str(result)
         except Exception as exc:

@@ -243,6 +243,11 @@ def test_vision_config_defaults():
     assert cfg.vision.screenshot_dir == "data/vision"
     assert cfg.vision.max_text_chars == 2000
     assert cfg.vision.explicit_trigger_only is True
+    assert cfg.vision.passive_observation_enabled is False
+    assert cfg.vision.passive_observation_interval_seconds == 10
+    assert cfg.vision.screenshot_retention_hours == 24
+    assert cfg.vision.screenshot_max_files == 200
+    assert cfg.vision.screenshot_cleanup_interval_minutes == 30
 
 
 def test_vision_config_maps_legacy_tesseract_engine_to_rapidocr():
@@ -289,6 +294,11 @@ def test_save_and_reload_vision_system_config(tmp_path):
     mgr.system.vision.screenshot_dir = "runtime/vision"
     mgr.system.vision.max_text_chars = 4200
     mgr.system.vision.explicit_trigger_only = False
+    mgr.system.vision.passive_observation_enabled = True
+    mgr.system.vision.passive_observation_interval_seconds = 12
+    mgr.system.vision.screenshot_retention_hours = 48
+    mgr.system.vision.screenshot_max_files = 120
+    mgr.system.vision.screenshot_cleanup_interval_minutes = 5
     mgr.save_system()
     saved = yaml.safe_load((tmp_path / "system_config.yaml").read_text(encoding="utf-8"))
 
@@ -298,12 +308,22 @@ def test_save_and_reload_vision_system_config(tmp_path):
     assert saved["vision"]["ocr_engine"] == "paddleocr"
     assert saved["vision"]["language"] == "en"
     assert saved["vision"]["explicit_trigger_only"] is True
+    assert saved["vision"]["passive_observation_enabled"] is True
+    assert saved["vision"]["passive_observation_interval_seconds"] == 12
+    assert saved["vision"]["screenshot_retention_hours"] == 48
+    assert saved["vision"]["screenshot_max_files"] == 120
+    assert saved["vision"]["screenshot_cleanup_interval_minutes"] == 5
     assert mgr2.system.vision.enabled is True
     assert mgr2.system.vision.ocr_engine == "paddleocr"
     assert mgr2.system.vision.language == "en"
     assert mgr2.system.vision.screenshot_dir == "runtime/vision"
     assert mgr2.system.vision.max_text_chars == 4200
     assert mgr2.system.vision.explicit_trigger_only is True
+    assert mgr2.system.vision.passive_observation_enabled is True
+    assert mgr2.system.vision.passive_observation_interval_seconds == 12
+    assert mgr2.system.vision.screenshot_retention_hours == 48
+    assert mgr2.system.vision.screenshot_max_files == 120
+    assert mgr2.system.vision.screenshot_cleanup_interval_minutes == 5
 
 
 def test_save_and_reload_phase5_system_config(tmp_path):
@@ -340,6 +360,7 @@ def test_asr_config_defaults_to_faster_whisper_local_model():
     assert cfg.record_timeout_seconds == 20
     assert cfg.silence_threshold == 0.02
     assert cfg.silence_duration_ms == 1200
+    assert cfg.initial_silence_grace_ms == 3000
 
 
 def test_passive_interaction_config_uses_idle_threshold_not_enable_switch():

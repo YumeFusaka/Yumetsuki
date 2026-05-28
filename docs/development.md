@@ -67,13 +67,14 @@ Post-1.0 分类策略：
   含 key，不应提交
   其中 TTS 的 `audio_mode`、`ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 控制运行态音频链路与参考策略
   其中 TTS 的 `ref_audio_path`、`reference_mode`、`prompt_lang`、`output_lang`、`prompt_text` 可能包含本地语音素材路径或私有参考文本，也按本地敏感配置处理
-  其中 ASR / STT 配置位于 `asr`：当前字段为 `engine=faster_whisper`、`model_path`、`device`、`compute_type`、`transcribe_timeout_seconds`、`language`、`record_timeout_seconds`、`silence_threshold`、`silence_duration_ms`，通过本地 faster-whisper 库转写；默认 `device=cpu`、`compute_type=int8`，`device=auto` 也按 CPU 执行，避免无 CUDA 运行库环境误走 GPU
+  其中 ASR / STT 配置位于 `asr`：当前字段为 `engine=faster_whisper`、`model_path`、`device`、`compute_type`、`transcribe_timeout_seconds`、`language`、`record_timeout_seconds`、`silence_threshold`、`silence_duration_ms`、`initial_silence_grace_ms`，通过本地 faster-whisper 库转写；默认 `device=cpu`、`compute_type=int8`，`device=auto` 也按 CPU 执行，避免无 CUDA 运行库环境误走 GPU
   Windows 下如使用 pip 安装 `nvidia-*-cu12` 运行库，STT 适配器会在进程内注册并持有对应 DLL 目录句柄，并把目录 prepend 到当前进程 `PATH`，以覆盖 CTranslate2 在真实解码阶段动态加载 `cublas64_12.dll` 的路径需求
 - `data/config/system_config.yaml`
   系统配置
   当前也承载 `logging` 运行时配置，如日志根目录、平台日志内部 `system` channel 的 flush 间隔和 UI 内存事件窗口 `ui_buffer_limit`
   当前也承载 `chat_display` 与 `passive_interaction`：前者控制聊天字体倍率和气泡倍率；后者包含空闲阈值、被动气泡最大宽度和停留时长。被动状态属于聊天窗运行态，空闲阈值用于自动进入，不再使用系统级启用开关。
-  当前也承载 `vision`：控制 OCR 是否启用、OCR 后端、OCR 语言、截图目录、最大文本长度和显式触发策略；默认后端为 `rapidocr`，`paddleocr` 为进阶可选后端。对应 UI 位于系统设置的 `视觉 / OCR` 分组，随系统配置保存；当前版本固定仅允许显式读屏触发。
+  当前也承载 `vision`：控制 OCR 是否启用、OCR 后端、OCR 语言、截图目录、最大文本长度、显式触发策略、截图保留时长、截图数量上限和清理间隔；默认后端为 `rapidocr`，`paddleocr` 为进阶可选后端。对应 UI 位于系统设置的 `视觉 / OCR` 分组，随系统配置保存；当前版本固定仅允许显式读屏、当前页面阅读或默认浏览器上下文读屏触发。
+  当前也承载被动状态定时读屏配置：`passive_observation_enabled` 默认关闭，`passive_observation_interval_seconds` 默认 `10`。该能力只在聊天窗已进入被动状态后按间隔触发，用于补充主动发言可参考的最近屏幕观察。
   当前默认值：`chat_display.font_scale=1.3`，`passive_interaction.bubble_max_width=600`。
 - `data/config/mcp.yaml`
   MCP 实际配置；每个 server 可配置 `connect_timeout_seconds`、`request_timeout_seconds` 和 `retry_attempts`
@@ -127,6 +128,7 @@ Post-1.0 分类策略：
   - `asr.record_timeout_seconds`
   - `asr.silence_threshold`
   - `asr.silence_duration_ms`
+  - `asr.initial_silence_grace_ms`
   - `chat_display.font_scale`
   - `chat_display.bubble_scale`
   - `passive_interaction.idle_threshold_seconds`
@@ -149,6 +151,11 @@ Post-1.0 分类策略：
   - `vision.screenshot_dir`
   - `vision.max_text_chars`
   - `vision.explicit_trigger_only`
+  - `vision.passive_observation_enabled`
+  - `vision.passive_observation_interval_seconds`
+  - `vision.screenshot_retention_hours`
+  - `vision.screenshot_max_files`
+  - `vision.screenshot_cleanup_interval_minutes`
 - 以下类型默认都应朝配置化方向演进：
   - 短期记忆窗口、衰减、摘要预算
   - TTS 超时、并发、回退、队列长度
@@ -199,6 +206,7 @@ Post-1.0 分类策略：
 - 浏览器相关行为优先区分：
   - 系统默认浏览器打开 / 搜索
   - Playwright 后台自动化 / 可见自动化
+  - 当前页面阅读、默认浏览器点击和已有默认浏览器上下文的短句操作不得绕过 OCR guard 去执行 `web_session_open`
 - 记忆相关改动优先覆盖非阻塞行为，避免对话结束后额外卡顿
 - `session/` 相关改动优先覆盖：
   - `SessionContext` 数据演进
@@ -213,6 +221,8 @@ Post-1.0 分类策略：
   - 关键运行链路的日志接线
   - `LogService` 内存事件窗口不得裁切待落盘 `_pending` 队列
   - `对话日志` / `平台日志` 页面不可见时应暂停自动刷新，重新显示时再刷新当前视图
+  - 用户拖选对话日志或平台日志文本时应跳过自动刷新，内容未变化时不得重写 QTextEdit
+  - 平台日志结构化列表应保持紧凑、自动换行、不横向滚动，并在摘要中包含 planner/tool 的关键参数；完整 JSON 仍由详情区承载
   - 真实服务场景下的异常日志可见性与 UI 联动
 - Phase 5 UI / STT 相关改动优先覆盖：
   - `SystemConfig.chat_display` 和 `SystemConfig.passive_interaction` 的默认值、持久化与设置页编辑
@@ -232,9 +242,12 @@ Post-1.0 分类策略：
   - MCP 设置页新增 / 编辑弹窗对连接超时、请求超时、失败重试和启用状态保留的覆盖
   - `ToolRegistry` 的 `source_name` 与 qualified name 兼容
   - `web_automation` 既有搜索 / 提取 / 截图工具不回退，持续浏览器会话工具可打开、导航、等待、提取、点击、填写、查看状态和关闭
+  - 默认浏览器搜索词归一化必须覆盖“搜索 xxx”“帮我搜一下 xxx”“用浏览器搜索 xxx”“重新搜索 xxx”；当前页面阅读请求不得再次作为搜索词
   - `VisionManager` 的禁用状态、截图失败、OCR 失败、文本截断和 RapidOCR / PaddleOCR 后端选择
+  - `VisionManager` 与 `screen_capture.cleanup_screenshots()` 必须只清理 `screen_*.png`，按保留时长和数量上限清理，不误删其他文件
   - `SessionContext.visual_observations` 的 prompt 注入和 SQLite 快照往返
-  - `ChatWindow` 仅在显式读屏请求下主线程预采集截图；`AgentManager` 只处理预采集截图的 OCR 与会话注入，普通聊天不读屏
+  - `ChatWindow` 仅在显式读屏、当前页面阅读或浏览器上下文读屏请求下主线程预采集截图；`AgentManager` 只处理预采集截图的 OCR 与会话注入，普通聊天不读屏
+  - 被动状态定时读屏必须默认关闭，开启后只在聊天窗被动状态下按配置间隔触发，并写入最近视觉观察与主动发言视觉上下文
 - TTS 性能相关改动优先覆盖：
   - GPT-SoVITS PCM 读取必须使用有界 chunk size，不得回退到 `chunk_size=None`
   - GPT-SoVITS WAV 回包必须按有界块发出，避免单个 Qt queued signal 携带整段音频

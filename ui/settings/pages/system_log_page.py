@@ -18,13 +18,17 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QListWidget,
     QListWidgetItem,
+    QListView,
     QSizePolicy,
     QStyledItemDelegate,
+    QSplitter,
+    QStackedWidget,
 )
 
 from ui.theme import (
     SAKURA_COMBO_BOX_STYLE,
-    apply_settings_item_font,
+    SAKURA_TOOLTIP_STYLE,
+    font_for_role,
     set_settings_font_role,
     settings_font_tokens,
     settings_page_title,
@@ -79,7 +83,7 @@ QTextEdit {
     background: rgba(255, 252, 254, 0.82);
     border: 1px solid rgba(220, 160, 180, 0.28);
     border-radius: 14px;
-    padding: 12px;
+    padding: 8px;
     color: #4a3040;
     font-size: 12px;
     font-family: "Consolas", "Microsoft YaHei", monospace;
@@ -130,14 +134,14 @@ QListWidget {
     background: rgba(255, 252, 254, 0.82);
     border: 1px solid rgba(220, 160, 180, 0.28);
     border-radius: 14px;
-    padding: 8px;
+    padding: 2px;
     color: #4a3040;
 }
 QListWidget::item {
-    padding: 8px 10px;
-    border-radius: 10px;
-    margin-bottom: 4px;
-    font-size: 12px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    margin-bottom: 0px;
+    font-size: 11px;
 }
 QListWidget::item:selected {
     background: rgba(255, 222, 232, 0.95);
@@ -146,7 +150,14 @@ QListWidget::item:selected {
 QListWidget::item:hover {
     background: rgba(255, 238, 244, 0.95);
 }
-""" + SAKURA_COMBO_BOX_STYLE
+QSplitter::handle {
+    background: rgba(220, 160, 180, 0.16);
+    height: 6px;
+}
+QSplitter::handle:hover {
+    background: rgba(212, 86, 122, 0.22);
+}
+""" + SAKURA_COMBO_BOX_STYLE + SAKURA_TOOLTIP_STYLE
 
 
 class SourceColorItemDelegate(QStyledItemDelegate):
@@ -168,11 +179,12 @@ class SystemLogPage(QWidget):
         self._log_service = log_service
         self._selected_event: dict | None = None
         self._current_session_id: str | None = None
+        self._last_continuous_html = ""
         self.setStyleSheet(PAGE_STYLE)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 24, 32, 24)
-        layout.setSpacing(12)
+        layout.setContentsMargins(24, 18, 24, 16)
+        layout.setSpacing(8)
 
         self._title = settings_page_title(QLabel("平台日志"))
         layout.addWidget(self._title)
@@ -181,10 +193,10 @@ class SystemLogPage(QWidget):
         layout.addWidget(desc)
 
         controls = QVBoxLayout()
-        controls.setSpacing(8)
+        controls.setSpacing(6)
 
         filter_row = QHBoxLayout()
-        filter_row.setSpacing(8)
+        filter_row.setSpacing(6)
         filter_row.addWidget(QLabel("来源组"))
         self._source_group_filter = QComboBox()
         self._source_group_filter.setMinimumWidth(96)
@@ -223,7 +235,7 @@ class SystemLogPage(QWidget):
         controls.addLayout(filter_row)
 
         action_row = QHBoxLayout()
-        action_row.setSpacing(8)
+        action_row.setSpacing(6)
 
         self._current_session_only = QCheckBox("仅当前会话")
         self._current_session_only.stateChanged.connect(lambda *_: self._refresh_view())
@@ -255,31 +267,45 @@ class SystemLogPage(QWidget):
         controls.addLayout(action_row)
         layout.addLayout(controls)
 
+        self._content_splitter = QSplitter(Qt.Orientation.Vertical)
+        self._content_splitter.setChildrenCollapsible(False)
+        self._log_view_stack = QStackedWidget()
+
         self._event_list = QListWidget()
+        self._event_list.setProperty("settingsItemFontRole", "small")
         self._event_list.setItemDelegate(SourceColorItemDelegate(self._event_list))
+        self._event_list.setWordWrap(True)
+        self._event_list.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self._event_list.setUniformItemSizes(False)
+        self._event_list.setResizeMode(QListView.ResizeMode.Adjust)
+        self._event_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._event_list.currentRowChanged.connect(self._on_event_selected)
-        layout.addWidget(self._event_list, 7)
+        self._log_view_stack.addWidget(self._event_list)
 
         self._continuous_text = QTextEdit()
         self._continuous_text.setReadOnly(True)
         self._continuous_text.setPlaceholderText("连续文本视图会在此展示筛选后的日志。")
-        self._continuous_text.hide()
-        layout.addWidget(self._continuous_text, 7)
+        self._log_view_stack.addWidget(self._continuous_text)
+        self._content_splitter.addWidget(self._log_view_stack)
 
         self._detail_text = QTextEdit()
         self._detail_text.setReadOnly(True)
         self._detail_text.setPlaceholderText("选择或刷新日志后可在此查看完整 JSON 详情。")
         self._detail_text.hide()
-        layout.addWidget(self._detail_text, 3)
+        self._content_splitter.addWidget(self._detail_text)
+        self._content_splitter.setStretchFactor(0, 7)
+        self._content_splitter.setStretchFactor(1, 3)
+        self._content_splitter.setSizes([520, 220])
+        layout.addWidget(self._content_splitter, 1)
 
         self._empty_label = QLabel("暂无平台日志。")
         self._empty_label.setStyleSheet("color: #8c6b7a; padding: 8px 4px;")
-        layout.insertWidget(layout.indexOf(self._event_list) + 1, self._empty_label)
+        layout.insertWidget(layout.indexOf(self._content_splitter) + 1, self._empty_label)
         self._empty_label.hide()
 
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setInterval(1000)
-        self._refresh_timer.timeout.connect(self._refresh_view)
+        self._refresh_timer.timeout.connect(self._refresh_if_not_selecting_text)
         self._sync_refresh_timer()
 
     def showEvent(self, event) -> None:
@@ -361,6 +387,7 @@ class SystemLogPage(QWidget):
             self._event_list.blockSignals(False)
             self._empty_label.show()
             self._continuous_text.clear()
+            self._last_continuous_html = ""
             self._set_selected_event(None)
             return
         self._empty_label.hide()
@@ -370,7 +397,7 @@ class SystemLogPage(QWidget):
             item = QListWidgetItem(self._render_event_line_text(event))
             item.setForeground(QColor(self._source_color(event.get("source"))))
             item.setData(256, event)
-            apply_settings_item_font(item, self._config_for_fonts())
+            item.setFont(font_for_role(settings_font_tokens(self._config_for_fonts()), "small"))
             self._event_list.addItem(item)
             if selected_key is not None and self._event_key(event) == selected_key:
                 matched_event = event
@@ -380,7 +407,10 @@ class SystemLogPage(QWidget):
         else:
             self._event_list.setCurrentRow(-1)
         self._event_list.blockSignals(False)
-        self._continuous_text.setHtml(self._render_continuous_html(events))
+        continuous_html = self._render_continuous_html(events)
+        if continuous_html != self._last_continuous_html:
+            self._continuous_text.setHtml(continuous_html)
+            self._last_continuous_html = continuous_html
         self._restore_scroll_state(self._continuous_text, continuous_scroll)
         self._restore_scroll_state_later(self._continuous_text, continuous_scroll)
         self._restore_scroll_state(self._event_list, list_scroll)
@@ -456,6 +486,20 @@ class SystemLogPage(QWidget):
         events = self._log_service.query_events(source=None, session_id=session_id)
         return self._filter_events(events)
 
+    def _refresh_if_not_selecting_text(self) -> None:
+        if self._is_user_selecting_text():
+            return
+        self._refresh_view()
+
+    def _is_user_selecting_text(self) -> bool:
+        widgets = (self._continuous_text, self._detail_text)
+        if any(widget.textCursor().hasSelection() for widget in widgets):
+            return True
+        if not QApplication.mouseButtons() & Qt.MouseButton.LeftButton:
+            return False
+        focus_widget = QApplication.focusWidget()
+        return any(focus_widget is widget or widget.isAncestorOf(focus_widget) for widget in widgets)
+
     def _selected_group_sources(self) -> list[str]:
         return list(SOURCE_GROUPS.get(self._source_group_filter.currentData() or "全部", []))
 
@@ -473,8 +517,7 @@ class SystemLogPage(QWidget):
 
     def _apply_view_mode(self) -> None:
         is_text_mode = self._view_mode.currentData() == "text"
-        self._event_list.setHidden(is_text_mode)
-        self._continuous_text.setHidden(not is_text_mode)
+        self._log_view_stack.setCurrentWidget(self._continuous_text if is_text_mode else self._event_list)
 
     def _render_continuous_text(self, events: list[dict]) -> str:
         return "\n\n".join(self._render_event_line_text(event) for event in events)
@@ -487,7 +530,7 @@ class SystemLogPage(QWidget):
             text = html_escape(self._render_event_line_text(event)).replace("\n", "<br>")
             blocks.append(
                 '<div style="margin: 0 0 12px 0; '
-                f'color: {color}; line-height: 1.55; white-space: pre-wrap; font-size: {tokens.html_body}px;">'
+                f'color: {color}; line-height: 1.35; white-space: pre-wrap; font-size: {tokens.html_small}px;">'
                 f'{text}</div>'
             )
         return "".join(blocks)
@@ -505,20 +548,50 @@ class SystemLogPage(QWidget):
         timestamp = event.get("timestamp", "")[11:23]
         level = (event.get("level", "info") or "info").upper()
         source = event.get("source", "unknown")
-        session_id = event.get("session_id", "")
+        session_id = self._short_session_id(event.get("session_id", ""))
+        event_type = event.get("event_type", "")
         body = self._body_text(event)
-        return f"{timestamp}  {level}  {source}  [{session_id}]\n{body}"
+        return f"{timestamp} {level} {source} {event_type} [{session_id}]\n{body}"
 
     def _body_text(self, event: dict) -> str:
         event_type = event.get("event_type", "")
         details = event.get("details", {}) or {}
         if event_type in {"conversation.user_input", "conversation.assistant_reply"}:
             return details.get("text", event.get("summary", ""))
+        parts = [str(event.get("summary", ""))]
+        for key in (
+            "qualified_name",
+            "tool_name",
+            "arguments_summary",
+            "argument_normalization",
+            "result_preview",
+            "reason",
+            "input_preview",
+        ):
+            if key not in details or details.get(key) in (None, "", {}, []):
+                continue
+            value = details.get(key)
+            if isinstance(value, (dict, list)):
+                value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            value = self._compact_preview_value(str(value))
+            parts.append(f"{key}={value}")
         if details.get("text"):
-            return f"{event.get('summary', '')} | {details.get('text')}"
-        if details.get("result_preview"):
-            return f"{event.get('summary', '')} | {details.get('result_preview')}"
-        return event.get("summary", "")
+            parts.append(self._compact_preview_value(str(details.get("text"))))
+        return " | ".join(part for part in parts if part)
+
+    @staticmethod
+    def _compact_preview_value(value: str, limit: int = 180) -> str:
+        text = " ".join(str(value or "").split())
+        if len(text) <= limit:
+            return text
+        return text[:limit] + "..."
+
+    @staticmethod
+    def _short_session_id(session_id: str) -> str:
+        text = str(session_id or "")
+        if len(text) <= 12:
+            return text
+        return f"{text[:6]}…{text[-4:]}"
 
     @staticmethod
     def _source_color(source: str | None) -> str:
@@ -560,7 +633,10 @@ class SystemLogPage(QWidget):
     @staticmethod
     def _restore_scroll_state(widget, state: tuple[bool, int]) -> None:
         is_near_bottom, previous_value = state
-        scrollbar = widget.verticalScrollBar()
+        try:
+            scrollbar = widget.verticalScrollBar()
+        except RuntimeError:
+            return
         if is_near_bottom:
             scrollbar.setValue(scrollbar.maximum())
             return
