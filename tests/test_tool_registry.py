@@ -88,4 +88,126 @@ def test_tool_registry_records_plugin_and_mcp_specific_log_sources(tmp_path):
     registry.call_tool("demo__echo", {"text": "hi"})
     registry.call_tool("notes__search", {"query": "today"})
 
-    assert [event.source for event in log_service.events] == ["plugin.demo", "mcp.notes"]
+    completed_events = [
+        event for event in log_service.events
+        if event.event_type == "tool.call_completed"
+    ]
+    assert [event.source for event in completed_events] == ["plugin.demo", "mcp.notes"]
+
+
+def test_tool_registry_records_started_and_completed_audit_events(tmp_path):
+    class FakeLogService:
+        def __init__(self):
+            self.events = []
+
+        def record(self, event):
+            self.events.append(event)
+
+    plugin_host = PluginHost(tmp_path / "plugins")
+    plugin_host.plugins = [DemoPlugin()]
+    log_service = FakeLogService()
+    registry = ToolRegistry(plugin_host=plugin_host, log_service=log_service)
+
+    assert registry.call_tool("demo__echo", {"text": "hello"}) == "hello"
+
+    event_types = [event.event_type for event in log_service.events]
+    assert event_types == ["tool.call_started", "tool.call_completed"]
+    completed = log_service.events[-1]
+    assert completed.details["qualified_name"] == "demo__echo"
+    assert completed.details["tool_name"] == "echo"
+    assert completed.details["source_type"] == "plugin"
+    assert completed.details["source_name"] == "demo"
+    assert completed.details["arguments_summary"]["text"] == "hello"
+    assert completed.details["elapsed_ms"] >= 0
+    assert completed.details["result_preview"] == "hello"
+
+
+def test_tool_registry_audit_summarizes_long_arguments(tmp_path):
+    class FakeLogService:
+        def __init__(self):
+            self.events = []
+
+        def record(self, event):
+            self.events.append(event)
+
+    plugin_host = PluginHost(tmp_path / "plugins")
+    plugin_host.plugins = [DemoPlugin()]
+    registry = ToolRegistry(plugin_host=plugin_host, log_service=FakeLogService())
+    long_text = "x" * 1200
+
+    registry.call_tool("demo__echo", {"text": long_text})
+
+    summary = registry._log_service.events[-1].details["arguments_summary"]["text"]
+    assert len(summary) < len(long_text)
+    assert summary.endswith("...<truncated>")
+
+
+def test_tool_registry_audit_sanitizes_sensitive_arguments(tmp_path):
+    class SensitiveArgsPlugin(BasePlugin):
+        name = "sensitive"
+        description = "Sensitive args plugin"
+
+        @tool(description="Echo with sensitive args")
+        def echo(self, text: str, api_key: str, url: str, model_path: str) -> str:
+            return text
+
+    class FakeLogService:
+        def __init__(self):
+            self.events = []
+
+        def record(self, event):
+            self.events.append(event)
+
+    plugin_host = PluginHost(tmp_path / "plugins")
+    plugin_host.plugins = [SensitiveArgsPlugin()]
+    registry = ToolRegistry(plugin_host=plugin_host, log_service=FakeLogService())
+
+    registry.call_tool(
+        "sensitive__echo",
+        {
+            "text": "hello",
+            "api_key": "sk-live-secret",
+            "url": "http://user:pass@127.0.0.1:8000/v1?api_key=sk-live-secret",
+            "model_path": "E:/private/models/faster-whisper-large-v3-turbo",
+        },
+    )
+
+    summary = registry._log_service.events[-1].details["arguments_summary"]
+    assert summary["api_key"] == "***"
+    assert "user:pass" not in summary["url"]
+    assert "sk-live-secret" not in summary["url"]
+    assert summary["url"] == "http://***@127.0.0.1:8000/v1?api_key=***"
+    assert summary["model_path"] == "***/faster-whisper-large-v3-turbo"
+
+
+def test_tool_registry_records_failed_audit_event(tmp_path):
+    class FailingPlugin(BasePlugin):
+        name = "broken"
+        description = "Broken plugin"
+
+        @tool(description="Fail")
+        def fail(self, text: str) -> str:
+            raise RuntimeError("boom")
+
+    class FakeLogService:
+        def __init__(self):
+            self.events = []
+
+        def record(self, event):
+            self.events.append(event)
+
+    plugin_host = PluginHost(tmp_path / "plugins")
+    plugin_host.plugins = [FailingPlugin()]
+    log_service = FakeLogService()
+    registry = ToolRegistry(plugin_host=plugin_host, log_service=log_service)
+
+    try:
+        registry.call_tool("broken__fail", {"text": "hello"})
+    except RuntimeError:
+        pass
+
+    event_types = [event.event_type for event in log_service.events]
+    assert event_types == ["tool.call_started", "tool.call_failed"]
+    failed = log_service.events[-1]
+    assert failed.details["error"] == "boom"
+    assert failed.details["error_type"] == "RuntimeError"

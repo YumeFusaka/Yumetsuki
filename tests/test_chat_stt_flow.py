@@ -630,3 +630,40 @@ def test_old_stt_worker_finished_does_not_clear_current_worker(monkeypatch):
         assert new_worker.delete_count == 0
     finally:
         _close_window(window)
+
+
+def test_chat_failure_preserves_last_input_and_keeps_retry_and_log_controls(monkeypatch):
+    window = _make_window(monkeypatch, patch_llm_worker=True)
+    opened_pages = []
+    monkeypatch.setattr(window, "_open_settings_page", lambda index: opened_pages.append(index), raising=False)
+    try:
+        window._last_user_input = "帮我总结这个页面"
+        window._on_llm_error("timeout")
+
+        assert "请求失败" in window._status_label.text()
+        assert window._input.text() == "帮我总结这个页面"
+        assert not window._retry_btn.isHidden()
+        assert not window._logs_btn.isHidden()
+
+        window._logs_btn.click()
+        assert opened_pages == [4]
+
+        window._retry_btn.click()
+        assert _FakeLLMWorker.instances[-1].user_input == "帮我总结这个页面"
+    finally:
+        _close_window(window)
+
+
+def test_chat_failure_log_includes_trace_stage(monkeypatch):
+    log_service = _RecordingLogService()
+    window = _make_window(monkeypatch, patch_llm_worker=True, log_service=log_service)
+    try:
+        window._last_user_input = "你好"
+        window._on_llm_error("boom")
+
+        event = next(event for event in log_service.events if event.event_type == "chat.request_failed")
+        assert event.stage == "chat"
+        assert event.trace_id
+        assert event.request_id
+    finally:
+        _close_window(window)

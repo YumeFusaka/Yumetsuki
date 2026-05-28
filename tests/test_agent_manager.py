@@ -79,6 +79,19 @@ class SlowMemoryStore(FakeMemoryStore):
         super().add_conversation(user_text, assistant_text, user_id)
 
 
+class FailingMemoryStore(FakeMemoryStore):
+    def add_memory(self, content, memory_type, user_id):
+        raise RuntimeError("mem0 write failed")
+
+
+class RecordingLogService:
+    def __init__(self):
+        self.events = []
+
+    def record(self, event):
+        self.events.append(event)
+
+
 class FakeToolRegistry:
     def tool_specs(self):
         return [{"function": {"name": "notes__search"}}]
@@ -467,3 +480,102 @@ def test_agent_manager_does_not_promote_same_session_candidate_twice():
         "memory_type": "preference",
         "user_id": "u1",
     }]
+
+
+def test_agent_manager_records_memory_ledger_promote_and_skip_events():
+    llm = FakeLLMManager("[emotion:开心]记住了")
+    memory_store = FakeMemoryStore()
+    log_service = RecordingLogService()
+    candidates = [
+        WorkingFact(
+            fact_id="f1",
+            content="记住，我喜欢樱花主题。",
+            category="preference",
+            importance=0.95,
+            created_turn_id=1,
+            last_seen_turn_id=1,
+            ttl_turns=12,
+            source="user",
+            sticky=True,
+        ),
+        WorkingFact(
+            fact_id="f2",
+            content="记住，我喜欢樱花主题",
+            category="preference",
+            importance=0.95,
+            created_turn_id=2,
+            last_seen_turn_id=2,
+            ttl_turns=12,
+            source="user",
+            sticky=True,
+        ),
+    ]
+    session_manager = FakeSessionManager(
+        prompt_context="当前会话短期上下文:\n- 当前主题: 偏好",
+        mem0_candidates=candidates,
+    )
+    manager = AgentManager(
+        llm_manager=llm,
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        memory_store=memory_store,
+        tool_registry=FakeToolRegistry(),
+        session_manager=session_manager,
+        user_id="u1",
+        session_id="s1",
+        log_service=log_service,
+    )
+
+    list(manager.chat_stream("记住，我喜欢樱花主题。"))
+    time.sleep(0.05)
+
+    ledger_events = [event for event in log_service.events if event.source == "memory.ledger"]
+    assert [event.event_type for event in ledger_events] == [
+        "memory.candidate_promoted",
+        "memory.candidate_skipped",
+    ]
+    assert ledger_events[0].stage == "memory_ledger"
+    assert ledger_events[1].details["reason"] == "duplicate_candidate"
+    assert memory_store.add_memory_calls == [{
+        "content": "记住，我喜欢樱花主题。",
+        "memory_type": "preference",
+        "user_id": "u1",
+    }]
+
+
+def test_agent_manager_records_memory_ledger_failed_event():
+    log_service = RecordingLogService()
+    candidate = WorkingFact(
+        fact_id="f1",
+        content="记住，我喜欢樱花主题。",
+        category="preference",
+        importance=0.95,
+        created_turn_id=1,
+        last_seen_turn_id=1,
+        ttl_turns=12,
+        source="user",
+        sticky=True,
+    )
+    session_manager = FakeSessionManager(
+        prompt_context="当前会话短期上下文:\n- 当前主题: 偏好",
+        mem0_candidates=[candidate],
+    )
+    manager = AgentManager(
+        llm_manager=FakeLLMManager("[emotion:开心]记住了"),
+        planner=FakePlanner(FakePlan(mode="chat", goal="reply")),
+        executor=FakeExecutor(""),
+        memory_store=FailingMemoryStore(),
+        tool_registry=FakeToolRegistry(),
+        session_manager=session_manager,
+        user_id="u1",
+        session_id="s1",
+        log_service=log_service,
+    )
+
+    list(manager.chat_stream("记住，我喜欢樱花主题。"))
+    time.sleep(0.05)
+
+    failed = next(event for event in log_service.events if event.event_type == "memory.candidate_failed")
+    assert failed.level == LogLevel.ERROR
+    assert failed.details["error_type"] == "RuntimeError"
+    assert candidate.promoted_to_mem0 is False

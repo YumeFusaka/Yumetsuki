@@ -45,6 +45,9 @@ class LogService:
         session_id: str = "default-session",
         level: LogLevel = LogLevel.INFO,
         utterance_id: int | None = None,
+        trace_id: str = "",
+        request_id: str = "",
+        stage: str = "",
     ) -> None:
         self.record(
             build_log_event(
@@ -56,10 +59,21 @@ class LogService:
                 utterance_id=utterance_id,
                 summary=summary,
                 details=details,
+                trace_id=trace_id,
+                request_id=request_id,
+                stage=stage,
             )
         )
 
-    def query_events(self, channel=None, source=None, session_id=None) -> list[dict]:
+    def query_events(
+        self,
+        channel=None,
+        source=None,
+        session_id=None,
+        trace_id=None,
+        request_id=None,
+        stage=None,
+    ) -> list[dict]:
         events = self._events
         if channel is not None:
             channel_value = channel.value if isinstance(channel, LogChannel) else str(channel)
@@ -68,6 +82,12 @@ class LogService:
             events = [event for event in events if event.source == source]
         if session_id is not None:
             events = [event for event in events if event.session_id == session_id]
+        if trace_id is not None:
+            events = [event for event in events if event.trace_id == trace_id]
+        if request_id is not None:
+            events = [event for event in events if event.request_id == request_id]
+        if stage is not None:
+            events = [event for event in events if event.stage == stage]
         return [event.to_json_dict() for event in events]
 
     def list_sources(self, channel=None) -> list[str]:
@@ -93,13 +113,34 @@ class LogService:
             item["label"] = f'{item["last_timestamp"][11:16]}  {item["preview"]}'
         return sessions[:limit]
 
-    def export_events(self, path: Path | str, channel=None, source=None, session_id=None) -> None:
+    def export_events(
+        self,
+        path: Path | str,
+        channel=None,
+        source=None,
+        session_id=None,
+        trace_id=None,
+        request_id=None,
+        stage=None,
+    ) -> None:
         export_path = Path(path)
         export_path.parent.mkdir(parents=True, exist_ok=True)
-        events = self.query_events(channel=channel, source=source, session_id=session_id)
+        events = self.query_events(
+            channel=channel,
+            source=source,
+            session_id=session_id,
+            trace_id=trace_id,
+            request_id=request_id,
+            stage=stage,
+        )
         with export_path.open("w", encoding="utf-8") as fh:
             for event in events:
                 fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+    def export_diagnostic_bundle(self, path: Path | str):
+        from core.diagnostic_bundle import DiagnosticBundleExporter
+
+        return DiagnosticBundleExporter(self).export(path)
 
     def flush(self) -> None:
         pending = self._pending

@@ -33,12 +33,12 @@ from ui.theme import (
 
 SOURCE_GROUPS = {
     "全部": [],
-    "记忆": ["session.manager", "memory.mem0"],
+    "记忆": ["session.manager", "memory.mem0", "memory.ledger"],
     "LLM": ["llm.manager"],
     "切句": ["chat.segmenter"],
     "STT": ["chat.stt", "stt.faster_whisper"],
     "TTS": ["chat.tts", "tts.gptsovits"],
-    "工具": ["tool.registry"],
+    "工具": ["tool.registry", "plugin.*", "mcp.*"],
     "插件": ["plugin.host", "plugin.*"],
     "MCP": ["mcp.host", "mcp.*"],
     "UI": ["chat.window", "ui.event_bridge"],
@@ -49,6 +49,7 @@ SOURCE_COLORS = {
     "llm.manager": "#5f6fb2",
     "session.manager": "#3f8f78",
     "memory.mem0": "#4c8f3f",
+    "memory.ledger": "#6d8f3f",
     "chat.segmenter": "#b06a82",
     "chat.stt": "#257d8f",
     "stt.faster_whisper": "#1f9aa5",

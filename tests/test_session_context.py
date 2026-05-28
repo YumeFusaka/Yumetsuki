@@ -77,6 +77,15 @@ def test_policy_collects_only_stable_mem0_candidates():
     assert "不想看长篇回答" in candidates[0].content
 
 
+def test_policy_does_not_collect_short_term_constraint_as_mem0_candidate():
+    ctx = SessionContext.new(session_id="s1", user_id="u1")
+    policy = SessionPolicy()
+
+    policy.record_user_input(ctx, "先不要改代码，只讨论方案。")
+
+    assert policy.collect_mem0_candidates(ctx) == []
+
+
 def test_policy_trims_recent_turns_to_configured_limit():
     ctx = SessionContext.new(session_id="s1", user_id="u1")
     policy = SessionPolicy(

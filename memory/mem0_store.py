@@ -19,7 +19,13 @@ class Mem0MemoryStore:
         ]
         self._memory_client.add(messages, user_id=user_id)
 
-    def add_memory(self, content: str, memory_type: str, user_id: str) -> None:
+    def add_memory(
+        self,
+        content: str,
+        memory_type: str,
+        user_id: str,
+        metadata: dict | None = None,
+    ) -> None:
         messages = [{"role": "assistant", "content": content}]
         self._memory_client.add(messages, user_id=user_id)
 

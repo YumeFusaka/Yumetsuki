@@ -12,6 +12,7 @@ from config.schema import AgentConfig
 from core.event_bus import event_bus
 from core.log_types import LogChannel, LogLevel, build_log_event
 from llm.text_processor import ProcessedText
+from memory.ledger import MemoryCandidate, MemoryLedgerEvaluator
 from session.manager import SessionContextManager
 from vision.types import OCRResult, VisualObservation
 
@@ -70,6 +71,7 @@ class AgentManager:
         self._session_id = session_id
         self._log_service = log_service
         self._vision_manager = vision_manager
+        self._memory_ledger = MemoryLedgerEvaluator()
 
     def chat_stream(
         self,
@@ -214,14 +216,44 @@ class AgentManager:
                             user_id=self._user_id,
                         )
             if self._memory_store and hasattr(self._memory_store, "add_memory"):
-                for candidate in self._session_manager.collect_mem0_candidates(session_ctx):
-                    self._memory_store.add_memory(
+                raw_candidates = list(self._session_manager.collect_mem0_candidates(session_ctx))
+                candidate_by_id = {getattr(item, "fact_id", ""): item for item in raw_candidates}
+                ledger_candidates = [
+                    MemoryCandidate(
+                        candidate_id=getattr(candidate, "fact_id", ""),
                         content=candidate.content,
                         memory_type=candidate.category,
-                        user_id=self._user_id,
+                        source=getattr(candidate, "source", "session"),
+                        confidence=float(getattr(candidate, "importance", 0.0)),
+                        session_id=getattr(session_ctx, "session_id", self._session_id),
+                        turn_id=int(getattr(candidate, "last_seen_turn_id", 0)),
                     )
-                    if hasattr(candidate, "promoted_to_mem0"):
-                        candidate.promoted_to_mem0 = True
+                    for candidate in raw_candidates
+                ]
+                for decision in self._memory_ledger.evaluate(ledger_candidates):
+                    if decision.action != "promote":
+                        self._record_memory_ledger_event(decision, "memory.candidate_skipped")
+                        continue
+                    original = candidate_by_id.get(decision.candidate.candidate_id)
+                    try:
+                        self._memory_store.add_memory(
+                            content=decision.candidate.content,
+                            memory_type=decision.candidate.memory_type,
+                            user_id=self._user_id,
+                        )
+                        if original is not None and hasattr(original, "promoted_to_mem0"):
+                            original.promoted_to_mem0 = True
+                        self._record_memory_ledger_event(decision, "memory.candidate_promoted")
+                    except Exception as exc:
+                        self._record_memory_ledger_event(
+                            decision,
+                            "memory.candidate_failed",
+                            level=LogLevel.ERROR,
+                            extra={
+                                "error_type": type(exc).__name__,
+                                "error": str(exc)[:200],
+                            },
+                        )
 
             self._event_bus.publish(AgentEvents.REFLECTION_COMPLETE, {
                 "needs_continue": reflection.needs_continue,
@@ -357,6 +389,29 @@ class AgentManager:
             return AgentLLMHelper(config)
         except (AttributeError, ImportError):
             return None
+
+    def _record_memory_ledger_event(
+        self,
+        decision,
+        event_type: str,
+        level: LogLevel = LogLevel.INFO,
+        extra: dict | None = None,
+    ) -> None:
+        details = decision.to_log_details()
+        if extra:
+            details.update(extra)
+        self._record_log_event(
+            channel=LogChannel.SYSTEM,
+            level=level,
+            source="memory.ledger",
+            event_type=event_type,
+            session_id=decision.candidate.session_id,
+            summary=f"Memory candidate {decision.action}: {decision.reason}",
+            details=details,
+            trace_id=decision.candidate.trace_id,
+            request_id=decision.candidate.request_id,
+            stage="memory_ledger",
+        )
 
     def _record_log_event(self, **kwargs) -> None:
         if self._log_service is None:

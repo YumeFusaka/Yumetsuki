@@ -16,6 +16,7 @@ from ui.settings.pages.system_page import SystemPage
 from ui.settings.pages.memory_page import MemoryPage
 from ui.settings.pages.agent_page import AgentPage
 from ui.settings.pages.conversation_log_page import ConversationLogPage
+from ui.settings.pages.diagnostics_page import DiagnosticsPage
 from ui.settings.pages.system_log_page import SystemLogPage
 from ui.chat.window import ChatWindow
 from core.log_service import LogService
@@ -207,10 +208,11 @@ class SettingsWindow(QMainWindow):
             ("🧠  记忆", 2),
             ("🤖  Agent", 5),
             ("🧩  插件", 6),
-            ("🔌  MCP", 8),
+            ("🔌  MCP", 9),
             ("📝  对话日志", 3),
             ("🧪  平台日志", 4),
-            ("⚙  系统", 7),
+            ("🩺  诊断", 7),
+            ("⚙  系统", 8),
         ]
         for label, idx in pages_info:
             btn = QPushButton(label)
@@ -253,6 +255,9 @@ class SettingsWindow(QMainWindow):
 
         self._plugin_page = PluginPage(config=self._config)
         self._stack.addWidget(self._plugin_page)
+
+        self._diagnostics_page = DiagnosticsPage(self._config, self._log_service)
+        self._stack.addWidget(self._diagnostics_page)
 
         self._system_page = SystemPage(self._config.system)
         self._stack.addWidget(self._system_page)
@@ -347,16 +352,16 @@ class SettingsWindow(QMainWindow):
         current_index = self._stack.currentIndex()
         if current_index == 0 and index != 0:
             self._api_page.reset()
-        if current_index == 7 and index != 7:
+        if current_index == 8 and index != 8:
             self._system_page.reset()
         self._stack.setCurrentIndex(index)
         self._apply_page_settings_appearance(index)
         for btn in self._nav_buttons:
             btn.setChecked(btn.property("page_index") == index)
-        self._save_btn.setVisible(index in {0, 7})
+        self._save_btn.setVisible(index in {0, 8})
         if index == 0:
             self._save_btn.setText("保存 API 配置")
-        elif index == 7:
+        elif index == 8:
             self._save_btn.setText("保存系统配置")
 
     def _apply_and_save_api(self):
@@ -388,7 +393,7 @@ class SettingsWindow(QMainWindow):
             message = "确定保存当前 API 设定吗？"
             save = self._apply_and_save_api
             success = "API 设定已成功保存。"
-        elif current_index == 7:
+        elif current_index == 8:
             message = "确定保存当前系统设定吗？"
             save = self._apply_and_save_system
             success = "系统设定已成功保存。"

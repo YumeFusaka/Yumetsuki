@@ -32,6 +32,9 @@ class LogEvent:
     summary: str
     details: dict[str, Any]
     sensitive: bool = False
+    trace_id: str = ""
+    request_id: str = ""
+    stage: str = ""
 
     def to_json_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -51,6 +54,9 @@ def build_log_event(
     details: dict[str, Any] | None = None,
     utterance_id: int | None = None,
     sensitive: bool = False,
+    trace_id: str = "",
+    request_id: str = "",
+    stage: str = "",
 ) -> LogEvent:
     return LogEvent(
         id=uuid4().hex,
@@ -64,4 +70,7 @@ def build_log_event(
         summary=summary,
         details=details or {},
         sensitive=sensitive,
+        trace_id=trace_id,
+        request_id=request_id,
+        stage=stage,
     )

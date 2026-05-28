@@ -16,11 +16,12 @@
 - 第四阶段：已完成，主实现和文档已收口到当前架构文档。
 - 第五阶段：已完成，进入稳定化维护。
 - 第六阶段：实现、本地自动化验证和 sub agent 复审已完成；真实浏览器、OCR、MCP、STT / TTS / API 实机验收暂缓。
-- Phase 7：已形成诊断能力实施计划，尚未进入实现；计划入口为 `docs/superpowers/plans/2026-05-28-phase-7-diagnostics.md`。
-- Phase 8 / Phase 9：已形成阶段设计草案，但尚未进入实施计划；草案入口为 `docs/superpowers/specs/2026-05-28-phase-8-9-design.md`。
+- Phase 7：已完成，实机验收待补；计划入口为 `docs/superpowers/plans/2026-05-28-phase-7-diagnostics.md`，待补记录为 `docs/superpowers/smoke/2026-05-28-phase-7-smoke.md`。
+- Phase 8 / Phase 9：整体已形成阶段设计草案，但尚未整体拆成实施计划；草案入口为 `docs/superpowers/specs/2026-05-28-phase-8-9-design.md`。
+- Phase 8-A：记忆质量治理与可回溯记忆账本已完成，本地自动化验证通过；真实 Mem0 本地向量库写入联调待补；计划入口为 `docs/superpowers/plans/2026-05-28-phase-8-memory-ledger.md`，待补记录为 `docs/superpowers/smoke/2026-05-28-phase-8-memory-ledger-smoke.md`。
 - 当前优先级：
-  1. 按 Phase 7 计划补齐平台日志 trace / request_id / stage、脱敏诊断包、配置健康检查、工具执行审计、诊断页入口和聊天窗最小失败恢复
-  2. 暂缓中的实机验收恢复后，优先检查浏览器持续会话、OCR、MCP、STT / TTS / API 和平台日志联动
+  1. 暂缓中的 Phase 7 实机验收恢复后，优先检查浏览器持续会话、OCR、MCP、STT / TTS / API、诊断包脱敏和平台日志联动
+  2. Phase 8 下一步优先讨论是否进入会话状态画像与关系连续性；Phase 7 实机 smoke 和 Phase 8-A 真实 Mem0 联调仍保留为 1.0 验收门和真实链路风险收口项
 
 ## 1.0 验收门
 
@@ -307,7 +308,14 @@ Post-1.0 分类策略：
   - `python -m pytest tests/test_config_health.py tests/test_diagnostic_runner.py tests/test_diagnostics_page.py -q`
   - `python -m pytest tests/test_tool_registry.py tests/test_system_log_page.py tests/test_settings_window.py -q`
   - `python -m pytest tests/test_chat_stt_flow.py tests/test_chat_tts_flow.py -q`
-  - 这些命令对应 Phase 7 计划内未来新增 / 修改的聚焦测试；Phase 7 尚未实现前，不应把新增测试文件视为当前可运行入口。
+  - 这些命令对应 Phase 7 计划内新增 / 修改的聚焦测试；当前本地自动化验证已通过，真实设备和第三方服务实机验收仍需手工记录。
+
+### Phase 8-A 实现后新增回归入口
+
+- 记忆质量治理与账本：
+  - `python -m pytest tests/test_memory_ledger.py tests/test_session_context.py tests/test_mem0_store.py -q`
+  - `python -m pytest tests/test_agent_manager.py tests/test_logging_integration.py tests/test_system_log_page.py -q`
+  - 第一版账本落在平台日志，不新增长期记忆管理 UI；当前本地自动化验证已通过，真实 Mem0 本地向量库写入仍按本地配置手工联调。
 
 ### TTS 归因边界
 

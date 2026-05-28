@@ -274,6 +274,8 @@ class ChatWindow(QWidget):
         self._settings_window = None
         self._log_service = log_service
         self._tts_session_id = uuid.uuid4().hex
+        self._current_trace_id = ""
+        self._current_request_id = ""
         self._vision_manager = VisionManager(self._system_config.vision)
         runtime_config = (agent_config or AgentConfig()).tts_runtime
         self._tts_pipeline = TTSPipelineController(
@@ -1391,7 +1393,15 @@ class ChatWindow(QWidget):
     def _record_log_event(self, **kwargs) -> None:
         if self._log_service is None:
             return
+        kwargs.setdefault("trace_id", self._current_trace_id)
+        kwargs.setdefault("request_id", self._current_request_id)
         self._log_service.record(build_log_event(**kwargs))
+
+    def _ensure_trace_ids(self) -> None:
+        if not self._current_trace_id:
+            self._current_trace_id = uuid.uuid4().hex
+        if not self._current_request_id:
+            self._current_request_id = uuid.uuid4().hex
 
     def _enqueue_assistant_text_for_tts(self, text: str, *, flush: bool = False) -> None:
         if self._tts_adapter is None:
@@ -2139,6 +2149,8 @@ class ChatWindow(QWidget):
         if self._worker is not None:
             self._set_chat_status("正在回复，可先停止当前生成。", busy=True, show_logs=True)
             return
+        self._current_trace_id = uuid.uuid4().hex
+        self._current_request_id = uuid.uuid4().hex
         self._input.clear()
         self._last_user_input = text
         self._begin_new_tts_turn()
@@ -2204,6 +2216,10 @@ class ChatWindow(QWidget):
         self._clear_chat_status()
 
     def _on_llm_error(self, error_message: str):
+        self._ensure_trace_ids()
+        error_message = str(error_message or "未知错误")
+        if self._last_user_input:
+            self._input.setText(self._last_user_input)
         self._set_chat_status(
             f"请求失败：{error_message}",
             error=True,
@@ -2219,6 +2235,7 @@ class ChatWindow(QWidget):
             utterance_id=self._current_utterance_id,
             summary="聊天请求失败",
             details={"error": error_message},
+            stage="chat",
         )
 
     def _on_llm_worker_finished(self, worker) -> None:

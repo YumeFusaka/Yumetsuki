@@ -412,7 +412,9 @@ def _ancestor_has_combo_box_style(widget: QWidget) -> bool:
 
 
 def _control_or_child_has_focus(widget: QWidget) -> bool:
+    if widget.hasFocus():
+        return True
     focus_widget = QApplication.focusWidget()
     if focus_widget is None:
-        return widget.hasFocus()
+        return False
     return focus_widget is widget or widget.isAncestorOf(focus_widget)

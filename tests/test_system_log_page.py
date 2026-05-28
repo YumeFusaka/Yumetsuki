@@ -450,6 +450,7 @@ def test_system_log_page_filters_sources_by_group_and_specific_source():
         "全部",
         "session.manager",
         "memory.mem0",
+        "memory.ledger",
     ]
 
     page._refresh_view()
@@ -910,17 +911,21 @@ def test_system_log_page_colors_items_by_source():
 
 
 def test_system_log_page_known_sources_have_unique_colors():
-    known_sources = [
+    known_sources = {
         source
         for sources in SOURCE_GROUPS.values()
         for source in sources
         if not source.endswith(".*")
-    ]
+    }
     colors = [SOURCE_COLORS[source] for source in known_sources]
 
     assert len(colors) == len(set(colors))
     assert SOURCE_COLORS["chat.stt"] != SOURCE_COLORS["stt.faster_whisper"]
     assert SOURCE_COLORS["plugin.*"] != SOURCE_COLORS["mcp.*"]
+
+
+def test_system_log_page_groups_memory_ledger_source_with_memory_chain():
+    assert "memory.ledger" in SOURCE_GROUPS["记忆"]
 
 
 def test_system_log_page_filters_plugin_and_mcp_prefix_sources():
@@ -964,6 +969,13 @@ def test_system_log_page_filters_plugin_and_mcp_prefix_sources():
     assert page._event_list.count() == 1
     assert "MCP 完成" in page._event_list.item(0).text()
     assert page._event_list.item(0).foreground().color().name() == SOURCE_COLORS["mcp.*"]
+
+    page._source_group_filter.setCurrentText("工具")
+    page._refresh_view()
+    assert page._event_list.count() == 2
+    text = "\n".join(page._event_list.item(i).text() for i in range(page._event_list.count()))
+    assert "插件完成" in text
+    assert "MCP 完成" in text
 
 
 def test_system_log_page_selected_item_keeps_source_foreground_color():

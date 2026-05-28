@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from core.log_service import LogService
-from core.log_types import LogChannel, LogEvent, LogLevel
+from core.log_types import LogChannel, LogEvent, LogLevel, build_log_event
 
 
 def test_log_service_writes_system_events_to_daily_jsonl(tmp_path):
@@ -232,3 +232,65 @@ def test_log_service_limits_in_memory_events_without_dropping_pending_flush(tmp_
 
     assert [event["summary"] for event in events] == ["second", "third"]
     assert [event.summary for event in service._pending] == ["first", "second", "third"]
+
+
+def test_log_event_serializes_trace_fields(tmp_path):
+    service = LogService(log_root=tmp_path, system_flush_interval_ms=0)
+    event = LogEvent(
+        id="evt-trace",
+        timestamp=datetime(2026, 5, 28, 9, 0, 0),
+        channel=LogChannel.SYSTEM,
+        level=LogLevel.INFO,
+        source="llm.manager",
+        event_type="llm.stream_started",
+        session_id="session-1",
+        utterance_id=7,
+        summary="开始生成",
+        details={},
+        trace_id="trace-1",
+        request_id="request-1",
+        stage="llm",
+    )
+
+    service.record(event)
+
+    data = service.query_events()[0]
+    assert data["trace_id"] == "trace-1"
+    assert data["request_id"] == "request-1"
+    assert data["stage"] == "llm"
+
+
+def test_log_service_filters_by_trace_request_and_stage(tmp_path):
+    service = LogService(log_root=tmp_path, system_flush_interval_ms=0)
+    service.record(
+        build_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="chat.stt",
+            event_type="stt.started",
+            session_id="session-1",
+            summary="stt",
+            details={},
+            trace_id="trace-1",
+            request_id="request-1",
+            stage="stt",
+        )
+    )
+    service.record(
+        build_log_event(
+            channel=LogChannel.SYSTEM,
+            level=LogLevel.INFO,
+            source="chat.tts",
+            event_type="tts.started",
+            session_id="session-1",
+            summary="tts",
+            details={},
+            trace_id="trace-2",
+            request_id="request-2",
+            stage="tts",
+        )
+    )
+
+    assert [event["event_type"] for event in service.query_events(trace_id="trace-1")] == ["stt.started"]
+    assert [event["event_type"] for event in service.query_events(request_id="request-2")] == ["tts.started"]
+    assert [event["event_type"] for event in service.query_events(stage="stt")] == ["stt.started"]

@@ -50,7 +50,7 @@ def test_save_button_visible_on_api_and_system_pages_only():
     assert not save_btn.isHidden()
     assert save_btn.text() == "保存 API 配置"
 
-    window._switch_page(7)
+    window._switch_page(8)
     assert not save_btn.isHidden()
     assert save_btn.text() == "保存系统配置"
 
@@ -82,7 +82,7 @@ def test_system_save_applies_to_existing_chat_window(monkeypatch):
     monkeypatch.setattr(window._config, "save_system", lambda: saved.append("save"))
 
     window._system_page._font.setCurrentText("Arial")
-    window._switch_page(7)
+    window._switch_page(8)
     window._confirm_save()
 
     assert window._config.system.font_family == "Arial"
@@ -97,7 +97,7 @@ def test_system_save_applies_font_to_settings_window(monkeypatch):
     monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
     monkeypatch.setattr(window._config, "save_system", lambda: saved.append("save"))
 
-    window._switch_page(7)
+    window._switch_page(8)
     window._system_page._font.setCurrentText("Courier New")
     window._system_page._font_size.setValue(16)
     window._confirm_save()
@@ -123,11 +123,11 @@ def test_system_page_discards_unsaved_changes_when_switching_away():
     original_font = window._config.system.font_family
     original_size = window._config.system.font_size
 
-    window._switch_page(7)
+    window._switch_page(8)
     window._system_page._font.setCurrentText("Arial")
     window._system_page._font_size.setValue(original_size + 1)
     window._switch_page(1)
-    window._switch_page(7)
+    window._switch_page(8)
 
     assert window._system_page._font.currentText() == original_font
     assert window._system_page._font_size.value() == original_size
@@ -151,6 +151,7 @@ def test_settings_window_navigation_uses_current_labels_icons_and_order():
         "🔌  MCP",
         "📝  对话日志",
         "🧪  平台日志",
+        "🩺  诊断",
         "⚙  系统",
     ]
     assert labels[0][0] != labels[3][0]
@@ -169,10 +170,11 @@ def test_settings_window_navigation_click_checks_clicked_target_page():
         "🧠  记忆": 2,
         "🤖  Agent": 5,
         "🧩  插件": 6,
-        "🔌  MCP": 8,
+        "🔌  MCP": 9,
         "📝  对话日志": 3,
         "🧪  平台日志": 4,
-        "⚙  系统": 7,
+        "🩺  诊断": 7,
+        "⚙  系统": 8,
     }
 
     for button in buttons:
@@ -845,7 +847,7 @@ def test_settings_window_discards_unsaved_vision_changes_when_switching_away():
     _app()
     window = SettingsWindow()
 
-    window._switch_page(7)
+    window._switch_page(8)
     window._system_page._vision_enabled.setChecked(True)
     window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
     window._system_page._ocr_language.setCurrentText("en")
@@ -853,7 +855,7 @@ def test_settings_window_discards_unsaved_vision_changes_when_switching_away():
     window._system_page._vision_screenshot_dir.setText("runtime/vision")
     window._system_page._vision_explicit_only.setChecked(False)
     window._switch_page(1)
-    window._switch_page(7)
+    window._switch_page(8)
 
     assert window._system_page._vision_enabled.isChecked() == window._config.system.vision.enabled
     assert window._system_page._ocr_engine.currentData() == window._config.system.vision.ocr_engine
@@ -870,7 +872,7 @@ def test_system_save_persists_vision_settings(monkeypatch):
     monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
     monkeypatch.setattr(window._config, "save_system", lambda: saved.append("save"))
 
-    window._switch_page(7)
+    window._switch_page(8)
     window._system_page._vision_enabled.setChecked(True)
     window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
     window._system_page._ocr_language.setCurrentText("en")
@@ -893,7 +895,7 @@ def test_settings_window_system_save_writes_vision_config_to_disk(tmp_path, monk
     monkeypatch.setattr("ui.settings.window.ConfigManager", lambda: ConfigManager(config_dir=tmp_path))
     window = SettingsWindow()
 
-    window._switch_page(7)
+    window._switch_page(8)
     window._system_page._vision_enabled.setChecked(True)
     window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
     window._system_page._ocr_language.setCurrentText("en")
@@ -1020,7 +1022,7 @@ def test_system_save_updates_existing_chat_window_vision_config(monkeypatch):
     monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
     monkeypatch.setattr(window._config, "save_system", lambda: None)
 
-    window._switch_page(7)
+    window._switch_page(8)
     window._system_page._vision_enabled.setChecked(True)
     window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
     window._system_page._ocr_language.setCurrentText("en")
@@ -1047,7 +1049,7 @@ def test_system_save_rebuilds_existing_chat_window_vision_adapter_with_shared_co
     monkeypatch.setattr("ui.settings.window.confirm_action", lambda *_: True)
     monkeypatch.setattr(window._config, "save_system", lambda: None)
 
-    window._switch_page(7)
+    window._switch_page(8)
     window._system_page._ocr_engine.setCurrentIndex(window._system_page._ocr_engine.findData("paddleocr"))
     window._system_page._ocr_language.setCurrentText("en")
     window._confirm_save()
@@ -1075,7 +1077,7 @@ def test_system_save_failure_rolls_back_shared_chat_window_vision_config(monkeyp
 
     monkeypatch.setattr(window._config, "save_system", fail_save)
 
-    window._switch_page(7)
+    window._switch_page(8)
     original_font = window._config.system.font_family
     original_vision = window._config.system.vision.model_copy(deep=True)
     target_font = "Arial" if original_font != "Arial" else "Microsoft YaHei"
@@ -1227,7 +1229,7 @@ def test_chat_window_binds_real_settings_window_for_save_and_close(monkeypatch):
     assert settings_window._chat_window is window
     assert settings_window._config.system.vision.ocr_engine == "rapidocr"
 
-    settings_window._switch_page(7)
+    settings_window._switch_page(8)
     settings_window._system_page._ocr_engine.setCurrentIndex(
         settings_window._system_page._ocr_engine.findData("paddleocr")
     )

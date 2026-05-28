@@ -75,7 +75,7 @@ class SessionPolicy:
             fact
             for fact in ctx.working_facts
             if fact.importance >= self._config.mem0_promotion_importance
-            and fact.category in {"constraint", "preference", "intent"}
+            and fact.category in {"preference", "intent"}
             and not fact.promoted_to_mem0
         ]
 
