@@ -95,7 +95,7 @@ def _path_rule(path: Path, root: Path) -> str | None:
 def _is_text_candidate(path: Path) -> bool:
     if path.suffix.lower() in TEXT_EXTENSIONS:
         return True
-    return path.name.lower() in {"cargo.lock", "package-lock.json", "requirements-sidecar.txt"}
+    return path.name.lower() in {"cargo.lock", "pnpm-lock.yaml", "requirements-sidecar.txt"}
 
 
 def _redact(snippet: str) -> str:

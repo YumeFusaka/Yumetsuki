@@ -14,7 +14,9 @@ Yumetsuki 是一个桌宠 AI 伴侣项目，当前主 UI 已切到 Tauri shell +
 
 - Python: `E:/Tool/Miniconda/envs/ai/python.exe`
 - Tauri / Vue：
-  - `Set-Location apps/desktop; npm install; npm test; npm run dev`
+  - `pnpm install`
+  - `pnpm dev`
+  - `pnpm test; pnpm e2e:smoke`
   - `Set-Location apps/desktop/src-tauri; cargo test`
   - `python -m pytest tests/rpc_contract/ -q`
 

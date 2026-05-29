@@ -42,12 +42,12 @@ def create_fake_bundle(tmp_path: Path) -> Path:
     _write(bundle / "resources" / "defaults" / "api.example.yaml", "api_key: PLACEHOLDER\n")
     _write(bundle / "capabilities" / "main.json", '{"identifier":"main","permissions":[]}\n')
     _write(bundle / "requirements-sidecar.txt", "pydantic==2.0.0\n")
-    _write(bundle / "package-lock.json", '{"lockfileVersion":3}\n')
+    _write(bundle / "pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
     _write(bundle / "Cargo.lock", "# cargo lock\n")
 
     lockfiles = [
         bundle / "requirements-sidecar.txt",
-        bundle / "package-lock.json",
+        bundle / "pnpm-lock.yaml",
         bundle / "Cargo.lock",
     ]
     artifacts = [
@@ -69,7 +69,7 @@ def create_fake_bundle(tmp_path: Path) -> Path:
             "rust_version": "1.78.0",
             "tauri_version": "2.0.0",
             "requirements_sidecar_hash": _sha256(bundle / "requirements-sidecar.txt"),
-            "node_lock_hash": _sha256(bundle / "package-lock.json"),
+            "node_lock_hash": _sha256(bundle / "pnpm-lock.yaml"),
             "cargo_lock_hash": _sha256(bundle / "Cargo.lock"),
             "capability_manifest_hash": _sha256(bundle / "capabilities" / "main.json"),
         },

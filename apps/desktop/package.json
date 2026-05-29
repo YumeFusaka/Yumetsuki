@@ -4,7 +4,8 @@
   "version": "0.0.0-tauri-phase1",
   "type": "module",
   "scripts": {
-    "test": "npm --prefix frontend test",
+    "dev": "pnpm --dir frontend dev",
+    "test": "pnpm --dir frontend test",
     "check:static": "node frontend/scripts/static-check.mjs",
     "test:a11y": "node e2e/run-e2e.mjs a11y",
     "e2e:startup": "node e2e/run-e2e.mjs startup",

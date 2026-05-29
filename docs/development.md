@@ -3,7 +3,8 @@
 ## 环境
 
 - Python: `E:/Tool/Miniconda/envs/ai/python.exe`
-- 前端 / Tauri：`Set-Location apps/desktop; npm install; npm test; npm run dev`
+- 前端开发页：`pnpm install`、`pnpm dev`
+- 前端自动化验证：`pnpm test`、`pnpm e2e:smoke`
 - Rust shell：`Set-Location apps/desktop/src-tauri; cargo test`
 - Python core：`python -m pytest tests/ -q`
 

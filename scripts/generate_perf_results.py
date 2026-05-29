@@ -235,8 +235,8 @@ def main() -> int:
             "manual": False,
             "sources": ["e2e:startup", "e2e:stress", "diagnostics_perf", "release_scan"],
             "commands": [
-                "npm run e2e:startup",
-                "npm run e2e:stress",
+                "pnpm e2e:startup",
+                "pnpm e2e:stress",
                 "python scripts/check_release_manifest.py --bundle apps/desktop/src-tauri/target/release/bundle",
             ],
         },

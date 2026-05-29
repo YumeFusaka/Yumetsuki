@@ -51,13 +51,13 @@ def test_replacement_status_phase5_pre_delete_rejects_manual_records(tmp_path: P
     payload["items"][0]["phase_pass_records"] = [
         {
             "phase": 4,
-            "command": "npm test",
+            "command": "pnpm test",
             "date": "2026-05-29",
             "result_summary": "1 passed",
         },
         {
             "phase": 5,
-            "command": "npm test",
+            "command": "pnpm test",
             "date": "2026-05-29",
             "result_summary": "1 passed",
             "pre_delete": True,
@@ -88,7 +88,7 @@ def _write_minimal_inventory(path: Path) -> None:
                 "",
                 "| 旧测试 | Qt / PySide6 依赖点 | 退场动作 | 替代层 | 新测试文件 / 命令 | 双跑阶段 | 删除条件 | 回滚方式 |",
                 "|---|---|---|---|---|---|---|---|",
-                "| `tests/test_feedback_toast.py` | Qt toast | 删除 | Sakura Toast | `npm test` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧 toast 测试 |",
+                "| `tests/test_feedback_toast.py` | Qt toast | 删除 | Sakura Toast | `pnpm test` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧 toast 测试 |",
             ]
         )
         + "\n",
@@ -104,7 +104,7 @@ def _write_minimal_status(path: Path) -> None:
                     {
                         "legacy_test": "tests/test_feedback_toast.py",
                         "replacement_tests": [],
-                        "replacement_commands": ["npm test"],
+                        "replacement_commands": ["pnpm test"],
                         "retirement_action": "delete",
                         "phase_pass_records": [],
                         "delete_approved": False,
@@ -132,7 +132,7 @@ def _run_report(command: str, generated_by: str = "scripts/run_migration_gate.py
             {
                 "command": command,
                 "command_hash": "sha256:" + hashlib.sha256(command.encode("utf-8")).hexdigest(),
-                "cwd": "apps/desktop",
+                "cwd": ".",
                 "started_at": "2026-05-29T00:00:00Z",
                 "finished_at": "2026-05-29T00:00:01Z",
                 "exit_code": 0,
@@ -150,7 +150,7 @@ def test_replacement_status_records_structured_run_report(tmp_path: Path) -> Non
     report = tmp_path / "last_run_report.json"
     _write_minimal_inventory(inventory)
     _write_minimal_status(status)
-    report.write_text(json.dumps(_run_report("npm test"), ensure_ascii=False), encoding="utf-8")
+    report.write_text(json.dumps(_run_report("pnpm test"), ensure_ascii=False), encoding="utf-8")
 
     completed = run_script(
         "scripts/check_replacement_status.py",
@@ -168,8 +168,8 @@ def test_replacement_status_records_structured_run_report(tmp_path: Path) -> Non
     assert completed.returncode == 0, completed.stderr + completed.stdout
     payload = json.loads(status.read_text(encoding="utf-8"))
     records = payload["items"][0]["phase_pass_records"]
-    assert records[0]["command"] == "npm test"
-    assert records[0]["command_hash"] == _run_report("npm test")["commands"][0]["command_hash"]
+    assert records[0]["command"] == "pnpm test"
+    assert records[0]["command_hash"] == _run_report("pnpm test")["commands"][0]["command_hash"]
     assert records[0]["stdout_sha256"] == EMPTY_SHA256
 
 
@@ -180,7 +180,7 @@ def test_replacement_status_rejects_manual_run_report(tmp_path: Path) -> None:
     _write_minimal_inventory(inventory)
     _write_minimal_status(status)
     report.write_text(
-        json.dumps(_run_report("npm test", generated_by="manual summary"), ensure_ascii=False),
+        json.dumps(_run_report("pnpm test", generated_by="manual summary"), ensure_ascii=False),
         encoding="utf-8",
     )
 
@@ -208,7 +208,7 @@ def test_replacement_status_rejects_untrusted_run_report_generator(tmp_path: Pat
     _write_minimal_inventory(inventory)
     _write_minimal_status(status)
     report.write_text(
-        json.dumps(_run_report("npm test", generated_by="local-notes.txt"), ensure_ascii=False),
+        json.dumps(_run_report("pnpm test", generated_by="local-notes.txt"), ensure_ascii=False),
         encoding="utf-8",
     )
 
@@ -235,7 +235,7 @@ def test_replacement_status_rejects_command_hash_mismatch(tmp_path: Path) -> Non
     report = tmp_path / "last_run_report.json"
     _write_minimal_inventory(inventory)
     _write_minimal_status(status)
-    payload = _run_report("npm test")
+    payload = _run_report("pnpm test")
     payload["commands"][0]["command_hash"] = "sha256:" + "b" * 64
     report.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
@@ -262,7 +262,7 @@ def test_replacement_status_rejects_substring_command_match(tmp_path: Path) -> N
     report = tmp_path / "last_run_report.json"
     _write_minimal_inventory(inventory)
     _write_minimal_status(status)
-    report.write_text(json.dumps(_run_report("echo npm test"), ensure_ascii=False), encoding="utf-8")
+    report.write_text(json.dumps(_run_report("echo pnpm test"), ensure_ascii=False), encoding="utf-8")
 
     completed = run_script(
         "scripts/check_replacement_status.py",

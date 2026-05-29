@@ -12,7 +12,7 @@ except ImportError:
 
 LOCK_HASH_FIELDS = {
     "requirements-sidecar.txt": "requirements_sidecar_hash",
-    "package-lock.json": "node_lock_hash",
+    "pnpm-lock.yaml": "node_lock_hash",
     "Cargo.lock": "cargo_lock_hash",
 }
 REQUIRED_LOCKFILES = set(LOCK_HASH_FIELDS)

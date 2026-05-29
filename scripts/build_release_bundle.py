@@ -197,7 +197,7 @@ def copy_inputs(bundle: Path, sidecar_exe: Path, frontend_dist: Path, capability
     )
 
     shutil.copy2(ROOT / "requirements-sidecar.txt", bundle / "requirements-sidecar.txt")
-    shutil.copy2(ROOT / "apps" / "desktop" / "frontend" / "package-lock.json", bundle / "package-lock.json")
+    shutil.copy2(ROOT / "pnpm-lock.yaml", bundle / "pnpm-lock.yaml")
     shutil.copy2(TAURI_ROOT / "Cargo.lock", bundle / "Cargo.lock")
     return {
         "sidecar": sidecar_target,
@@ -219,7 +219,7 @@ def build_manifest(bundle: Path, paths: dict[str, Path]) -> dict[str, object]:
     )
     lockfiles = [
         bundle / "requirements-sidecar.txt",
-        bundle / "package-lock.json",
+        bundle / "pnpm-lock.yaml",
         bundle / "Cargo.lock",
     ]
     capability_files = sorted(path for path in paths["capabilities"].rglob("*.json") if path.is_file())
@@ -243,7 +243,7 @@ def build_manifest(bundle: Path, paths: dict[str, Path]) -> dict[str, object]:
             "rust_version": run_text(["cargo", "--version"]),
             "tauri_version": cargo_lock_package_version(TAURI_ROOT / "Cargo.lock", "tauri"),
             "requirements_sidecar_hash": sha256_file(bundle / "requirements-sidecar.txt"),
-            "node_lock_hash": sha256_file(bundle / "package-lock.json"),
+            "node_lock_hash": sha256_file(bundle / "pnpm-lock.yaml"),
             "cargo_lock_hash": sha256_file(bundle / "Cargo.lock"),
             "capability_manifest_hash": capability_hash,
         },

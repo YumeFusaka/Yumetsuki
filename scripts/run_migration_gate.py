@@ -38,8 +38,8 @@ def schema_hash() -> str:
 
 
 def command_cwd(command: str) -> Path:
-    if command.startswith("npm "):
-        return ROOT / "apps" / "desktop"
+    if command.startswith("pnpm "):
+        return ROOT
     if command.startswith("cargo "):
         return ROOT / "apps" / "desktop" / "src-tauri"
     return ROOT
@@ -61,7 +61,7 @@ def allowed_commands() -> set[str]:
     for row in parse_replacement_table().values():
         for target in row.targets:
             normalized = " ".join(target.split())
-            if normalized.startswith(("python ", "npm ", "cargo ")):
+            if normalized.startswith(("python ", "pnpm ", "cargo ")):
                 commands.add(normalized)
     return commands
 

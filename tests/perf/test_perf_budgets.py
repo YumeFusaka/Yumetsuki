@@ -73,7 +73,7 @@ def test_perf_budgets_accepts_results_within_budget(tmp_path):
             "generated_by": {
                 "manual": False,
                 "sources": ["e2e:startup", "e2e:stress", "diagnostics_perf", "release_scan"],
-                "commands": ["npm run e2e:startup", "npm run e2e:stress", "python scripts/check_release_manifest.py"],
+                "commands": ["pnpm e2e:startup", "pnpm e2e:stress", "python scripts/check_release_manifest.py"],
             },
             "metrics": metrics,
         },

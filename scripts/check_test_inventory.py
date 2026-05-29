@@ -21,13 +21,13 @@ NEW_SECTION = "新增迁移测试清单"
 RETIRED_SECTION = "已退场旧测试"
 TABLE_HEADER = "| 旧测试 | Qt / PySide6 依赖点 | 退场动作 | 替代层 | 新测试文件 / 命令 | 双跑阶段 | 删除条件 | 回滚方式 |"
 KNOWN_GATE_COMMANDS = {
-    "npm test",
-    "npm run test:a11y",
-    "npm run e2e:startup",
-    "npm run e2e:settings",
-    "npm run e2e:chat",
-    "npm run e2e:logs-tools",
-    "npm run e2e:stress",
+    "pnpm test",
+    "pnpm test:a11y",
+    "pnpm e2e:startup",
+    "pnpm e2e:settings",
+    "pnpm e2e:chat",
+    "pnpm e2e:logs-tools",
+    "pnpm e2e:stress",
     "cargo test --test media_contract",
 }
 PHASE5_CAPABILITY_KEYWORDS = {
