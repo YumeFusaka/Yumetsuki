@@ -1,4 +1,4 @@
-from ui.chat.tts_pipeline import TTSPipelineController, TTSSegmentStatus
+from python_core.services.tts_pipeline import TTSPipelineController, TTSSegmentStatus
 
 
 def test_pipeline_marks_segment_cancelled_when_new_turn_begins():

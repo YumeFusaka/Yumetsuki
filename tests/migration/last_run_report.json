@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "generated_by": "scripts/run_migration_gate.py",
+  "phase": 5,
+  "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+  "started_at": "2026-05-29T11:31:02Z",
+  "finished_at": "2026-05-29T11:31:55Z",
+  "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+  "commands": [
+    {
+      "command": "python -m pytest tests/test_logging_integration.py -q",
+      "command_hash": "sha256:545603f95e7843370fddf4a4f430a47e9aba14db01f8cf6215c6f17d4629f532",
+      "cwd": ".",
+      "started_at": "2026-05-29T11:31:02Z",
+      "finished_at": "2026-05-29T11:31:05Z",
+      "exit_code": 0,
+      "result_summary": "6 passed in 0.76s",
+      "stdout_sha256": "sha256:993c91b9cf383206ee4bf9374cb454c81408ae0fad88d0a82c2585592715c794",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "python -m pytest tests/test_event_bus.py -q",
+      "command_hash": "sha256:6b1256bf6f681d3f5e50a6cdd4a1378cbdbecd14af302eaa71b16cc159b6f403",
+      "cwd": ".",
+      "started_at": "2026-05-29T11:31:05Z",
+      "finished_at": "2026-05-29T11:31:06Z",
+      "exit_code": 0,
+      "result_summary": "2 passed in 0.06s",
+      "stdout_sha256": "sha256:68683c941f53fd55547c17b6a1b7a966702a2b51e89bd6832b00e772606b6b6e",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "python -m pytest tests/test_proactive.py -q",
+      "command_hash": "sha256:c0d672209e46e6c466b1a9e7ea560e62695bf6ec87f137a6f962ef2eb1fcb16e",
+      "cwd": ".",
+      "started_at": "2026-05-29T11:31:06Z",
+      "finished_at": "2026-05-29T11:31:08Z",
+      "exit_code": 0,
+      "result_summary": "3 passed in 0.12s",
+      "stdout_sha256": "sha256:35a1d58c48b74e0e3e7b158b5545a9552f2371583edfef1ea0d022c59f5a0a1c",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "python -m pytest tests/rpc_contract/test_event_publisher.py -q",
+      "command_hash": "sha256:995fead92e00084e41acba5ed362bb5b2e2e68edcd8fa81e01bc1440d3b04043",
+      "cwd": ".",
+      "started_at": "2026-05-29T11:31:08Z",
+      "finished_at": "2026-05-29T11:31:10Z",
+      "exit_code": 0,
+      "result_summary": "3 passed in 0.08s",
+      "stdout_sha256": "sha256:db7f09414dbfd608dbdbc9dc30246e56e6598dc0e7fbf509c46c3bdd43c83e32",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm test",
+      "command_hash": "sha256:328e123c63857fd8473bd4bd3581e655b08b7440d7f5d2c31cc375607582f539",
+      "cwd": "apps/desktop",
+      "started_at": "2026-05-29T11:31:10Z",
+      "finished_at": "2026-05-29T11:31:15Z",
+      "exit_code": 0,
+      "result_summary": "\u001b[2m   Duration \u001b[22m 3.39s\u001b[2m (transform 900ms, setup 838ms, collect 1.35s, tests 451ms, environment 6.94s, prepare 729ms)\u001b[22m",
+      "stdout_sha256": "sha256:c35d1301ba7cd423d7be9d69480cdda4c92069724c5487219f922febb03b0cca",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run test:a11y",
+      "command_hash": "sha256:b1fcbbd56a0d068e380687056ebede5b9d28328568aaa5fb1c3976e21df77554",
+      "cwd": "apps/desktop",
+      "started_at": "2026-05-29T11:31:15Z",
+      "finished_at": "2026-05-29T11:31:22Z",
+      "exit_code": 0,
+      "result_summary": "1 passed (5.3s)",
+      "stdout_sha256": "sha256:56a4395fc73efff886ee498a9aceeab97cff932ecd6058e867f1c7b7c753e095",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run e2e:settings",
+      "command_hash": "sha256:6b2f767eabe5bae42b41a2b9792f25cf409d0be09b46cfe08b53afa195edcd69",
+      "cwd": "apps/desktop",
+      "started_at": "2026-05-29T11:31:22Z",
+      "finished_at": "2026-05-29T11:31:28Z",
+      "exit_code": 0,
+      "result_summary": "1 passed (4.6s)",
+      "stdout_sha256": "sha256:2f91d1352611db26fc4465358b87075d665a797580e7c616c7086e451706ae67",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run e2e:logs-tools",
+      "command_hash": "sha256:3195f3076207b4feb26aff25bde6a20d4e4594c8ee03bba9475cfea467d2a48c",
+      "cwd": "apps/desktop",
+      "started_at": "2026-05-29T11:31:28Z",
+      "finished_at": "2026-05-29T11:31:35Z",
+      "exit_code": 0,
+      "result_summary": "1 passed (5.5s)",
+      "stdout_sha256": "sha256:3eb794dd282e18eeeadd13a5e6beb80988abab3509764e0b16a3bf86bb1ed858",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run e2e:stress",
+      "command_hash": "sha256:570b0025f0d5fbf1355be8fedfb1008e5795340122cc3023cfe9b4785ffc3b8f",
+      "cwd": "apps/desktop",
+      "started_at": "2026-05-29T11:31:35Z",
+      "finished_at": "2026-05-29T11:31:41Z",
+      "exit_code": 0,
+      "result_summary": "1 passed (4.6s)",
+      "stdout_sha256": "sha256:4b863d763e831fb30845701c39fa1df98f6ff7f0896f02306dad6159c4aaf217",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "npm run e2e:chat",
+      "command_hash": "sha256:9d723363f8e17c5f823216803a1a1134792efb44400db83228883e0c7b940181",
+      "cwd": "apps/desktop",
+      "started_at": "2026-05-29T11:31:41Z",
+      "finished_at": "2026-05-29T11:31:48Z",
+      "exit_code": 0,
+      "result_summary": "1 passed (4.6s)",
+      "stdout_sha256": "sha256:593bff4a3eb506d7ac13db049d831e71bb24c68b1729a8067eab51f9f70d3531",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "cargo test --test media_contract",
+      "command_hash": "sha256:a4df3f7c8afe30fc890e85f48e22b7c16e0879b6babc7781bb0d4d7802a55d8b",
+      "cwd": "apps/desktop/src-tauri",
+      "started_at": "2026-05-29T11:31:48Z",
+      "finished_at": "2026-05-29T11:31:49Z",
+      "exit_code": 0,
+      "result_summary": "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "stdout_sha256": "sha256:e108bdd072d5a406eceddaadfe2e845dfd708f5efb9411a8aae6f83906ef096c",
+      "stderr_sha256": "sha256:b21a2d190b07ca7d358e825a9dcb26a0d622df68e26eecef2ab69b2ddbba6eda"
+    },
+    {
+      "command": "npm run e2e:startup",
+      "command_hash": "sha256:f784f0030756eec760b13a15c2fe9e79ad1bb8792a7e14cb11e4637ae162191c",
+      "cwd": "apps/desktop",
+      "started_at": "2026-05-29T11:31:49Z",
+      "finished_at": "2026-05-29T11:31:55Z",
+      "exit_code": 0,
+      "result_summary": "1 passed (4.7s)",
+      "stdout_sha256": "sha256:18c33e9973a3099d560641a34d0eada75f8f9424a7f2d453d709535c7dc6dd27",
+      "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

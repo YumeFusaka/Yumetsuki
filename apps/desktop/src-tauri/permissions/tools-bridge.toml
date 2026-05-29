@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "tools-bridge"
+description = "允许列出、调用工具并查询工具审计摘要。"
+commands.allow = ["tools_list", "tools_call", "tools_audit_query"]

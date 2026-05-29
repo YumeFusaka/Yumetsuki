@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "mcp-bridge"
+description = "允许列出 MCP 服务、刷新 MCP 服务并调用 MCP 工具。"
+commands.allow = ["mcp_list_servers", "mcp_refresh", "mcp_call_tool"]

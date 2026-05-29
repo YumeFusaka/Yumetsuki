@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "security-grants"
+description = "允许读取已脱敏的安全授权摘要。"
+commands.allow = ["security_list_grants"]

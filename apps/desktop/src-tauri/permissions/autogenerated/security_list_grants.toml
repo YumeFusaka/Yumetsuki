@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-security-list-grants"
+description = "Enables the security_list_grants command without any pre-configured scope."
+commands.allow = ["security_list_grants"]
+
+[[permission]]
+identifier = "deny-security-list-grants"
+description = "Denies the security_list_grants command without any pre-configured scope."
+commands.deny = ["security_list_grants"]

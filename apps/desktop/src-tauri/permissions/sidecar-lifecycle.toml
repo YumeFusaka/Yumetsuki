@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "sidecar-lifecycle"
+description = "允许桌面界面检查并控制 Python sidecar 生命周期。"
+commands.allow = [
+  "sidecar_hello",
+  "sidecar_health",
+  "sidecar_cancel",
+  "sidecar_shutdown",
+]

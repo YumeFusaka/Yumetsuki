@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sidecar-shutdown"
+description = "Enables the sidecar_shutdown command without any pre-configured scope."
+commands.allow = ["sidecar_shutdown"]
+
+[[permission]]
+identifier = "deny-sidecar-shutdown"
+description = "Denies the sidecar_shutdown command without any pre-configured scope."
+commands.deny = ["sidecar_shutdown"]

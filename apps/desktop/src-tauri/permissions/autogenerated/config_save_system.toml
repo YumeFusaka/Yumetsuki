@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-config-save-system"
+description = "Enables the config_save_system command without any pre-configured scope."
+commands.allow = ["config_save_system"]
+
+[[permission]]
+identifier = "deny-config-save-system"
+description = "Denies the config_save_system command without any pre-configured scope."
+commands.deny = ["config_save_system"]

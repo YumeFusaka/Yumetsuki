@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "chat-core"
+description = "允许提交和重试聊天任务。"
+commands.allow = ["chat_send", "chat_retry"]

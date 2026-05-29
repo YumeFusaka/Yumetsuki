@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-plugins-refresh"
+description = "Enables the plugins_refresh command without any pre-configured scope."
+commands.allow = ["plugins_refresh"]
+
+[[permission]]
+identifier = "deny-plugins-refresh"
+description = "Denies the plugins_refresh command without any pre-configured scope."
+commands.deny = ["plugins_refresh"]

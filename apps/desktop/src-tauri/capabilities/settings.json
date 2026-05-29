@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings",
+  "description": "设置窗口 capability：读取脱敏配置，保存系统类非敏感设置，并管理工具、插件、MCP 与安全授权摘要。",
+  "windows": ["settings"],
+  "permissions": [
+    "core:app:default",
+    "core:event:default",
+    "core:window:default",
+    "sidecar-lifecycle",
+    "config-read",
+    "config-write",
+    "tools-bridge",
+    "plugins-bridge",
+    "mcp-bridge",
+    "security-grants"
+  ]
+}

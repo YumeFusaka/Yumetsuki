@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "plugins-bridge"
+description = "允许刷新、查看和切换插件状态。"
+commands.allow = ["plugins_status", "plugins_refresh", "plugins_enable", "plugins_disable"]

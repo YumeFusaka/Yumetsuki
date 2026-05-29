@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "logs-read"
+description = "允许查询已脱敏的日志摘要。"
+commands.allow = ["logs_query"]

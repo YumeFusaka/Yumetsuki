@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "diagnostics",
+  "description": "诊断窗口 capability：sidecar 生命周期、脱敏日志和诊断任务。",
+  "windows": ["diagnostics"],
+  "permissions": [
+    "core:app:default",
+    "core:event:default",
+    "core:window:default",
+    "sidecar-lifecycle",
+    "logs-read",
+    "diagnostics-run"
+  ]
+}

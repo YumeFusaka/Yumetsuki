@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "sidecar-cancel-only"
+description = "允许低权限窗口取消正在运行的 sidecar 请求。"
+commands.allow = ["sidecar_cancel"]

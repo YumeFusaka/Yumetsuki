@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tools-audit-query"
+description = "Enables the tools_audit_query command without any pre-configured scope."
+commands.allow = ["tools_audit_query"]
+
+[[permission]]
+identifier = "deny-tools-audit-query"
+description = "Denies the tools_audit_query command without any pre-configured scope."
+commands.deny = ["tools_audit_query"]

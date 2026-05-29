@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tools-call"
+description = "Enables the tools_call command without any pre-configured scope."
+commands.allow = ["tools_call"]
+
+[[permission]]
+identifier = "deny-tools-call"
+description = "Denies the tools_call command without any pre-configured scope."
+commands.deny = ["tools_call"]

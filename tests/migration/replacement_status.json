@@ -1,0 +1,874 @@
+{
+  "items": [
+    {
+      "legacy_test": "tests/test_settings_window.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/settings.spec.ts",
+        "apps/desktop/frontend/src/pages/settings/*.spec.ts"
+      ],
+      "replacement_commands": [
+        "npm run e2e:settings"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:settings",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:settings",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:settings",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (4.6s)",
+          "exit_code": 0,
+          "command_hash": "sha256:6b2f767eabe5bae42b41a2b9792f25cf409d0be09b46cfe08b53afa195edcd69",
+          "stdout_sha256": "sha256:2f91d1352611db26fc4465358b87075d665a797580e7c616c7086e451706ae67",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_agent_page_events.py",
+      "replacement_tests": [
+        "tests/rpc_contract/test_event_publisher.py"
+      ],
+      "replacement_commands": [
+        "python -m pytest tests/rpc_contract/test_event_publisher.py -q",
+        "npm test"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "python -m pytest tests/rpc_contract/test_event_publisher.py -q",
+          "date": "2026-05-29",
+          "result_summary": "3 passed"
+        },
+        {
+          "phase": 5,
+          "command": "python -m pytest tests/rpc_contract/test_event_publisher.py -q",
+          "date": "2026-05-29",
+          "result_summary": "3 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "python -m pytest tests/rpc_contract/test_event_publisher.py -q",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "3 passed in 0.08s",
+          "exit_code": 0,
+          "command_hash": "sha256:995fead92e00084e41acba5ed362bb5b2e2e68edcd8fa81e01bc1440d3b04043",
+          "stdout_sha256": "sha256:db7f09414dbfd608dbdbc9dc30246e56e6598dc0e7fbf509c46c3bdd43c83e32",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm test",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "\u001b[2m   Duration \u001b[22m 3.39s\u001b[2m (transform 900ms, setup 838ms, collect 1.35s, tests 451ms, environment 6.94s, prepare 729ms)\u001b[22m",
+          "exit_code": 0,
+          "command_hash": "sha256:328e123c63857fd8473bd4bd3581e655b08b7440d7f5d2c31cc375607582f539",
+          "stdout_sha256": "sha256:c35d1301ba7cd423d7be9d69480cdda4c92069724c5487219f922febb03b0cca",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_diagnostics_page.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/logs-tools.spec.ts",
+        "tests/rpc_contract/test_logs_diagnostics_methods.py"
+      ],
+      "replacement_commands": [
+        "npm run e2e:logs-tools"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (5.5s)",
+          "exit_code": 0,
+          "command_hash": "sha256:3195f3076207b4feb26aff25bde6a20d4e4594c8ee03bba9475cfea467d2a48c",
+          "stdout_sha256": "sha256:3eb794dd282e18eeeadd13a5e6beb80988abab3509764e0b16a3bf86bb1ed858",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_conversation_log_page.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/logs-tools.spec.ts"
+      ],
+      "replacement_commands": [
+        "python -m pytest tests/test_logging_integration.py -q",
+        "npm run e2e:logs-tools"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "python -m pytest tests/test_logging_integration.py -q",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "6 passed in 0.76s",
+          "exit_code": 0,
+          "command_hash": "sha256:545603f95e7843370fddf4a4f430a47e9aba14db01f8cf6215c6f17d4629f532",
+          "stdout_sha256": "sha256:993c91b9cf383206ee4bf9374cb454c81408ae0fad88d0a82c2585592715c794",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (5.5s)",
+          "exit_code": 0,
+          "command_hash": "sha256:3195f3076207b4feb26aff25bde6a20d4e4594c8ee03bba9475cfea467d2a48c",
+          "stdout_sha256": "sha256:3eb794dd282e18eeeadd13a5e6beb80988abab3509764e0b16a3bf86bb1ed858",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_system_log_page.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/stress.spec.ts"
+      ],
+      "replacement_commands": [
+        "npm run e2e:stress"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:stress",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:stress",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:stress",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (4.6s)",
+          "exit_code": 0,
+          "command_hash": "sha256:570b0025f0d5fbf1355be8fedfb1008e5795340122cc3023cfe9b4785ffc3b8f",
+          "stdout_sha256": "sha256:4b863d763e831fb30845701c39fa1df98f6ff7f0896f02306dad6159c4aaf217",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_feedback_toast.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/a11y.spec.ts"
+      ],
+      "replacement_commands": [
+        "npm test",
+        "npm run test:a11y"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run test:a11y",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run test:a11y",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm test",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "\u001b[2m   Duration \u001b[22m 3.39s\u001b[2m (transform 900ms, setup 838ms, collect 1.35s, tests 451ms, environment 6.94s, prepare 729ms)\u001b[22m",
+          "exit_code": 0,
+          "command_hash": "sha256:328e123c63857fd8473bd4bd3581e655b08b7440d7f5d2c31cc375607582f539",
+          "stdout_sha256": "sha256:c35d1301ba7cd423d7be9d69480cdda4c92069724c5487219f922febb03b0cca",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run test:a11y",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (5.3s)",
+          "exit_code": 0,
+          "command_hash": "sha256:b1fcbbd56a0d068e380687056ebede5b9d28328568aaa5fb1c3976e21df77554",
+          "stdout_sha256": "sha256:56a4395fc73efff886ee498a9aceeab97cff932ecd6058e867f1c7b7c753e095",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_plugin_import.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/logs-tools.spec.ts",
+        "tests/rpc_contract/test_tools_plugins_mcp_methods.py"
+      ],
+      "replacement_commands": [
+        "npm run e2e:logs-tools"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (5.5s)",
+          "exit_code": 0,
+          "command_hash": "sha256:3195f3076207b4feb26aff25bde6a20d4e4594c8ee03bba9475cfea467d2a48c",
+          "stdout_sha256": "sha256:3eb794dd282e18eeeadd13a5e6beb80988abab3509764e0b16a3bf86bb1ed858",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_chat_tts_flow.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/chat.spec.ts",
+        "tests/rpc_contract/test_speech_vision_methods.py"
+      ],
+      "replacement_commands": [
+        "npm run e2e:chat"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (4.6s)",
+          "exit_code": 0,
+          "command_hash": "sha256:9d723363f8e17c5f823216803a1a1134792efb44400db83228883e0c7b940181",
+          "stdout_sha256": "sha256:593bff4a3eb506d7ac13db049d831e71bb24c68b1729a8067eab51f9f70d3531",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_chat_stt_flow.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/chat.spec.ts",
+        "apps/desktop/src-tauri/tests/media_contract.rs"
+      ],
+      "replacement_commands": [
+        "npm run e2e:chat"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (4.6s)",
+          "exit_code": 0,
+          "command_hash": "sha256:9d723363f8e17c5f823216803a1a1134792efb44400db83228883e0c7b940181",
+          "stdout_sha256": "sha256:593bff4a3eb506d7ac13db049d831e71bb24c68b1729a8067eab51f9f70d3531",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_chat_passive_bubble.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/chat.spec.ts"
+      ],
+      "replacement_commands": [
+        "npm run e2e:chat"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (4.6s)",
+          "exit_code": 0,
+          "command_hash": "sha256:9d723363f8e17c5f823216803a1a1134792efb44400db83228883e0c7b940181",
+          "stdout_sha256": "sha256:593bff4a3eb506d7ac13db049d831e71bb24c68b1729a8067eab51f9f70d3531",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_chat_window_scale.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/chat.spec.ts"
+      ],
+      "replacement_commands": [
+        "npm run e2e:chat"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (4.6s)",
+          "exit_code": 0,
+          "command_hash": "sha256:9d723363f8e17c5f823216803a1a1134792efb44400db83228883e0c7b940181",
+          "stdout_sha256": "sha256:593bff4a3eb506d7ac13db049d831e71bb24c68b1729a8067eab51f9f70d3531",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_stt_recorder.py",
+      "replacement_tests": [
+        "apps/desktop/src-tauri/tests/media_contract.rs"
+      ],
+      "replacement_commands": [
+        "cargo test --test media_contract"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "cargo test --test media_contract",
+          "date": "2026-05-29",
+          "result_summary": "5 passed"
+        },
+        {
+          "phase": 5,
+          "command": "cargo test --test media_contract",
+          "date": "2026-05-29",
+          "result_summary": "5 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "cargo test --test media_contract",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "exit_code": 0,
+          "command_hash": "sha256:a4df3f7c8afe30fc890e85f48e22b7c16e0879b6babc7781bb0d4d7802a55d8b",
+          "stdout_sha256": "sha256:e108bdd072d5a406eceddaadfe2e845dfd708f5efb9411a8aae6f83906ef096c",
+          "stderr_sha256": "sha256:b21a2d190b07ca7d358e825a9dcb26a0d622df68e26eecef2ab69b2ddbba6eda",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_audio_backends.py",
+      "replacement_tests": [
+        "apps/desktop/src-tauri/tests/media_contract.rs"
+      ],
+      "replacement_commands": [
+        "cargo test --test media_contract"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "cargo test --test media_contract",
+          "date": "2026-05-29",
+          "result_summary": "5 passed"
+        },
+        {
+          "phase": 5,
+          "command": "cargo test --test media_contract",
+          "date": "2026-05-29",
+          "result_summary": "5 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "cargo test --test media_contract",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "exit_code": 0,
+          "command_hash": "sha256:a4df3f7c8afe30fc890e85f48e22b7c16e0879b6babc7781bb0d4d7802a55d8b",
+          "stdout_sha256": "sha256:e108bdd072d5a406eceddaadfe2e845dfd708f5efb9411a8aae6f83906ef096c",
+          "stderr_sha256": "sha256:b21a2d190b07ca7d358e825a9dcb26a0d622df68e26eecef2ab69b2ddbba6eda",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_sprite_manager.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/chat.spec.ts"
+      ],
+      "replacement_commands": [
+        "npm test",
+        "npm run e2e:chat"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm test",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "\u001b[2m   Duration \u001b[22m 3.39s\u001b[2m (transform 900ms, setup 838ms, collect 1.35s, tests 451ms, environment 6.94s, prepare 729ms)\u001b[22m",
+          "exit_code": 0,
+          "command_hash": "sha256:328e123c63857fd8473bd4bd3581e655b08b7440d7f5d2c31cc375607582f539",
+          "stdout_sha256": "sha256:c35d1301ba7cd423d7be9d69480cdda4c92069724c5487219f922febb03b0cca",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:chat",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (4.6s)",
+          "exit_code": 0,
+          "command_hash": "sha256:9d723363f8e17c5f823216803a1a1134792efb44400db83228883e0c7b940181",
+          "stdout_sha256": "sha256:593bff4a3eb506d7ac13db049d831e71bb24c68b1729a8067eab51f9f70d3531",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_startup_appearance.py",
+      "replacement_tests": [
+        "apps/desktop/e2e/startup.spec.ts"
+      ],
+      "replacement_commands": [
+        "npm run e2e:startup"
+      ],
+      "retirement_action": "delete",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:startup",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:startup",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:startup",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (4.7s)",
+          "exit_code": 0,
+          "command_hash": "sha256:f784f0030756eec760b13a15c2fe9e79ad1bb8792a7e14cb11e4637ae162191c",
+          "stdout_sha256": "sha256:18c33e9973a3099d560641a34d0eada75f8f9424a7f2d453d709535c7dc6dd27",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": true,
+      "approval_record": {
+        "date": "2026-05-29",
+        "scope_summary": "用户确认删除旧 PySide6 主线：main.py、ui/**、requirements.txt 的 PySide6 依赖和旧 PySide6 绑定测试。",
+        "approved_by": "user",
+        "rollback": "通过 git 恢复删除路径并重新加入 PySide6 依赖。"
+      }
+    },
+    {
+      "legacy_test": "tests/test_logging_integration.py",
+      "replacement_tests": [
+        "tests/test_logging_integration.py",
+        "tests/rpc_contract/test_logs_diagnostics_methods.py"
+      ],
+      "replacement_commands": [
+        "python -m pytest tests/test_logging_integration.py -q",
+        "npm run e2e:logs-tools"
+      ],
+      "retirement_action": "rewrite_same_name",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29",
+          "result_summary": "1 passed"
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29",
+          "result_summary": "1 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "python -m pytest tests/test_logging_integration.py -q",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "6 passed in 0.76s",
+          "exit_code": 0,
+          "command_hash": "sha256:545603f95e7843370fddf4a4f430a47e9aba14db01f8cf6215c6f17d4629f532",
+          "stdout_sha256": "sha256:993c91b9cf383206ee4bf9374cb454c81408ae0fad88d0a82c2585592715c794",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "npm run e2e:logs-tools",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "1 passed (5.5s)",
+          "exit_code": 0,
+          "command_hash": "sha256:3195f3076207b4feb26aff25bde6a20d4e4594c8ee03bba9475cfea467d2a48c",
+          "stdout_sha256": "sha256:3eb794dd282e18eeeadd13a5e6beb80988abab3509764e0b16a3bf86bb1ed858",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": false
+    },
+    {
+      "legacy_test": "tests/test_event_bus.py",
+      "replacement_tests": [
+        "tests/test_event_bus.py",
+        "tests/rpc_contract/test_event_publisher.py"
+      ],
+      "replacement_commands": [
+        "python -m pytest tests/test_event_bus.py -q"
+      ],
+      "retirement_action": "rewrite_same_name",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "python -m pytest tests/test_event_bus.py tests/rpc_contract/test_event_publisher.py -q",
+          "date": "2026-05-29",
+          "result_summary": "5 passed"
+        },
+        {
+          "phase": 5,
+          "command": "python -m pytest tests/test_event_bus.py tests/rpc_contract/test_event_publisher.py -q",
+          "date": "2026-05-29",
+          "result_summary": "5 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "python -m pytest tests/test_event_bus.py -q",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "2 passed in 0.06s",
+          "exit_code": 0,
+          "command_hash": "sha256:6b1256bf6f681d3f5e50a6cdd4a1378cbdbecd14af302eaa71b16cc159b6f403",
+          "stdout_sha256": "sha256:68683c941f53fd55547c17b6a1b7a966702a2b51e89bd6832b00e772606b6b6e",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": false
+    },
+    {
+      "legacy_test": "tests/test_proactive.py",
+      "replacement_tests": [
+        "tests/test_proactive.py",
+        "tests/rpc_contract/test_chat_methods.py"
+      ],
+      "replacement_commands": [
+        "python -m pytest tests/test_proactive.py -q"
+      ],
+      "retirement_action": "rewrite_same_name",
+      "phase_pass_records": [
+        {
+          "phase": 4,
+          "command": "python -m pytest tests/test_proactive.py tests/rpc_contract/test_chat_methods.py -q",
+          "date": "2026-05-29",
+          "result_summary": "15 passed"
+        },
+        {
+          "phase": 5,
+          "command": "python -m pytest tests/test_proactive.py tests/rpc_contract/test_chat_methods.py -q",
+          "date": "2026-05-29",
+          "result_summary": "15 passed",
+          "pre_delete": true
+        },
+        {
+          "phase": 5,
+          "command": "python -m pytest tests/test_proactive.py -q",
+          "date": "2026-05-29T11:31:55Z",
+          "result_summary": "3 passed in 0.12s",
+          "exit_code": 0,
+          "command_hash": "sha256:c0d672209e46e6c466b1a9e7ea560e62695bf6ec87f137a6f962ef2eb1fcb16e",
+          "stdout_sha256": "sha256:35a1d58c48b74e0e3e7b158b5545a9552f2371583edfef1ea0d022c59f5a0a1c",
+          "stderr_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "schema_hash": "sha256:fede87615401b2d2ceb8c9f9dc7fab555137da106b40ce42e8620a293b07f9a4",
+          "run_id": "sha256:ab6671b2cd3f7a2407a11dd21433ca2bfc693c927f83978cd86323c07814524c",
+          "pre_delete": true
+        }
+      ],
+      "delete_approved": false
+    }
+  ]
+}

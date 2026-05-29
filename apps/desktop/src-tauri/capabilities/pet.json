@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "pet",
+  "description": "桌宠窗口 capability：仅允许提交聊天任务和请求取消。",
+  "windows": ["pet"],
+  "permissions": [
+    "core:event:default",
+    "core:window:default",
+    "sidecar-cancel-only",
+    "chat-send-only"
+  ]
+}
