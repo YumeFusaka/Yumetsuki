@@ -4,7 +4,10 @@
   "version": "0.0.0-tauri-phase1",
   "type": "module",
   "scripts": {
-    "dev": "pnpm --dir frontend dev",
+    "dev": "tauri dev",
+    "dev:web": "pnpm --dir frontend dev",
+    "build": "tauri build",
+    "build:frontend": "pnpm --dir frontend build",
     "test": "pnpm --dir frontend test",
     "check:static": "node frontend/scripts/static-check.mjs",
     "test:a11y": "node e2e/run-e2e.mjs a11y",
@@ -17,6 +20,7 @@
     "e2e:responsive": "node e2e/run-e2e.mjs responsive"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
     "@playwright/test": "^1.48.2"
   }
 }

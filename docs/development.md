@@ -3,16 +3,17 @@
 ## 环境
 
 - Python: `E:/Tool/Miniconda/envs/ai/python.exe`
-- 前端开发页：`pnpm install`、`pnpm dev`
+- 桌面 GUI：`pnpm install`、`pnpm dev`
+- 前端 Web 预览：`pnpm dev:web`
 - 前端自动化验证：`pnpm test`、`pnpm e2e:smoke`
 - Rust shell：`Set-Location apps/desktop/src-tauri; cargo test`
 - Python core：`python -m pytest tests/ -q`
 
 ## 当前阶段
 
-- Tauri UI 迁移已完成，历史 PySide6 主线已退场。
+- Tauri UI 技术迁移骨架已完成，历史 PySide6 主线已退场；旧版产品功能和 UI parity 未完成。
 - 当前主线是 Tauri / Vue / `python_core`。
-- 后续工作优先维持 RPC contract、capability、发布安全、性能预算和文档 stale gate 的长期通过。
+- 后续工作优先按 `docs/tauri-parity-recovery.md` 恢复旧版功能和 UI，同时维持 RPC contract、capability、发布安全、性能预算和文档 stale gate 的长期通过。
 - 真实浏览器、OCR、MCP、STT / TTS / API 实机验收属于后续维护和 1.0 风险收口，不再作为 PySide6 退场前置条件。
 
 ## 1.0 验收门
@@ -53,6 +54,7 @@
 
 ## 当前关注点
 
+- Tauri 前端与旧版 PySide6 的功能、交互和视觉 parity。
 - Tauri 前端的设置、聊天、日志、工具和诊断页面行为一致性。
 - Python sidecar 的 stdout 纪律、stderr 脱敏和任务状态机。
 - capability / command / permission / schema 的一致性。

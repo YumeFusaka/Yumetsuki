@@ -4,6 +4,8 @@
   "packageManager": "pnpm@9.0.6",
   "scripts": {
     "dev": "pnpm --dir apps/desktop dev",
+    "dev:web": "pnpm --dir apps/desktop dev:web",
+    "build": "pnpm --dir apps/desktop build",
     "test": "pnpm --dir apps/desktop test",
     "check:static": "pnpm --dir apps/desktop check:static",
     "test:a11y": "pnpm --dir apps/desktop test:a11y",

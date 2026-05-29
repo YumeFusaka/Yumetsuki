@@ -2,13 +2,14 @@
 
 Yumetsuki（梦月）是一个桌宠 AI 伴侣项目，核心体验是角色演出、自然对话、本地配置可控，以及可扩展的工具、语音、记忆、MCP、浏览器自动化和 OCR 能力。
 
-当前主 UI 已切到 Tauri/Vue + `python_core` headless sidecar；历史 PySide6 入口、旧 `ui/` 主实现和 PySide6 依赖已退场。
+当前主 UI 已切到 Tauri/Vue + `python_core` headless sidecar；历史 PySide6 入口、旧 `ui/` 主实现和 PySide6 依赖已退场。当前状态不是旧版产品完整复刻完成态，功能和 UI parity 恢复见 `docs/tauri-parity-recovery.md`。
 
 ## 快速开始
 
 Tauri 桌面工程命令：
 
-- 前端开发页：在仓库根目录执行 `pnpm install`、`pnpm dev`
+- 桌面 GUI：在仓库根目录执行 `pnpm install`、`pnpm dev`
+- 前端 Web 预览：在仓库根目录执行 `pnpm dev:web`
 - 自动化验证：在仓库根目录执行 `pnpm test`、`pnpm e2e:smoke`
 - Rust shell：在 `apps/desktop/src-tauri` 下执行 `cargo test`
 - Python sidecar：执行 `python -m pytest tests/rpc_contract/ -q`
@@ -29,6 +30,7 @@ Tauri 桌面工程命令：
 - [文档总览](./docs/README.md)
 - [代码架构](./docs/architecture.md)
 - [UI 规范](./docs/ui-guidelines.md)
+- [Tauri 产品 Parity 恢复计划](./docs/tauri-parity-recovery.md)
 - [开发流程](./docs/development.md)
 - [Tauri 桌面打包与发布安全](./docs/release/desktop-packaging.md)
 - [插件与 MCP](./docs/plugin-mcp.md)

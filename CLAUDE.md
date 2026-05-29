@@ -8,7 +8,7 @@
 
 Yumetsuki 是一个桌宠 AI 伴侣项目，当前主 UI 已切到 Tauri shell + Vue3 组合式 + Pinia + TypeScript，并通过 Python `python_core` headless sidecar 承载业务内核。
 
-历史 PySide6 入口、旧 `ui/` 主实现和 PySide6 运行时依赖已退场。
+历史 PySide6 入口、旧 `ui/` 主实现和 PySide6 运行时依赖已退场。当前状态不是旧版产品完整复刻完成态，功能和 UI parity 恢复以 `docs/tauri-parity-recovery.md` 为准。
 
 ## 运行环境
 
@@ -16,6 +16,7 @@ Yumetsuki 是一个桌宠 AI 伴侣项目，当前主 UI 已切到 Tauri shell +
 - Tauri / Vue：
   - `pnpm install`
   - `pnpm dev`
+  - `pnpm dev:web`
   - `pnpm test; pnpm e2e:smoke`
   - `Set-Location apps/desktop/src-tauri; cargo test`
   - `python -m pytest tests/rpc_contract/ -q`
@@ -34,12 +35,12 @@ Yumetsuki 是一个桌宠 AI 伴侣项目，当前主 UI 已切到 Tauri shell +
 
 ### Tauri UI 重构线
 
-- 状态：Tauri/Vue 已作为当前主 UI；历史 PySide6 入口已删除。
+- 状态：Tauri/Vue 已作为当前主 UI；历史 PySide6 入口已删除；产品级功能和 UI parity 未完成。
 - 设计入口：`docs/superpowers/specs/2026-05-28-tauri-ui-migration-design.md`
 - 实施计划：`docs/superpowers/plans/2026-05-29-tauri-ui-migration-implementation-plan.md`
 - 目标通信链路：Vue typed client -> Tauri invoke/events -> Python stdio RPC。
 - 退场状态：PySide6、旧 `ui/` 主实现和旧文档入口已移除。
-- 当前门槛：测试映射、RPC contract、no-PySide6 sidecar、发布安全 / 性能 gate 和文档 stale gate 必须保持通过。
+- 当前门槛：测试映射、RPC contract、no-PySide6 sidecar、发布安全 / 性能 gate 和文档 stale gate 必须保持通过；旧版功能和 UI 恢复必须按 `docs/tauri-parity-recovery.md` 建立矩阵并逐项验收。
 
 - 第一阶段：已完成（基础 UI、角色系统、LLM 对话）
 - 第二阶段：已完成（插件系统、LLM 工具调用、MCP 接入、统一工具目录）
@@ -70,6 +71,7 @@ Yumetsuki 是一个桌宠 AI 伴侣项目，当前主 UI 已切到 Tauri shell +
 
 ## 下一步
 
+- 先按 `docs/tauri-parity-recovery.md` 获取旧版截图、建立功能矩阵，并恢复旧版功能和 UI 样式。
 - 继续维护 Tauri 迁移后的测试映射、RPC contract、发布安全和性能预算 gate。
 - 真实 API / TTS / STT / OCR / MCP / Playwright Edge 实机验收按 `docs/development.md` 的 1.0 验收门推进。
 - `docs/superpowers/` 下的迁移计划和 smoke 记录仅作为历史归档。
@@ -79,6 +81,7 @@ Yumetsuki 是一个桌宠 AI 伴侣项目，当前主 UI 已切到 Tauri shell +
 - [文档入口](./docs/README.md)
 - [代码架构](./docs/architecture.md)
 - [UI 规范](./docs/ui-guidelines.md)
+- [Tauri 产品 Parity 恢复计划](./docs/tauri-parity-recovery.md)
 - [开发流程](./docs/development.md)
 - [Tauri 桌面打包与发布安全](./docs/release/desktop-packaging.md)
 - [插件与 MCP](./docs/plugin-mcp.md)
