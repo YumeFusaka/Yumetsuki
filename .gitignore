@@ -86,4 +86,5 @@ data/screenshots/
 data/browser_sessions/
 data/vision/
 .claude/
+.superpowers/
 .worktrees/
