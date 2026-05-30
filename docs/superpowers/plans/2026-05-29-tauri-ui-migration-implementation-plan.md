@@ -22,12 +22,17 @@
 - `docs/architecture.md`
 - `docs/development.md`
 - `docs/ui-guidelines.md`
+- `docs/tauri-ui-parity.md`
 
 硬约束：
 
 - 不使用 axios 作为桌面主通信链路。
 - 前端不直连 Python，不拼 sidecar 原始协议帧。
 - Python sidecar 不导入 PySide6，不向 stdout 输出非协议文本。
+- 每个 Vue / Tauri 页面或组件设计、实现前必须先读取对应 `ui/` 旧实现文件，并产出旧 UI 对照摘要。
+- Tauri UI 必须完整保留旧 PySide6 UI 的入口、层级、分组、控件项、菜单 / 弹窗、状态语义和功能链路；样式允许 Web 化，但不得自由重构结构或遗漏功能项。
+- 截图只作为辅助参考；结构和功能验收以 `ui/` 源码对照、结构 parity 清单和测试为准。
+- 前端包管理器固定使用 `pnpm`，不得在迁移计划和命令中改用 npm / yarn。
 - 长任务只返回 `accepted`，后续状态只走事件流。
 - 取消 wire method 只有 `sidecar.cancel`。
 - 每阶段合并前必须运行 `python -m pytest tests/ -q`。
