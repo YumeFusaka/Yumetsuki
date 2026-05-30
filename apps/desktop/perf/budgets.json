@@ -1,0 +1,15 @@
+{
+  "startup_cold_ms": 3000,
+  "startup_warm_ms": 1500,
+  "sidecar_hello_ms": 10000,
+  "idle_cpu_percent": 2,
+  "sidecar_baseline_memory_mib": 500,
+  "chat_mock_first_token_ms": 300,
+  "tts_mock_first_segment_ms": 500,
+  "log_10k_min_fps": 30,
+  "bundle_size_budget_bytes": 0,
+  "frontend_size_budget_bytes": 0,
+  "sidecar_artifact_size_budget_bytes": 0,
+  "resource_size_budget_bytes": 0,
+  "installer_size_budget_bytes": 0
+}

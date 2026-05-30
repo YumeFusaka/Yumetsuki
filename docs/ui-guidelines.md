@@ -9,6 +9,14 @@ Yumetsuki 的 UI 不是通用后台，也不是网页表单工具。它的风格
 - 轻盈、柔和、现代
 - 细节精致，但不过度装饰
 
+## Tauri UI 重构约束
+
+- 当前主 UI 仍为 PySide6，本文下面的控件规范仍以现有 `ui/` 实现为准。
+- Tauri UI 重构设计已定稿，实施计划已确认并进入 Phase 0 计划冻结与基线；Tauri / Vue 页面迁移尚未实施。
+- 设计入口：`docs/superpowers/specs/2026-05-28-tauri-ui-migration-design.md`。
+- 实施计划：`docs/superpowers/plans/2026-05-29-tauri-ui-migration-implementation-plan.md`。
+- 结构复刻规则：`docs/tauri-ui-parity.md`；每个 Vue / Tauri 页面或组件设计、实现前必须先读取对应 `ui/` 旧文件，并保留入口、层级、分组、控件项、状态语义和功能链路。
+
 ## 颜色
 
 - 主背景渐变：

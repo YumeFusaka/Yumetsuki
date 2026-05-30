@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "items": [
+    {"legacy_test": "tests/test_settings_window.py", "replacement_tests": ["apps/desktop/e2e/settings.spec.ts", "apps/desktop/frontend/src/pages/settings/*.spec.ts"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_agent_page_events.py", "replacement_tests": ["tests/rpc_contract/test_event_publisher.py"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_diagnostics_page.py", "replacement_tests": ["apps/desktop/e2e/logs-tools.spec.ts", "tests/rpc_contract/test_logs_diagnostics_methods.py"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_conversation_log_page.py", "replacement_tests": ["apps/desktop/e2e/logs-tools.spec.ts"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_system_log_page.py", "replacement_tests": ["apps/desktop/e2e/stress.spec.ts"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_feedback_toast.py", "replacement_tests": ["apps/desktop/e2e/a11y.spec.ts"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_plugin_import.py", "replacement_tests": ["apps/desktop/e2e/logs-tools.spec.ts", "tests/rpc_contract/test_tools_plugins_mcp_methods.py"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_chat_tts_flow.py", "replacement_tests": ["apps/desktop/e2e/chat.spec.ts", "tests/rpc_contract/test_speech_vision_methods.py"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_chat_stt_flow.py", "replacement_tests": ["apps/desktop/e2e/chat.spec.ts", "apps/desktop/src-tauri/tests/media_contract.rs"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_chat_passive_bubble.py", "replacement_tests": ["apps/desktop/e2e/chat.spec.ts"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_chat_window_scale.py", "replacement_tests": ["apps/desktop/e2e/chat.spec.ts"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_stt_recorder.py", "replacement_tests": ["apps/desktop/src-tauri/tests/media_contract.rs"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_audio_backends.py", "replacement_tests": ["apps/desktop/src-tauri/tests/media_contract.rs"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_sprite_manager.py", "replacement_tests": ["apps/desktop/e2e/chat.spec.ts"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_startup_appearance.py", "replacement_tests": ["apps/desktop/e2e/startup.spec.ts"], "retirement_action": "delete", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_logging_integration.py", "replacement_tests": ["tests/test_logging_integration.py", "tests/rpc_contract/test_logs_diagnostics_methods.py"], "retirement_action": "rewrite", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_event_bus.py", "replacement_tests": ["tests/test_event_bus.py", "tests/rpc_contract/test_event_publisher.py"], "retirement_action": "rewrite", "phase_pass_records": [], "delete_approved": false},
+    {"legacy_test": "tests/test_proactive.py", "replacement_tests": ["tests/test_proactive.py", "tests/rpc_contract/test_chat_methods.py"], "retirement_action": "rewrite", "phase_pass_records": [], "delete_approved": false}
+  ]
+}

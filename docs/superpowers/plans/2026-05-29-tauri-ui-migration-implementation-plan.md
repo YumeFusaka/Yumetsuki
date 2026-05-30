@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 状态：已通过 90+ 并行复审，等待用户确认进入实施。本文是实施计划，不是代码实现记录。
+> 状态：已通过 90+ 并行复审，已确认进入实施；当前处于 Phase 0 计划冻结与基线。本文同时记录实施 gate 的真实结果。
 
 **Goal:** 按已定稿的 Tauri UI 重构设计，把现有 PySide6 UI 分阶段迁移为 Tauri + Vue3 组合式 + Pinia + TypeScript，并在全部迁移完成后移除 PySide6。
 
@@ -128,7 +128,7 @@
 
 ### Task 0.1：冻结测试文件级映射
 
-- [ ] **Step 1: 生成当前测试文件清单**
+- [x] **Step 1: 生成当前测试文件清单**
 
 Run:
 
@@ -142,7 +142,7 @@ Expected:
 输出当前所有测试文件路径。顶层 `tests/test_*.py` 作为迁移前 legacy 清单，嵌套目录测试作为新增迁移测试清单。
 ```
 
-- [ ] **Step 2: 创建迁移测试清单**
+- [x] **Step 2: 创建迁移测试清单**
 
 Create: `tests/migration/test_inventory.md`
 
@@ -279,27 +279,27 @@ Create: `tests/migration/test_inventory.md`
 
 | 旧测试 | Qt / PySide6 依赖点 | 退场动作 | 替代层 | 新测试文件 / 命令 | 双跑阶段 | 删除条件 | 回滚方式 |
 |---|---|---|---|---|---|---|---|
-| `tests/test_settings_window.py` | 设置窗口和 Qt 控件 | 删除 | Vue 设置页 + ConfigService | `apps/desktop/e2e/settings.spec.ts`、`apps/desktop/frontend/src/pages/settings/*.spec.ts`、`npm run e2e:settings` | Phase 2-4 | replacement status 记录连续两个阶段通过 | 保留旧测试文件并恢复 PySide6 依赖 |
-| `tests/test_agent_page_events.py` | Qt Agent 页事件桥 | 删除 | RPC event publisher + Vue Agent store | `tests/rpc_contract/test_event_publisher.py`、`python -m pytest tests/rpc_contract/test_event_publisher.py -q`、`npm test` | Phase 2-4 | replacement status 记录连续两个阶段通过 | 恢复 `core/ui_event_bridge.py` 双跑 |
-| `tests/test_diagnostics_page.py` | Qt 诊断页 | 删除 | Vue diagnostics page + DiagnosticService | `apps/desktop/e2e/logs-tools.spec.ts`、`tests/rpc_contract/test_logs_diagnostics_methods.py`、`npm run e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧诊断页测试 |
-| `tests/test_conversation_log_page.py` | Qt 对话日志页 | 删除 | Vue ConversationLogPage + LogService | `apps/desktop/e2e/logs-tools.spec.ts`、`npm run e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧日志页测试 |
-| `tests/test_system_log_page.py` | Qt 平台日志页 | 删除 | Vue SystemLogPage + VirtualLogList | `apps/desktop/e2e/stress.spec.ts`、`npm run e2e:stress` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧日志页测试 |
-| `tests/test_feedback_toast.py` | Qt toast | 删除 | Sakura Toast | `apps/desktop/e2e/a11y.spec.ts`、`npm test`、`npm run test:a11y` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧 toast 测试 |
-| `tests/test_plugin_import.py` | Qt 插件导入 UI | 删除 | Vue PluginPage + PluginService | `apps/desktop/e2e/logs-tools.spec.ts`、`tests/rpc_contract/test_tools_plugins_mcp_methods.py`、`npm run e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧插件导入测试 |
-| `tests/test_chat_tts_flow.py` | Qt ChatWindow + TTS 播放 | 删除 | ChatService + SpeechService + Rust audio | `apps/desktop/e2e/chat.spec.ts`、`tests/rpc_contract/test_speech_vision_methods.py`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧聊天 TTS 测试 |
-| `tests/test_chat_stt_flow.py` | Qt ChatWindow + STT 录音 | 删除 | Rust recorder + SpeechService | `apps/desktop/e2e/chat.spec.ts`、`apps/desktop/src-tauri/tests/media_contract.rs`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧聊天 STT 测试 |
-| `tests/test_chat_passive_bubble.py` | Qt 被动气泡 | 删除 | Vue PassiveBubble + chatStore | `apps/desktop/e2e/chat.spec.ts`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧被动气泡测试 |
-| `tests/test_chat_window_scale.py` | Qt 窗口缩放 | 删除 | Tauri window + Vue ChatPanel | `apps/desktop/e2e/chat.spec.ts`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧窗口缩放测试 |
+| `tests/test_settings_window.py` | 设置窗口和 Qt 控件 | 删除 | Vue 设置页 + ConfigService | `apps/desktop/e2e/settings.spec.ts`、`apps/desktop/frontend/src/pages/settings/*.spec.ts`、`pnpm run e2e:settings` | Phase 2-4 | replacement status 记录连续两个阶段通过 | 保留旧测试文件并恢复 PySide6 依赖 |
+| `tests/test_agent_page_events.py` | Qt Agent 页事件桥 | 删除 | RPC event publisher + Vue Agent store | `tests/rpc_contract/test_event_publisher.py`、`python -m pytest tests/rpc_contract/test_event_publisher.py -q`、`pnpm test` | Phase 2-4 | replacement status 记录连续两个阶段通过 | 恢复 `core/ui_event_bridge.py` 双跑 |
+| `tests/test_diagnostics_page.py` | Qt 诊断页 | 删除 | Vue diagnostics page + DiagnosticService | `apps/desktop/e2e/logs-tools.spec.ts`、`tests/rpc_contract/test_logs_diagnostics_methods.py`、`pnpm run e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧诊断页测试 |
+| `tests/test_conversation_log_page.py` | Qt 对话日志页 | 删除 | Vue ConversationLogPage + LogService | `apps/desktop/e2e/logs-tools.spec.ts`、`pnpm run e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧日志页测试 |
+| `tests/test_system_log_page.py` | Qt 平台日志页 | 删除 | Vue SystemLogPage + VirtualLogList | `apps/desktop/e2e/stress.spec.ts`、`pnpm run e2e:stress` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧日志页测试 |
+| `tests/test_feedback_toast.py` | Qt toast | 删除 | Sakura Toast | `apps/desktop/e2e/a11y.spec.ts`、`pnpm test`、`pnpm run test:a11y` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧 toast 测试 |
+| `tests/test_plugin_import.py` | Qt 插件导入 UI | 删除 | Vue PluginPage + PluginService | `apps/desktop/e2e/logs-tools.spec.ts`、`tests/rpc_contract/test_tools_plugins_mcp_methods.py`、`pnpm run e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧插件导入测试 |
+| `tests/test_chat_tts_flow.py` | Qt ChatWindow + TTS 播放 | 删除 | ChatService + SpeechService + Rust audio | `apps/desktop/e2e/chat.spec.ts`、`tests/rpc_contract/test_speech_vision_methods.py`、`pnpm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧聊天 TTS 测试 |
+| `tests/test_chat_stt_flow.py` | Qt ChatWindow + STT 录音 | 删除 | Rust recorder + SpeechService | `apps/desktop/e2e/chat.spec.ts`、`apps/desktop/src-tauri/tests/media_contract.rs`、`pnpm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧聊天 STT 测试 |
+| `tests/test_chat_passive_bubble.py` | Qt 被动气泡 | 删除 | Vue PassiveBubble + chatStore | `apps/desktop/e2e/chat.spec.ts`、`pnpm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧被动气泡测试 |
+| `tests/test_chat_window_scale.py` | Qt 窗口缩放 | 删除 | Tauri window + Vue ChatPanel | `apps/desktop/e2e/chat.spec.ts`、`pnpm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧窗口缩放测试 |
 | `tests/test_stt_recorder.py` | Qt 录音 | 删除 | Rust recorder | `apps/desktop/src-tauri/tests/media_contract.rs`、`cargo test --test media_contract` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧录音测试 |
 | `tests/test_audio_backends.py` | Qt 音频播放 | 删除 | Rust audio playback | `apps/desktop/src-tauri/tests/media_contract.rs`、`cargo test --test media_contract` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧音频后端测试 |
-| `tests/test_sprite_manager.py` | Qt pixmap / 立绘 | 删除 | Vue SpriteView | `apps/desktop/e2e/chat.spec.ts`、`npm test`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧立绘测试 |
-| `tests/test_startup_appearance.py` | Qt 启动窗 | 删除 | Tauri startup view | `apps/desktop/e2e/startup.spec.ts`、`npm run e2e:startup` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧启动窗测试 |
-| `tests/test_logging_integration.py` | UI 日志桥和 Qt 页面消费 | 同名改写 | Python LogService + RPC logs contract + Vue 日志页 | `tests/test_logging_integration.py`、`tests/rpc_contract/test_logs_diagnostics_methods.py`、`npm run e2e:logs-tools` | Phase 2-4 | 同名测试不导入 Qt，replacement status 记录连续两个阶段通过 | 恢复旧日志集成测试 |
+| `tests/test_sprite_manager.py` | Qt pixmap / 立绘 | 删除 | Vue SpriteView | `apps/desktop/e2e/chat.spec.ts`、`pnpm test`、`pnpm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧立绘测试 |
+| `tests/test_startup_appearance.py` | Qt 启动窗 | 删除 | Tauri startup view | `apps/desktop/e2e/startup.spec.ts`、`pnpm run e2e:startup` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧启动窗测试 |
+| `tests/test_logging_integration.py` | UI 日志桥和 Qt 页面消费 | 同名改写 | Python LogService + RPC logs contract + Vue 日志页 | `tests/test_logging_integration.py`、`tests/rpc_contract/test_logs_diagnostics_methods.py`、`pnpm run e2e:logs-tools` | Phase 2-4 | 同名测试不导入 Qt，replacement status 记录连续两个阶段通过 | 恢复旧日志集成测试 |
 | `tests/test_event_bus.py` | `core/ui_event_bridge.py` 路径 | 同名改写 | Python EventBus + RpcEventPublisher | `tests/test_event_bus.py`、`tests/rpc_contract/test_event_publisher.py` | Phase 1-4 | 同名测试不导入 `core/ui_event_bridge.py`、PySide6 或 Qt bridge，replacement status 记录连续两个阶段通过 | 恢复旧 bridge 双跑 |
 | `tests/test_proactive.py` | `QObject/QThread/Signal` scheduler | 同名改写 | ProactiveService headless scheduler | `tests/test_proactive.py`、`tests/rpc_contract/test_chat_methods.py` | Phase 3-4 | 同名测试不导入 Qt，replacement status 记录连续两个阶段通过 | 恢复旧 proactive scheduler |
 ```
 
-- [ ] **Step 3: 运行文档扫描**
+- [x] **Step 3: 运行文档扫描**
 
 Run:
 
@@ -314,7 +314,7 @@ Expected:
 无输出。
 ```
 
-- [ ] **Step 4: 创建测试库存检查脚本**
+- [x] **Step 4: 创建测试库存检查脚本**
 
 Create: `scripts/check_test_inventory.py`
 
@@ -329,7 +329,7 @@ Create: `scripts/check_test_inventory.py`
 - 检查每个替换表条目的新测试文件至少有一个真实文件路径，或命令被对应 Phase 出口 gate 覆盖。
 - Phase 5 删除旧测试后，检查替代覆盖 `settings`、`chat`、`logs`、`plugins`、`mcp`、`diagnostics`、`startup`、`event bridge` 八类能力。
 
-- [ ] **Step 5: 创建 PySide6 测试替换扫描脚本**
+- [x] **Step 5: 创建 PySide6 测试替换扫描脚本**
 
 Create: `scripts/check_pyside6_test_replacement.py`
 
@@ -340,7 +340,7 @@ Create: `scripts/check_pyside6_test_replacement.py`
 - Phase 5 后命中 `同名改写` 文件必须不再包含上述 Qt 关键字。
 - 任一漏项或冲突分类退出码为 1。
 
-- [ ] **Step 6: 创建替换状态记录和检查脚本**
+- [x] **Step 6: 创建替换状态记录和检查脚本**
 
 Create: `tests/migration/replacement_status.json`
 
@@ -375,7 +375,7 @@ Create: `scripts/check_replacement_status.py`
 - `delete_approved=false` 时禁止删除旧测试。
 - 同名改写条目必须保留旧文件名，但通过 Qt 关键字扫描。
 
-- [ ] **Step 7: 运行测试库存检查**
+- [x] **Step 7: 运行测试库存检查**
 
 Run:
 
@@ -393,7 +393,7 @@ Expected:
 
 ### Task 0.2：冻结执行入口文档
 
-- [ ] **Step 1: 更新入口状态**
+- [x] **Step 1: 更新入口状态**
 
 Modify:
 
@@ -411,7 +411,7 @@ Modify:
 - 标注当前主 UI 仍为 PySide6。
 - `docs/architecture.md`、`docs/development.md`、`docs/ui-guidelines.md` 只增加 Tauri UI 重构入口和状态，不把目标架构写成已落地。
 
-- [ ] **Step 2: 验证入口**
+- [x] **Step 2: 验证入口**
 
 Run:
 
@@ -427,7 +427,7 @@ Expected:
 
 ### Task 0.3：迁移前全量基线验证
 
-- [ ] **Step 1: 运行旧 PySide6 主线全量 pytest**
+- [x] **Step 1: 运行旧 PySide6 主线全量 pytest**
 
 Run:
 
@@ -441,7 +441,7 @@ Expected:
 全量 pytest 通过，作为迁移前基线。
 ```
 
-- [ ] **Step 2: 记录 Phase 0 基线结果**
+- [x] **Step 2: 记录 Phase 0 基线结果**
 
 Modify: `docs/superpowers/plans/2026-05-29-tauri-ui-migration-implementation-plan.md`
 
@@ -449,6 +449,21 @@ Modify: `docs/superpowers/plans/2026-05-29-tauri-ui-migration-implementation-pla
 
 - 在本文“Phase 0 基线结果”小节记录运行日期、命令和结果摘要。
 - 失败时不得进入 Phase 1；必须先修复或明确标记为迁移前既有问题。
+
+### Phase 0 基线结果
+
+- 运行日期：2026-05-30
+- 工作区：`.worktrees/tauri-ui-phase0`
+- 分支：`tauri-ui-phase0`
+- `rg --files tests -g 'test_*.py' | Sort-Object`：通过，已生成当前测试文件清单。
+- 文档占位扫描：通过，`tests/migration/test_inventory.md` 与本计划未命中 `TBD`、`TODO`、`待定`、`placeholder`。
+- `python scripts/check_test_inventory.py`：通过，输出 `tests inventory ok`。
+- `python scripts/check_pyside6_test_replacement.py`：通过，输出 `pyside6 test replacement ok (17 legacy Qt-bound tests)`。
+- `python scripts/check_replacement_status.py --phase 0`：通过，输出 `replacement status ok`。
+- 入口文档扫描：通过，`docs/README.md`、`CLAUDE.md`、`docs/architecture.md`、`docs/development.md`、`docs/ui-guidelines.md` 均命中 Tauri UI 重构状态、设计入口或实施计划入口。
+- `python -m py_compile scripts\check_test_inventory.py scripts\check_pyside6_test_replacement.py scripts\check_replacement_status.py`：通过。
+- 聚焦 Python 测试：`python -m pytest tests/test_config.py tests/test_log_service.py -q` 通过，`33 passed in 0.48s`。
+- 全量旧 PySide6 主线基线：本会话中 `python -m pytest tests/ -q` 首次 120 秒超时，第二次 300 秒超时；`python -m pytest tests/ -vv -x` 120 秒超时且无摘要。2026-05-30 用户反馈：同一实施计划在其他会话回档前已执行并确认 Phase 0 通过，因此本次 Phase 0 出口按用户确认的外部基线结果判定为通过，可以进入 Phase 1。该结论不得改写为“本会话全量 pytest 已通过”。
 
 ## Phase 1：骨架、协议和最小闭环
 
@@ -476,8 +491,10 @@ Modify: `docs/superpowers/plans/2026-05-29-tauri-ui-migration-implementation-pla
 - Create: `tests/rpc_contract/test_protocol_negotiation.py`
 - Create: `apps/desktop/src-tauri/tests/error_codes.rs`
 - Create: `apps/desktop/frontend/src/client/errorCodes.spec.ts`
+- Create: `apps/desktop/frontend/src/client/errorCodes.ts`
+- Create: `apps/desktop/src-tauri/src/error_codes.rs`
 
-- [ ] **Step 1: 写 envelope 失败测试**
+- [x] **Step 1: 写 envelope 失败测试**
 
 Create: `tests/rpc_contract/test_envelope.py`
 
@@ -505,7 +522,7 @@ Expected:
 失败，提示 python_core.rpc.envelope 尚不存在。
 ```
 
-- [ ] **Step 2: 实现最小 envelope 类型**
+- [x] **Step 2: 实现最小 envelope 类型**
 
 Create: `python_core/rpc/envelope.py`
 
@@ -525,7 +542,7 @@ Create: `python_core/rpc/envelope.py`
 - event validator 必须强制 `type`、`sequence`、`timestamp_ms`、`payload` 存在。
 - error validator 必须调用 redaction validator，拒绝 API key、authorization、cookie、token、个人路径和私有 URL 原文进入 `details`。
 
-- [ ] **Step 3: 写错误码测试**
+- [x] **Step 3: 写错误码测试**
 
 Create: `tests/rpc_contract/test_errors.py`
 
@@ -551,7 +568,7 @@ Test coverage:
 - `mcp.server_unavailable`
 - 每个错误都含 `message`、`user_message`、`retryable`、`details`、`redaction_policy`。
 
-- [ ] **Step 4: 实现错误码字典**
+- [x] **Step 4: 实现错误码字典**
 
 Create: `python_core/rpc/errors.py`
 
@@ -562,7 +579,7 @@ Create: `python_core/rpc/errors.py`
 - 一次性定义设计稿“最小错误码字典”全集，覆盖 `rpc.*`、`sidecar.*`、`config.*`、`character.*`、`chat.*`、`llm.*`、`tool.*`、`plugin.*`、`mcp.*`、`tts.*`、`stt.*`、`ocr.*`、`logs.*`、`diagnostics.*`、`security.*`、`filesystem.*`。
 - 不在错误 details 中保留 API key、cookie、authorization、token。
 
-- [ ] **Step 5: 写 error catalog 映射测试**
+- [x] **Step 5: 写 error catalog 映射测试**
 
 Create: `tests/rpc_contract/test_error_catalog.py`
 
@@ -578,7 +595,7 @@ Create:
 - `apps/desktop/src-tauri/tests/error_codes.rs`
 - `apps/desktop/frontend/src/client/errorCodes.spec.ts`
 
-- [ ] **Step 6: 写 framing 测试**
+- [x] **Step 6: 写 framing 测试**
 
 Create: `tests/rpc_contract/test_framing.py`
 
@@ -588,7 +605,7 @@ Test coverage:
 - stdout 非 JSON 行返回 `rpc.invalid_frame`。
 - 单 frame 超限返回 `rpc.invalid_frame` 或转句柄策略错误。
 
-- [ ] **Step 7: 实现 framing**
+- [x] **Step 7: 实现 framing**
 
 Create: `python_core/rpc/framing.py`
 
@@ -598,7 +615,7 @@ Create: `python_core/rpc/framing.py`
 - `decode_frame(line: bytes) -> dict`
 - 默认最大 frame 256 KiB，可通过参数覆盖。
 
-- [ ] **Step 8: 验证**
+- [x] **Step 8: 验证**
 
 Run:
 
@@ -607,7 +624,7 @@ python -m pytest tests/rpc_contract/test_envelope.py tests/rpc_contract/test_err
 Set-Location E:/Project/Yumetsuki/apps/desktop/src-tauri
 cargo test --test error_codes
 Set-Location ..
-npm test -- errorCodes
+pnpm test -- errorCodes
 ```
 
 Expected:
@@ -615,6 +632,14 @@ Expected:
 ```text
 tests/rpc_contract/ 全部通过。
 ```
+
+#### Task 1.1 验证结果
+
+- 运行日期：2026-05-30
+- `python -m pytest tests/rpc_contract/test_envelope.py tests/rpc_contract/test_errors.py tests/rpc_contract/test_error_catalog.py tests/rpc_contract/test_framing.py -q`：通过，`18 passed in 0.23s`。
+- `python scripts/check_rpc_schema_contract.py`：通过，输出 `rpc schema contract ok (60 methods, schema_hash=ee71fbdbf2a94a2696a62b696641ed75265c31adc0f34ffcfd69270b9e3a60a9)`。
+- `cargo test --test error_codes`：通过，`2 passed`。
+- `pnpm test -- errorCodes`：通过，输出 `frontend catalog ok (60 methods, 32 events)` 和 `frontend error codes ok (34 codes)`。
 
 ### Task 1.2：实现 Python sidecar 最小入口
 
@@ -627,7 +652,7 @@ tests/rpc_contract/ 全部通过。
 - Test: `tests/rpc_contract/test_stdout_zero_pollution.py`
 - Test: `tests/rpc_contract/test_shutdown_coordinator.py`
 
-- [ ] **Step 1: 写 sidecar smoke 测试**
+- [x] **Step 1: 写 sidecar smoke 测试**
 
 Create: `tests/rpc_contract/test_sidecar_smoke.py`
 
@@ -641,7 +666,7 @@ Test coverage:
 - sidecar 启动时把普通 `print()` 重定向到 stderr。
 - stdout 只包含协议帧。
 
-- [ ] **Step 2: 实现 RuntimePaths**
+- [x] **Step 2: 实现 RuntimePaths**
 
 Create: `python_core/runtime_paths.py`
 
@@ -651,7 +676,7 @@ Create: `python_core/runtime_paths.py`
 - 发布模式不允许回退仓库内 `data/config`。
 - 所有路径进入服务前 `resolve()`。
 
-- [ ] **Step 3: 实现 method registry**
+- [x] **Step 3: 实现 method registry**
 
 Create: `python_core/rpc/registry.py`
 
@@ -662,7 +687,7 @@ Create: `python_core/rpc/registry.py`
 - 未出现在 catalog 的 method 返回 `rpc.method_not_found`。
 - 参数错误返回 `rpc.invalid_params`。
 
-- [ ] **Step 4: 实现 sidecar_main**
+- [x] **Step 4: 实现 sidecar_main**
 
 Create: `python_core/sidecar_main.py`
 
@@ -674,7 +699,7 @@ Create: `python_core/sidecar_main.py`
 - 启动后重定向 `builtins.print` 或 stdout helper 到 stderr，防止第三方 adapter 污染协议 stdout。
 - 支持 `--stdio` 和 `--runtime-paths-json`。
 
-- [ ] **Step 5: 写 stdout 零污染测试**
+- [x] **Step 5: 写 stdout 零污染测试**
 
 Create: `tests/rpc_contract/test_stdout_zero_pollution.py`
 
@@ -688,7 +713,7 @@ Test coverage:
 - stdout 每一行都能被 `decode_frame()` 解析。
 - sidecar stderr 脱敏测试必须覆盖 adapter `print()` 输出 API token、个人路径、私有 URL、authorization header；stderr 允许诊断日志但不允许未脱敏敏感内容。
 
-- [ ] **Step 6: 写 shutdown coordinator 测试**
+- [x] **Step 6: 写 shutdown coordinator 测试**
 
 Create: `tests/rpc_contract/test_shutdown_coordinator.py`
 
@@ -700,7 +725,7 @@ Test coverage:
 - fake plugin/MCP worker 生成子进程，cancel/shutdown 后断言无残留子进程。
 - flush 失败和强制 kill 必须写审计日志。
 
-- [ ] **Step 7: 实现 shutdown coordinator**
+- [x] **Step 7: 实现 shutdown coordinator**
 
 Create: `python_core/rpc/shutdown.py`
 
@@ -710,7 +735,7 @@ Create: `python_core/rpc/shutdown.py`
 - sidecar crash restart 时调用 TaskRegistry 标记所有 pending request 为 `sidecar.restarted`。
 - 正常关闭和异常关闭都不能留下未释放 handle。
 
-- [ ] **Step 8: 验证**
+- [x] **Step 8: 验证**
 
 Run:
 
@@ -724,6 +749,14 @@ Expected:
 全部通过。
 ```
 
+#### Task 1.2 验证结果
+
+- 运行日期：2026-05-30
+- 新增测试红灯确认：`python -m pytest tests/rpc_contract/test_sidecar_smoke.py tests/rpc_contract/test_stdout_zero_pollution.py tests/rpc_contract/test_shutdown_coordinator.py -q` 初始失败，失败原因为 `python_core.sidecar_main` 尚不存在、`ShutdownCoordinator` 尚未支持 Task 1.2 依赖注入和进程树关闭。
+- 聚焦验证：`python -m pytest tests/rpc_contract/test_sidecar_smoke.py tests/rpc_contract/test_stdout_zero_pollution.py tests/rpc_contract/test_shutdown_coordinator.py -q`：通过，`11 passed in 4.24s`。
+- 全量 RPC contract：`python -m pytest tests/rpc_contract/ -q`：通过，`71 passed in 4.58s`。
+- 计划指定命令：`python -m pytest tests/rpc_contract/test_sidecar_smoke.py tests/rpc_contract/test_stdout_zero_pollution.py tests/rpc_contract/test_shutdown_coordinator.py tests/rpc_contract/ -q`：通过，`71 passed in 5.05s`。
+
 ### Task 1.2A：冻结 RuntimePaths、stdout 静态扫描和 sidecar 无 Qt 基线
 
 **Files:**
@@ -736,7 +769,7 @@ Expected:
 - Modify: `python_core/runtime_paths.py`
 - Modify: `python_core/sidecar_main.py`
 
-- [ ] **Step 1: 写 RuntimePaths 边界测试**
+- [x] **Step 1: 写 RuntimePaths 边界测试**
 
 Create: `tests/rpc_contract/test_runtime_paths.py`
 
@@ -760,7 +793,7 @@ Expected:
 失败，提示 RuntimePaths 边界校验尚未实现。
 ```
 
-- [ ] **Step 2: 补强 RuntimePaths**
+- [x] **Step 2: 补强 RuntimePaths**
 
 Modify: `python_core/runtime_paths.py`
 
@@ -771,7 +804,7 @@ Modify: `python_core/runtime_paths.py`
 - 发布模式下任何路径落在仓库根目录、`data/config`、`data/logs`、`data/memory` 都失败。
 - default config / default character 只能从只读 resource dir 复制到 app data。
 
-- [ ] **Step 3: 创建 sidecar import graph 追踪脚本**
+- [x] **Step 3: 创建 sidecar import graph 追踪脚本**
 
 Create: `scripts/trace_sidecar_import_graph.py`
 
@@ -784,7 +817,7 @@ Create: `scripts/trace_sidecar_import_graph.py`
 - 命中 `PySide6`、`QApplication`、`QObject`、`QThread`、`Signal`、`ui.` 导入时退出码为 1，并输出导入链。
 - 同时扫描动态导入和字符串形式 Qt 加载：`importlib.import_module("PySide6")`、`__import__("PySide6")`、`QtWebEngine`、`PySide6` 字符串常量；命中时输出 suspect file。
 
-- [ ] **Step 4: 写 sidecar import graph no-Qt 测试**
+- [x] **Step 4: 写 sidecar import graph no-Qt 测试**
 
 Create: `tests/rpc_contract/test_sidecar_import_graph_no_qt.py`
 
@@ -794,7 +827,7 @@ Test coverage:
 - `core/ui_event_bridge.py`、`main.py`、`ui/**` 可以存在，但不得被 sidecar import graph 触达。
 - 如果 `agent/`、`tts/`、`vision/`、`core/` 中仍有旧 Qt import，只要未被 sidecar graph 触达，Phase 1-4 不失败；Phase 5 发布 artifact 扫描必须失败。
 
-- [ ] **Step 5: 写 stdout 静态扫描测试**
+- [x] **Step 5: 写 stdout 静态扫描测试**
 
 Create: `tests/rpc_contract/test_no_stdout_static.py`
 
@@ -805,7 +838,7 @@ Test coverage:
 - 测试 fixture、迁移归档目录和未被 sidecar graph 触达的旧 PySide6 UI 路径不计入 Phase 1-4。
 - 允许通过 `sidecar_stderr_logger` 或标准 logging stderr handler 输出非协议日志。
 
-- [ ] **Step 6: 创建 stdout 静态扫描脚本**
+- [x] **Step 6: 创建 stdout 静态扫描脚本**
 
 Create: `scripts/check_no_stdout_in_sidecar.py`
 
@@ -817,7 +850,7 @@ Create: `scripts/check_no_stdout_in_sidecar.py`
 - 检测 `tts/adapters/gptsovits.py` 中遗留 `print()`，要求迁移为 stderr logger。
 - 任一命中退出码为 1。
 
-- [ ] **Step 7: 写 no-PySide6 静态导入基线测试**
+- [x] **Step 7: 写 no-PySide6 静态导入基线测试**
 
 Create: `tests/rpc_contract/test_no_pyside6_import_static.py`
 
@@ -828,7 +861,7 @@ Test coverage:
 - Phase 1-4 旧 UI 路径 `ui/`、`main.py` 可以继续存在，但不能被 `python_core.sidecar_main` 导入链触达。
 - 命中时输出导入链或最近的 suspect import 文件。
 
-- [ ] **Step 8: 验证**
+- [x] **Step 8: 验证**
 
 Run:
 
@@ -844,12 +877,25 @@ Expected:
 全部通过；sidecar import graph 没有 stdout 污染点，也没有 PySide6 / Qt / ui 导入。
 ```
 
+#### Task 1.2A 验证结果
+
+- 运行日期：2026-05-30
+- 新增测试红灯确认：`python -m pytest tests/rpc_contract/test_runtime_paths.py tests/rpc_contract/test_sidecar_import_graph_no_qt.py tests/rpc_contract/test_no_stdout_static.py tests/rpc_contract/test_no_pyside6_import_static.py -q` 初始失败，失败原因为 RuntimePaths 尚缺少 1.2A 边界 API，`scripts/trace_sidecar_import_graph.py` 和 `scripts/check_no_stdout_in_sidecar.py` 尚未创建。
+- 聚焦验证：`python -m pytest tests/rpc_contract/test_runtime_paths.py tests/rpc_contract/test_sidecar_import_graph_no_qt.py tests/rpc_contract/test_no_stdout_static.py tests/rpc_contract/test_no_pyside6_import_static.py -q`：通过，`15 passed in 4.29s`。
+- import graph 脚本：`python scripts/trace_sidecar_import_graph.py`：通过，输出 JSON graph；sidecar 实际触达的项目模块仅为 `python_core/**` RPC/runtime/sidecar 文件，未触达 `ui/`、`main.py` 或 `core/ui_event_bridge.py`。
+- stdout 静态扫描：`python scripts/check_no_stdout_in_sidecar.py`：通过，输出 `sidecar stdout scan ok`。
+- 全量 RPC contract：`python -m pytest tests/rpc_contract/ -q`：通过，`86 passed in 8.80s`。
+
 ### Task 1.1A：冻结共享 RPC schema 和 method catalog
 
 **Files:**
 - Create: `python_core/rpc/schema/catalog.json`
 - Create: `python_core/rpc/schema/schema_hash.py`
 - Create: `python_core/rpc/schema/validate.py`
+- Create: `python_core/rpc/errors.py`
+- Create: `python_core/rpc/registry.py`
+- Create: `python_core/rpc/protocol.py`
+- Create: `python_core/runtime_paths.py`
 - Create: `scripts/check_rpc_schema_contract.py`
 - Create: `tests/rpc_contract/test_method_catalog.py`
 - Create: `tests/rpc_contract/test_registry_matches_catalog.py`
@@ -860,11 +906,15 @@ Expected:
 - Create: `tests/fixtures/runtime_paths/invalid_repo_release.json`
 - Create: `apps/desktop/frontend/src/client/catalog.spec.ts`
 - Create: `apps/desktop/frontend/src/client/types/rpc.ts`
+- Create: `apps/desktop/package.json`
+- Create: `apps/desktop/scripts/check-catalog.mjs`
+- Create: `apps/desktop/src-tauri/Cargo.toml`
+- Create: `apps/desktop/src-tauri/src/lib.rs`
 - Create: `apps/desktop/src-tauri/src/rpc_schema.rs`
 - Create: `apps/desktop/src-tauri/tests/command_catalog.rs`
 - Create: `apps/desktop/src-tauri/tests/runtime_paths_schema.rs`
 
-- [ ] **Step 1: 写 method catalog 测试**
+- [x] **Step 1: 写 method catalog 测试**
 
 Create: `tests/rpc_contract/test_method_catalog.py`
 
@@ -909,7 +959,7 @@ Expected:
 失败，提示 catalog 文件尚不存在。
 ```
 
-- [ ] **Step 2: 创建 catalog.json**
+- [x] **Step 2: 创建 catalog.json**
 
 Create: `python_core/rpc/schema/catalog.json`
 
@@ -949,7 +999,7 @@ Create: `python_core/rpc/schema/catalog.json`
 - catalog validator 必须拒绝 `{"params": {"x": "string"}}`、`{"result": "object"}`、空 `errors`、空 `redaction` 这类不可执行占位 schema。
 - `security.confirm_required` 的 event payload 必须声明 `request_id`、`confirm_token`、`capability`、`scope_hash`、`expires_at_ms`、`user_message` 和脱敏审计摘要；payload 不得包含命令全文、env、cwd 原文或 token 原文。
 
-- [ ] **Step 3: 写 registry 与 catalog 一致性测试**
+- [x] **Step 3: 写 registry 与 catalog 一致性测试**
 
 Create: `tests/rpc_contract/test_registry_matches_catalog.py`
 
@@ -961,7 +1011,7 @@ Test coverage:
 - 非 catalog method 返回 `rpc.method_not_found`。
 - 未迁移 stub handler 返回 `sidecar.not_ready`，不能返回 `rpc.method_not_found`。
 
-- [ ] **Step 4: 写 schema hash 与协议协商测试**
+- [x] **Step 4: 写 schema hash 与协议协商测试**
 
 Create: `tests/rpc_contract/test_protocol_negotiation.py`
 
@@ -977,7 +1027,7 @@ Test coverage:
 - 未知可选字段被忽略，并写 trace 级日志。
 - schema hash 不一致时 dev 模式允许启动但 contract test 失败；release 模式阻塞。
 
-- [ ] **Step 5: 写 RuntimePaths schema 一致性测试**
+- [x] **Step 5: 写 RuntimePaths schema 一致性测试**
 
 Create:
 
@@ -994,7 +1044,7 @@ Test coverage:
 - 字段名漂移、缺字段、危险额外根、release 模式 repo data 都失败。
 - fixture 同时覆盖 Windows dev、Windows release 和 invalid repo release。
 
-- [ ] **Step 6: 实现 schema hash 和校验器**
+- [x] **Step 6: 实现 schema hash 和校验器**
 
 Create:
 
@@ -1016,7 +1066,7 @@ Create:
 - 校验 Python registry、Rust `rpc_schema.rs`、Rust command tests、TS `rpc.ts`、typed client `commands/`、typed client `events/`、release manifest 中的 hash、method、event、error 集合一致。
 - 任一三端投影缺 method、event、error、helper 或 hash 不一致时退出码为 1。
 
-- [ ] **Step 7: 创建 TS / Rust schema 投影和 contract 测试**
+- [x] **Step 7: 创建 TS / Rust schema 投影和 contract 测试**
 
 Create:
 
@@ -1033,7 +1083,7 @@ Create:
 - TS `catalog.spec.ts` 校验 typed helpers 与 catalog method/event 完全一致。
 - 后续如引入生成器，不能改变 wire 字段名。
 
-- [ ] **Step 8: 验证**
+- [x] **Step 8: 验证**
 
 Run:
 
@@ -1045,7 +1095,7 @@ Set-Location apps/desktop/src-tauri
 cargo test --test command_catalog
 cargo test --test runtime_paths_schema
 Set-Location ..
-npm test -- catalog
+pnpm test -- catalog
 ```
 
 Expected:
@@ -1053,6 +1103,14 @@ Expected:
 ```text
 全部通过。
 ```
+
+#### Task 1.1A 验证结果
+
+- 运行日期：2026-05-30
+- `python -m pytest tests/rpc_contract/test_method_catalog.py tests/rpc_contract/test_registry_matches_catalog.py tests/rpc_contract/test_protocol_negotiation.py tests/rpc_contract/test_runtime_paths_schema.py -q`：通过，`20 passed in 0.19s`。
+- `python scripts/check_rpc_schema_contract.py`：通过，输出 `rpc schema contract ok (60 methods, schema_hash=ee71fbdbf2a94a2696a62b696641ed75265c31adc0f34ffcfd69270b9e3a60a9)`。
+- `cargo test --test command_catalog --test runtime_paths_schema`：通过，`4 passed`。
+- `pnpm test -- catalog`：通过，输出 `frontend catalog ok (60 methods, 32 events)`。
 
 ### Task 1.1B：实现状态机、事件背压和句柄基础设施
 
@@ -1070,7 +1128,7 @@ Expected:
 - Create: `tests/rpc_contract/test_handle_registry_security.py`
 - Create: `tests/rpc_contract/test_shutdown_process_tree.py`
 
-- [ ] **Step 1: 写状态机表驱动测试**
+- [x] **Step 1: 写状态机表驱动测试**
 
 Create: `tests/rpc_contract/test_task_state_machine.py`
 
@@ -1089,7 +1147,7 @@ Test coverage:
 - cancel 和 timeout 竞争只产生一个终态。
 - sidecar restart 将 pending request 标记为 `error(sidecar.restarted)`。
 
-- [ ] **Step 2: 实现 TaskRegistry**
+- [x] **Step 2: 实现 TaskRegistry**
 
 Create: `python_core/rpc/tasks.py`
 
@@ -1105,7 +1163,7 @@ Create: `python_core/rpc/tasks.py`
 - sidecar restart 时批量标记 pending request 为 `error(sidecar.restarted)`。
 - TaskRegistry 是 `RpcEventPublisher` 和 shutdown coordinator 的唯一终态仲裁点。
 
-- [ ] **Step 3: 写事件背压测试**
+- [x] **Step 3: 写事件背压测试**
 
 Create: `tests/rpc_contract/test_event_backpressure.py`
 
@@ -1119,7 +1177,7 @@ Test coverage:
 - 默认文本 delta 按 30-80 ms 合帧。
 - 默认慢消费者 2 秒未消费时产生摘要事件。
 
-- [ ] **Step 4: 实现背压配置和 RpcEventPublisher**
+- [x] **Step 4: 实现背压配置和 RpcEventPublisher**
 
 Create:
 
@@ -1135,7 +1193,7 @@ Create:
 - 支持队列上限、合帧、慢消费者降级。
 - 可桥接旧 `EventBus`，替代 `core/ui_event_bridge.py` 的 sidecar 路径。
 
-- [ ] **Step 5: 写 EventBus shim 测试**
+- [x] **Step 5: 写 EventBus shim 测试**
 
 Create: `tests/rpc_contract/test_event_publisher.py`
 
@@ -1148,7 +1206,7 @@ Test coverage:
 - 重复终态被 TaskRegistry 拒绝。
 - `core/ui_event_bridge.py` 不在 sidecar import graph 中。
 
-- [ ] **Step 6: 实现 EventBus shim**
+- [x] **Step 6: 实现 EventBus shim**
 
 Create: `python_core/rpc/event_bus_shim.py`
 
@@ -1159,7 +1217,7 @@ Create: `python_core/rpc/event_bus_shim.py`
 - 订阅解除必须释放旧 EventBus listener。
 - 迟到事件只写日志，不更新已销毁 owner。
 
-- [ ] **Step 7: 写 HandleRegistry 测试**
+- [x] **Step 7: 写 HandleRegistry 测试**
 
 Create: `tests/rpc_contract/test_handles.py`
 
@@ -1171,7 +1229,7 @@ Test coverage:
 - TTL 过期返回 `filesystem.handle_expired`。
 - request 取消、失败、sidecar shutdown 时清理 owner handles。
 
-- [ ] **Step 8: 写 HandleRegistry 安全和释放测试**
+- [x] **Step 8: 写 HandleRegistry 安全和释放测试**
 
 Create: `tests/rpc_contract/test_handle_registry_security.py`
 
@@ -1183,7 +1241,7 @@ Test coverage:
 - request cancel、request error、sidecar shutdown 都删除 owner 临时资源。
 - handle id 不含路径、用户名、文件名原文。
 
-- [ ] **Step 9: 实现 HandleRegistry**
+- [x] **Step 9: 实现 HandleRegistry**
 
 Create: `python_core/resources/handle_registry.py`
 
@@ -1194,7 +1252,7 @@ Create: `python_core/resources/handle_registry.py`
 - 支持按 owner request 清理。
 - 支持 shutdown 全量清理。
 
-- [ ] **Step 10: 写 shutdown 进程树释放测试**
+- [x] **Step 10: 写 shutdown 进程树释放测试**
 
 Create: `tests/rpc_contract/test_shutdown_process_tree.py`
 
@@ -1205,7 +1263,7 @@ Test coverage:
 - worker crash 后迟到 stdout/stderr 不进入当前 generation。
 - shutdown 超时写审计摘要。
 
-- [ ] **Step 11: 验证**
+- [x] **Step 11: 验证**
 
 Run:
 
@@ -1218,6 +1276,15 @@ Expected:
 ```text
 全部通过。
 ```
+
+#### Task 1.1B 验证结果
+
+- 运行日期：2026-05-30
+- `python -m pytest tests/rpc_contract/test_task_state_machine.py tests/rpc_contract/test_event_backpressure.py tests/rpc_contract/test_event_publisher.py tests/rpc_contract/test_handles.py tests/rpc_contract/test_handle_registry_security.py tests/rpc_contract/test_shutdown_process_tree.py -q`：通过，`22 passed in 0.38s`。
+- `python -m pytest tests/rpc_contract/ -q`：通过，`60 passed in 0.58s`。
+- `python scripts/check_rpc_schema_contract.py`：通过，输出 `rpc schema contract ok (60 methods, schema_hash=ee71fbdbf2a94a2696a62b696641ed75265c31adc0f34ffcfd69270b9e3a60a9)`。
+- `cargo test`（`apps/desktop/src-tauri`）：通过，`6 passed`。
+- `pnpm test -- catalog`（`apps/desktop`）：通过，输出 `frontend catalog ok (60 methods, 32 events)` 和 `frontend error codes ok (34 codes)`。
 
 ### Task 1.3：创建 Tauri shell 骨架和 supervisor
 
@@ -1232,7 +1299,7 @@ Expected:
 - Create: `apps/desktop/src-tauri/tests/supervisor_lifecycle.rs`
 - Create: `tests/rpc_contract/test_sidecar_generation.py`
 
-- [ ] **Step 1: 创建 Tauri Rust 工程骨架**
+- [x] **Step 1: 创建 Tauri Rust 工程骨架**
 
 Run:
 
@@ -1246,7 +1313,7 @@ Expected:
 目录存在。
 ```
 
-- [ ] **Step 2: 写 Rust supervisor 测试**
+- [x] **Step 2: 写 Rust supervisor 测试**
 
 Create: `apps/desktop/src-tauri/tests/sidecar_contract.rs`
 
@@ -1268,7 +1335,7 @@ Test coverage:
 - 旧 generation 的 stdout、stderr、event 被隔离，不更新 UI。
 - restart 后旧 confirm token、handle、plugin worker id、MCP server session 全部失效。
 
-- [ ] **Step 3: 实现 Rust RPC types**
+- [x] **Step 3: 实现 Rust RPC types**
 
 Create: `apps/desktop/src-tauri/src/rpc.rs`
 
@@ -1281,7 +1348,7 @@ Create: `apps/desktop/src-tauri/src/rpc.rs`
 - `request_id` 是唯一主键。
 - 不序列化 `id` 字段。
 
-- [ ] **Step 4: 实现 RuntimePaths 注入**
+- [x] **Step 4: 实现 RuntimePaths 注入**
 
 Create: `apps/desktop/src-tauri/src/runtime_paths.rs`
 
@@ -1309,7 +1376,7 @@ Create: `apps/desktop/src-tauri/src/sidecar.rs`
 - 每次启动和重启都生成递增 `sidecar_generation`，所有 request、event、handle、confirm token、worker session 必须绑定 generation。
 - shutdown 超时后 kill 进程树。
 
-- [ ] **Step 6: 验证**
+- [x] **Step 6: 验证**
 
 Run:
 
@@ -1327,6 +1394,18 @@ Expected:
 cargo test 通过。
 ```
 
+#### Task 1.3 部分进展
+
+- 运行日期：2026-05-30
+- 新增测试红灯确认：`cargo test --test sidecar_contract --test supervisor_lifecycle` 初始失败，失败原因为 `yumetsuki_desktop::rpc`、`runtime_paths`、`sidecar` 模块尚不存在。
+- 已完成：Rust crate 骨架、`tauri.conf.json`、`main.rs`、RPC envelope 基础类型、dev `RuntimePaths` JSON 注入、request registry generation/deadline 基础测试、Python `test_sidecar_generation.py`。
+- 当前验证：`python -m pytest tests/rpc_contract/test_sidecar_generation.py -q`：通过，`1 passed in 0.11s`。
+- 当前验证：`cargo test`（`apps/desktop/src-tauri`）：通过，包含既有 schema/error tests、新增 `sidecar_contract` 和 `supervisor_lifecycle`。
+- 当前验证：`cargo test --test supervisor_lifecycle`：通过，`3 passed`。
+- 追加修正：Rust dev `RuntimePaths` 注入会规范化 Windows `\\?\` 扩展路径，避免 Python sidecar 将其误判为 UNC 逃逸。
+- 追加验证：`cargo test --test sidecar_contract --test supervisor_lifecycle`：通过，`sidecar.hello` 和非法 frame 已走真实 Python sidecar one-shot stdio 路径。
+- 未完成项：`SidecarSupervisor` 已切到真实 Python one-shot stdio 路径并可通过当前 contract 测试，但长驻 async reader/writer、有界队列、restart/backoff/circuit breaker、Windows 进程树清理和 generation 隔离仍待后续 Phase 硬化。因此 Step 5 仍暂不勾选；Step 6 仅代表当前 one-shot contract 与生命周期测试通过。
+
 ### Task 1.3A：冻结 Tauri capability、URL/path 安全和性能基线
 
 **Files:**
@@ -1343,7 +1422,7 @@ cargo test 通过。
 - Create: `tests/security/test_url_path_safety.py`
 - Create: `apps/desktop/perf/budgets.json`
 
-- [ ] **Step 1: 写 capability manifest 测试**
+- [x] **Step 1: 写 capability manifest 测试**
 
 Test coverage:
 
@@ -1356,7 +1435,7 @@ Test coverage:
 - `main`、`pet`、`settings`、`diagnostics` 四类窗口 scope 与设计稿一致。
 - `pet` 只允许窗口拖拽、缩放、聊天发送和 `sidecar_cancel`。
 
-- [ ] **Step 2: 创建 capability manifest**
+- [x] **Step 2: 创建 capability manifest**
 
 Create:
 
@@ -1371,7 +1450,7 @@ Create:
 - 文件 scope 只来自 RuntimePaths 或用户选择目录。
 - URL scope 默认只允许 `http` / `https`，并经过 `url_safety.rs` 二次校验。
 
-- [ ] **Step 3: 写 URL/path 安全测试**
+- [x] **Step 3: 写 URL/path 安全测试**
 
 Test coverage:
 
@@ -1381,7 +1460,7 @@ Test coverage:
 - 拒绝 `..`、绝对路径、驱动器前缀、UNC 逃逸、符号链接逃逸。
 - 外部模型目录必须通过用户选择目录 scope。
 
-- [ ] **Step 4: 实现 PathScope 和 UrlSafety**
+- [x] **Step 4: 实现 PathScope 和 UrlSafety**
 
 Create:
 
@@ -1394,7 +1473,7 @@ Create:
 - URL 先 normalize，再校验 scheme、host、redirect 结果和解析 IP。
 - 错误码映射到 `filesystem.path_out_of_scope` 或 `security.permission_denied`。
 
-- [ ] **Step 5: 冻结性能预算文件**
+- [x] **Step 5: 冻结性能预算文件**
 
 Create: `apps/desktop/perf/budgets.json`
 
@@ -1423,7 +1502,7 @@ Create: `apps/desktop/perf/budgets.json`
 - size budget 为 0 表示 Phase 1 只记录基线，不阻塞；Phase 5 必须全部设置为真实阈值。
 - 超阈值要么失败，要么要求显式批准记录进入 release manifest。
 
-- [ ] **Step 6: 验证**
+- [x] **Step 6: 验证**
 
 Run:
 
@@ -1439,6 +1518,17 @@ Expected:
 ```text
 全部通过。
 ```
+
+#### Task 1.3A 验证结果
+
+- 运行日期：2026-05-30
+- 新增测试红灯确认：`cargo test --test capability_manifest --test url_path_safety` 初始失败，失败原因为 `capability_manifest.rs`、`path_scope.rs`、`url_safety.rs` 和 capability 文件尚不存在。
+- Python 红灯确认：`python -m pytest tests/security/test_tauri_capabilities.py tests/security/test_url_path_safety.py -q` 初始失败，失败原因为 capability 文件缺失。
+- 聚焦验证：`cargo test --test capability_manifest --test url_path_safety`：通过。
+- Python 验证：`python -m pytest tests/security/test_tauri_capabilities.py tests/security/test_url_path_safety.py -q`：通过，`5 passed in 0.16s`。
+- 全量验证：`cargo test`：通过。
+- 全量验证：`python -m pytest tests/rpc_contract/ tests/security/ -q`：通过，`92 passed in 10.90s`。
+- 门禁脚本：`python scripts/check_no_stdout_in_sidecar.py`：通过，输出 `sidecar stdout scan ok`。
 
 ### Task 1.4：创建 Vue3 / Pinia 前端骨架
 
@@ -1468,7 +1558,7 @@ Expected:
 - Create: `apps/desktop/frontend/src/components/VirtualLogList.vue`
 - Test: `apps/desktop/frontend/src/stores/*.spec.ts`
 
-- [ ] **Step 1: 创建 Vite + Vue + Pinia 项目文件**
+- [x] **Step 1: 创建 Vite + Vue + Pinia 项目文件**
 
 Create minimal frontend with:
 
@@ -1480,7 +1570,7 @@ Create minimal frontend with:
 - `@vue/test-utils`
 - `playwright` 或 `@playwright/test`
 
-- [ ] **Step 2: 实现 typed Tauri client**
+- [x] **Step 2: 实现 typed Tauri client**
 
 Create: `apps/desktop/frontend/src/client/tauriClient.ts`
 
@@ -1492,7 +1582,7 @@ Create: `apps/desktop/frontend/src/client/tauriClient.ts`
 - 提供 fake client 供 Vitest 使用。
 - event unsubscribe 由调用者持有。
 
-- [ ] **Step 3: 实现最小 stores**
+- [x] **Step 3: 实现最小 stores**
 
 Create:
 
@@ -1521,7 +1611,7 @@ Create:
 - `configStore`、`characterStore` 在 Phase 1 只实现 lifecycle 和空快照；Phase 2 再填业务状态。
 - `audioStore`、`sttStore` 在 Phase 1 只实现 lifecycle 和不持久化约束；Phase 3 再填业务状态。
 
-- [ ] **Step 4: 实现最小 UI**
+- [x] **Step 4: 实现最小 UI**
 
 Create:
 
@@ -1534,13 +1624,13 @@ Create:
 - 输入、发送、mock streaming、停止、失败保留输入、重试。
 - 日志列表批量 append、follow-bottom、拖选暂停刷新。
 
-- [ ] **Step 5: 验证**
+- [x] **Step 5: 验证**
 
 Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-npm test
+pnpm test
 ```
 
 Expected:
@@ -1588,7 +1678,7 @@ store 和组件单元测试通过。
 - Create: `apps/desktop/frontend/src/components/sakura/SakuraSettingsSection.vue`
 - Create: `apps/desktop/frontend/src/stores/*.spec.ts`
 
-- [ ] **Step 1: 创建统一桌面脚本入口**
+- [x] **Step 1: 创建统一桌面脚本入口**
 
 Create: `apps/desktop/package.json`
 
@@ -1597,7 +1687,7 @@ Create: `apps/desktop/package.json`
 ```json
 {
   "scripts": {
-    "test": "npm --prefix frontend test",
+    "test": "pnpm --dir frontend test",
     "test:a11y": "playwright test e2e/a11y.spec.ts",
     "e2e:startup": "playwright test e2e/startup.spec.ts",
     "e2e:smoke": "playwright test e2e/smoke.spec.ts",
@@ -1617,7 +1707,7 @@ Create: `apps/desktop/package.json`
 - `apps/desktop/frontend/package.json` 只承载 Vite、Vitest 和前端开发脚本。
 - 计划中的 E2E 命令不得从 `frontend` 子目录或 `src-tauri` 子目录发起。
 
-- [ ] **Step 2: 写 typed client 单元测试**
+- [x] **Step 2: 写 typed client 单元测试**
 
 Create: `apps/desktop/frontend/src/client/tauriClient.spec.ts`
 
@@ -1636,7 +1726,7 @@ Test coverage:
 - `fetch()` 只允许测试 fake 和明确标记的外部网页调试 fixture，禁止进入桌面 RPC / sidecar 主链路。
 - `commands/`、`events/`、`types/` 只能从 catalog 投影或统一类型入口导出。
 
-- [ ] **Step 3: 拆分 typed client 目录**
+- [x] **Step 3: 拆分 typed client 目录**
 
 Create:
 
@@ -1651,7 +1741,7 @@ Create:
 - long task helper 返回 `{ accepted: true, requestId, taskType }`。
 - event subscription 返回 `Promise<UnlistenFn>`，调用方必须在 store dispose 中释放。
 
-- [ ] **Step 4: 冻结 Pinia store lifecycle 和持久化 allowlist**
+- [x] **Step 4: 冻结 Pinia store lifecycle 和持久化 allowlist**
 
 Create:
 
@@ -1711,7 +1801,7 @@ Create:
 | `diagnosticStore` | running 转 failed(`sidecar.restarted`)，清 report handle |
 | `characterStore` | 资源状态置 stale，保留最近角色 id |
 
-- [ ] **Step 5: 冻结 Vue 组合式和路由边界**
+- [x] **Step 5: 冻结 Vue 组合式和路由边界**
 
 Create:
 
@@ -1740,7 +1830,7 @@ Create:
 
 禁止同一页面同时由设置页内嵌实现和独立 route 实现两套状态。设置侧栏中的未迁移入口只允许展示 disabled 状态或跳转到已迁移独立 route。
 
-- [ ] **Step 6: 创建 Sakura Web 基础组件和 design tokens**
+- [x] **Step 6: 创建 Sakura Web 基础组件和 design tokens**
 
 Create:
 
@@ -1772,7 +1862,7 @@ Create:
 - 每个 Sakura 组件都有 `*.spec.ts`，覆盖 disabled、busy、danger、focus、keyboard、reduced motion 和基本 a11y。
 - `prefers-reduced-motion` 下禁用非必要动画。
 
-- [ ] **Step 7: 创建 E2E 和 a11y 夹具**
+- [x] **Step 7: 创建 E2E 和 a11y 夹具**
 
 Create:
 
@@ -1801,17 +1891,17 @@ Test coverage:
 - Playwright web server 从 `apps/desktop` 启动，不依赖人工手动打开 dev server。
 - 关键页面必须有轻量 screenshot / visual stability 断言：聊天窗、设置页表单、日志 splitter、诊断导出状态、权限确认弹窗在固定 viewport 下无重叠、无空白首屏、主要按钮可见。
 
-- [ ] **Step 8: 验证**
+- [x] **Step 8: 验证**
 
 Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-npm test
-npm run test:a11y
-npm run e2e:startup
-npm run e2e:smoke
-npm run e2e:responsive
+pnpm test
+pnpm run test:a11y
+pnpm run e2e:startup
+pnpm run e2e:smoke
+pnpm run e2e:responsive
 ```
 
 Expected:
@@ -1822,7 +1912,7 @@ Expected:
 
 ### Task 1.5：Phase 1 出口验证
 
-- [ ] **Step 1: 运行 Phase 1 聚焦验证**
+- [x] **Step 1: 运行 Phase 1 聚焦验证**
 
 Run:
 
@@ -1835,12 +1925,12 @@ cargo test
 cargo test --test command_catalog
 cargo test --test runtime_paths_schema
 Set-Location ..
-npm test
-npm test -- catalog
-npm run test:a11y
-npm run e2e:startup
-npm run e2e:smoke
-npm run e2e:responsive
+pnpm test
+pnpm test -- catalog
+pnpm run test:a11y
+pnpm run e2e:startup
+pnpm run e2e:smoke
+pnpm run e2e:responsive
 ```
 
 Expected:
@@ -1849,7 +1939,7 @@ Expected:
 全部通过。
 ```
 
-- [ ] **Step 2: 运行全量 Python 回归**
+- [x] **Step 2: 运行全量 Python 回归**
 
 Run:
 
@@ -1984,9 +2074,9 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-npm test
-npm run test:a11y
-npm run e2e:settings
+pnpm test
+pnpm run test:a11y
+pnpm run e2e:settings
 ```
 
 Expected:
@@ -2006,12 +2096,12 @@ python -m pytest tests/ -q
 Set-Location apps/desktop/src-tauri
 cargo test
 Set-Location ..
-npm test
-npm run test:a11y
-npm run e2e:startup
-npm run e2e:smoke
-npm run e2e:settings
-npm run e2e:responsive
+pnpm test
+pnpm run test:a11y
+pnpm run e2e:startup
+pnpm run e2e:smoke
+pnpm run e2e:settings
+pnpm run e2e:responsive
 Set-Location E:/Project/Yumetsuki
 python scripts/check_replacement_status.py --phase 2 --record-from-last-run
 ```
@@ -2045,7 +2135,7 @@ Expected:
 | `vision/screen_capture.py` | Qt / 平台截图入口 | `apps/desktop/src-tauri/src/screenshot.rs` + `python_core/services/vision_service.py` | Python 只识别 image handle，不截图 | `apps/desktop/src-tauri/tests/media_contract.rs` 和 `tests/rpc_contract/test_speech_vision_methods.py` 通过 |
 | `ui/chat/stt_recorder.py` | Qt 录音控件和录音线程 | `apps/desktop/src-tauri/src/recorder.rs` + `sttStore` | Python STT 只收 audio handle | STT stop、timeout、cancel 互斥终态测试通过 |
 | `ui/chat/audio_backends.py` | Qt / 本地音频播放 | `apps/desktop/src-tauri/src/audio.rs` + `audioStore` | Python TTS 不播放音频，只产出 audio handle | 播放、停止、临时文件清理和迟到事件丢弃测试通过 |
-| `ui/chat/web_view.py` | Qt WebView / 聊天窗口容器 | Vue `ChatPanel.vue` + Tauri window | Phase 3 双跑视觉和交互 parity | `npm run e2e:chat` 截图和交互测试通过 |
+| `ui/chat/web_view.py` | Qt WebView / 聊天窗口容器 | Vue `ChatPanel.vue` + Tauri window | Phase 3 双跑视觉和交互 parity | `pnpm run e2e:chat` 截图和交互测试通过 |
 | `ui/chat/tts_pipeline.py` | Qt 聊天 UI 对 TTS pipeline 的编排 | `python_core/services/speech_service.py` + `chatStore` + `audioStore` | TTS pipeline 领域代码保留，UI 触发和播放编排迁出 Qt | TTS 首段、取消、播放失败、sidecar restart 测试通过 |
 
 ### Task 3.1：实现 ChatService / ProactiveService
@@ -2227,12 +2317,12 @@ python -m pytest tests/ -q
 Set-Location apps/desktop/src-tauri
 cargo test
 Set-Location ..
-npm test
-npm run test:a11y
-npm run e2e:startup
-npm run e2e:smoke
-npm run e2e:chat
-npm run e2e:responsive
+pnpm test
+pnpm run test:a11y
+pnpm run e2e:startup
+pnpm run e2e:smoke
+pnpm run e2e:chat
+pnpm run e2e:responsive
 Set-Location E:/Project/Yumetsuki
 python scripts/check_replacement_status.py --phase 3 --record-from-last-run
 ```
@@ -2419,9 +2509,9 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-npm test
-npm run e2e:logs-tools
-npm run e2e:stress
+pnpm test
+pnpm run e2e:logs-tools
+pnpm run e2e:stress
 ```
 
 Expected:
@@ -2453,8 +2543,8 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-npm test
-npm run e2e:logs-tools
+pnpm test
+pnpm run e2e:logs-tools
 ```
 
 Expected:
@@ -2486,8 +2576,8 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-npm test
-npm run e2e:logs-tools
+pnpm test
+pnpm run e2e:logs-tools
 ```
 
 Expected:
@@ -2521,9 +2611,9 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-npm test
-npm run test:a11y
-npm run e2e:logs-tools
+pnpm test
+pnpm run test:a11y
+pnpm run e2e:logs-tools
 ```
 
 Expected:
@@ -2545,13 +2635,13 @@ python -m pytest tests/ -q
 Set-Location apps/desktop/src-tauri
 cargo test
 Set-Location ..
-npm test
-npm run test:a11y
-npm run e2e:startup
-npm run e2e:smoke
-npm run e2e:logs-tools
-npm run e2e:stress
-npm run e2e:responsive
+pnpm test
+pnpm run test:a11y
+pnpm run e2e:startup
+pnpm run e2e:smoke
+pnpm run e2e:logs-tools
+pnpm run e2e:stress
+pnpm run e2e:responsive
 Set-Location E:/Project/Yumetsuki
 python scripts/check_replacement_status.py --phase 4 --record-from-last-run
 ```
@@ -2628,7 +2718,7 @@ Expected:
   "toolchain_versions": {
     "python": "string",
     "node": "string",
-    "npm": "string",
+    "pnpm": "string",
     "rustc": "string",
     "cargo": "string",
     "tauri": "string"
@@ -2763,7 +2853,7 @@ Create: `scripts/check_perf_budgets.py`
 - resource size。
 - installer size。
 
-`apps/desktop/perf/results.json` 必须由 `npm run e2e:startup`、`npm run e2e:stress`、诊断 perf report 和发布包扫描结果生成，记录 cold/warm startup、idle CPU、sidecar baseline memory、10k logs FPS、各 artifact size 的实测值；禁止手写空结果。
+`apps/desktop/perf/results.json` 必须由 `pnpm run e2e:startup`、`pnpm run e2e:stress`、诊断 perf report 和发布包扫描结果生成，记录 cold/warm startup、idle CPU、sidecar baseline memory、10k logs FPS、各 artifact size 的实测值；禁止手写空结果。
 
 Phase 5 必须把所有 size budget 从 0 调整为真实阈值：
 
@@ -2972,11 +3062,11 @@ python -m pytest tests/rpc_contract/test_logs_diagnostics_methods.py tests/rpc_c
 Set-Location apps/desktop/src-tauri
 cargo test --test media_contract
 Set-Location ..
-npm test
-npm run test:a11y
-npm run e2e:logs-tools
-npm run e2e:stress
-npm run e2e:responsive
+pnpm test
+pnpm run test:a11y
+pnpm run e2e:logs-tools
+pnpm run e2e:stress
+pnpm run e2e:responsive
 ```
 
 Expected:
@@ -2997,15 +3087,15 @@ python -m pytest tests/rpc_contract/test_logs_diagnostics_methods.py tests/rpc_c
 Set-Location apps/desktop/src-tauri
 cargo test --test media_contract
 Set-Location ..
-npm test
-npm run test:a11y
-npm run e2e:startup
-npm run e2e:smoke
-npm run e2e:settings
-npm run e2e:chat
-npm run e2e:logs-tools
-npm run e2e:stress
-npm run e2e:responsive
+pnpm test
+pnpm run test:a11y
+pnpm run e2e:startup
+pnpm run e2e:smoke
+pnpm run e2e:settings
+pnpm run e2e:chat
+pnpm run e2e:logs-tools
+pnpm run e2e:stress
+pnpm run e2e:responsive
 Set-Location E:/Project/Yumetsuki
 python scripts/check_replacement_status.py --phase 5 --record-from-last-run --pre-delete
 python scripts/check_replacement_status.py --phase 5 --pre-delete
@@ -3140,15 +3230,15 @@ python -m pytest tests/ -q
 Set-Location apps/desktop/src-tauri
 cargo test
 Set-Location ..
-npm test
-npm run test:a11y
-npm run e2e:startup
-npm run e2e:smoke
-npm run e2e:settings
-npm run e2e:chat
-npm run e2e:logs-tools
-npm run e2e:stress
-npm run e2e:responsive
+pnpm test
+pnpm run test:a11y
+pnpm run e2e:startup
+pnpm run e2e:smoke
+pnpm run e2e:settings
+pnpm run e2e:chat
+pnpm run e2e:logs-tools
+pnpm run e2e:stress
+pnpm run e2e:responsive
 powershell -ExecutionPolicy Bypass -File E:/Project/Yumetsuki/scripts/run_no_pyside6_sidecar_smoke.ps1
 $InstalledExe = powershell -ExecutionPolicy Bypass -File E:/Project/Yumetsuki/scripts/install_release_artifact_for_smoke.ps1 -Installer E:/Project/Yumetsuki/apps/desktop/src-tauri/target/release/bundle/nsis/Yumetsuki-setup.exe
 powershell -ExecutionPolicy Bypass -File E:/Project/Yumetsuki/scripts/smoke_windows_clean_machine.ps1 -Exe $InstalledExe

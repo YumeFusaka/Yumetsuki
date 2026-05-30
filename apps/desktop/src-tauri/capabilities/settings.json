@@ -1,0 +1,19 @@
+{
+  "identifier": "settings",
+  "windows": ["settings"],
+  "commands": [
+    "sidecar_hello",
+    "config_get_all",
+    "config_save_api",
+    "config_save_system",
+    "character_list",
+    "plugins_refresh",
+    "mcp_list_servers"
+  ],
+  "permissions": [],
+  "security": {
+    "default_deny_external_process": true,
+    "path_scope_source": "runtime_paths_or_user_choice",
+    "url_policy": "http_https_with_runtime_confirmation"
+  }
+}

@@ -77,7 +77,7 @@ def test_gptsovits_synthesize_failure(monkeypatch):
     assert audio is None
 
 
-def test_gptsovits_synthesize_logs_and_returns_none_on_http_error(monkeypatch, capsys):
+def test_gptsovits_synthesize_logs_and_returns_none_on_http_error(monkeypatch, capsys, caplog):
     config = TTSConfig(engine="gptsovits", api_url="http://fake:9880")
 
     mock_resp = MagicMock()
@@ -88,10 +88,12 @@ def test_gptsovits_synthesize_logs_and_returns_none_on_http_error(monkeypatch, c
     monkeypatch.setattr("tts.adapters.gptsovits.requests.Session", lambda: MagicMock(post=lambda *a, **kw: mock_resp))
     adapter = GPTSoVITSAdapter(config)
 
+    caplog.set_level("WARNING", logger="tts.adapters.gptsovits")
     assert adapter.synthesize("你好") is None
 
     captured = capsys.readouterr()
-    assert "500" in captured.out
+    assert captured.out == ""
+    assert "500" in caplog.text
 
 
 def test_gptsovits_synthesize_uses_tts_endpoint_and_text_lang(monkeypatch):

@@ -9,6 +9,14 @@ Yumetsuki 当前采用轻量本地架构，核心目标是：
 - 本地配置与数据可控
 - 不依赖 LangChain / LangGraph 等外部 Agent 框架
 
+## Tauri UI 重构状态
+
+- 当前主 UI 仍为 PySide6，入口是 `main.py` 和 `ui/`。
+- Tauri UI 重构设计已定稿：`docs/superpowers/specs/2026-05-28-tauri-ui-migration-design.md`。
+- 实施计划已确认并进入 Phase 0 计划冻结与基线：`docs/superpowers/plans/2026-05-29-tauri-ui-migration-implementation-plan.md`。
+- 目标架构是 Tauri shell + Vue3 组合式 + Pinia + TypeScript 前端，以及 Python headless sidecar；该目标尚未实施为主运行链路。
+- 迁移期间每个 Tauri / Vue 页面必须先读取对应 `ui/` 旧实现并按 `docs/tauri-ui-parity.md` 完成结构复刻。
+
 ## 目录结构
 
 ```text

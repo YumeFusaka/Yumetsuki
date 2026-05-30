@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator
 from urllib.parse import urlsplit, urlunsplit
 
@@ -7,6 +8,9 @@ from config.schema import AgentConfig, TTSConfig, TTSRuntimeConfig
 from core.log_types import LogChannel, LogLevel, build_log_event
 from tts.adapter import TTSAdapter
 from tts.types import TTSAudioFormat, TTSStreamEvent
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class GPTSoVITSAdapter(TTSAdapter):
@@ -200,9 +204,9 @@ class GPTSoVITSAdapter(TTSAdapter):
                 if self._reference_mode == self.REFERENCE_MODE_AUTO:
                     self._REFERENCE_CAPABILITY_CACHE.setdefault(self._api_url, "prepared")
                 return True
-            print(f"[TTS] GPT-SoVITS reference prepare failed with HTTP {resp.status_code}: {resp.text[:200]}")
+            _LOGGER.warning("[TTS] GPT-SoVITS reference prepare failed with HTTP %s: %s", resp.status_code, resp.text[:200])
         except Exception as exc:
-            print(f"[TTS] GPT-SoVITS reference prepare failed: {exc}")
+            _LOGGER.warning("[TTS] GPT-SoVITS reference prepare failed: %s", exc)
         self._reference_state = "fallback_inline"
         self._record_log_event(
             level=LogLevel.WARN,
@@ -375,7 +379,7 @@ class GPTSoVITSAdapter(TTSAdapter):
                 emitted = True
                 yield TTSStreamEvent(kind="chunk", data=chunk)
         except Exception as exc:
-            print(f"[TTS] GPT-SoVITS PCM stream failed: {exc}")
+            _LOGGER.warning("[TTS] GPT-SoVITS PCM stream failed: %s", exc)
             yield TTSStreamEvent(kind="error", message=str(exc))
             return None
         if emitted:
@@ -423,7 +427,7 @@ class GPTSoVITSAdapter(TTSAdapter):
                 if success:
                     self.force_session_audio_mode(self.AUDIO_MODE_WAV)
                 return success
-            print(f"[TTS] GPT-SoVITS request failed: {exc}")
+            _LOGGER.warning("[TTS] GPT-SoVITS request failed: %s", exc)
             self._record_log_event(
                 level=LogLevel.ERROR,
                 event_type="tts.request_failed",
@@ -456,7 +460,7 @@ class GPTSoVITSAdapter(TTSAdapter):
                     if success:
                         self.force_session_audio_mode(self.AUDIO_MODE_WAV)
                     return success
-                print("[TTS] GPT-SoVITS returned an empty PCM stream")
+                _LOGGER.warning("[TTS] GPT-SoVITS returned an empty PCM stream")
                 yield TTSStreamEvent(kind="error", message="empty pcm stream")
                 return False
             return (yield from self._yield_wav_response(resp))
@@ -495,7 +499,7 @@ class GPTSoVITSAdapter(TTSAdapter):
             return success
 
         error_text = (getattr(resp, "text", "") or "")[:200]
-        print(f"[TTS] GPT-SoVITS returned HTTP {resp.status_code}: {error_text}")
+        _LOGGER.warning("[TTS] GPT-SoVITS returned HTTP %s: %s", resp.status_code, error_text)
         self._record_log_event(
             level=LogLevel.ERROR,
             event_type="tts.request_http_error",

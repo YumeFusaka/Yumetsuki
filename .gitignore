@@ -75,6 +75,9 @@ cython_debug/
 .vscode/
 *.swp
 *.swo
+node_modules/
+test-results/
+dist/
 data/models/
 data/memory/
 data/logs/

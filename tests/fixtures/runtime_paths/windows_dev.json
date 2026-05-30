@@ -1,0 +1,13 @@
+{
+  "mode": "dev",
+  "app_data_root": "E:/Project/Yumetsuki/data",
+  "resources_root": "E:/Project/Yumetsuki",
+  "config_root": "E:/Project/Yumetsuki/data/config",
+  "logs_root": "E:/Project/Yumetsuki/data/logs",
+  "memory_root": "E:/Project/Yumetsuki/data/memory",
+  "vision_root": "E:/Project/Yumetsuki/data/vision",
+  "browser_sessions_root": "E:/Project/Yumetsuki/data/browser_sessions",
+  "models_root": "E:/Project/Yumetsuki/data/models",
+  "temp_root": "E:/Project/Yumetsuki/data/temp",
+  "repo_root": "E:/Project/Yumetsuki"
+}

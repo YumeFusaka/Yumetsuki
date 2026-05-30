@@ -1,0 +1,17 @@
+{
+  "identifier": "diagnostics",
+  "windows": ["diagnostics"],
+  "commands": [
+    "sidecar_health",
+    "diagnostics_run",
+    "diagnostics_export",
+    "logs_query",
+    "logs_export"
+  ],
+  "permissions": [],
+  "security": {
+    "default_deny_external_process": true,
+    "path_scope_source": "runtime_paths_or_user_choice",
+    "url_policy": "http_https_with_runtime_confirmation"
+  }
+}

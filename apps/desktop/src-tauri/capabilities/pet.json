@@ -1,0 +1,16 @@
+{
+  "identifier": "pet",
+  "windows": ["pet"],
+  "commands": [
+    "window_drag",
+    "window_resize",
+    "chat_send",
+    "sidecar_cancel"
+  ],
+  "permissions": [],
+  "security": {
+    "default_deny_external_process": true,
+    "path_scope_source": "none",
+    "url_policy": "none"
+  }
+}

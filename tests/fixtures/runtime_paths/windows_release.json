@@ -1,0 +1,13 @@
+{
+  "mode": "release",
+  "app_data_root": "C:/Users/example/AppData/Roaming/Yumetsuki",
+  "resources_root": "C:/Program Files/Yumetsuki/resources",
+  "config_root": "C:/Users/example/AppData/Roaming/Yumetsuki/config",
+  "logs_root": "C:/Users/example/AppData/Roaming/Yumetsuki/logs",
+  "memory_root": "C:/Users/example/AppData/Roaming/Yumetsuki/memory",
+  "vision_root": "C:/Users/example/AppData/Roaming/Yumetsuki/vision",
+  "browser_sessions_root": "C:/Users/example/AppData/Roaming/Yumetsuki/browser_sessions",
+  "models_root": "C:/Users/example/AppData/Roaming/Yumetsuki/models",
+  "temp_root": "C:/Users/example/AppData/Local/Temp/Yumetsuki",
+  "repo_root": "E:/Project/Yumetsuki"
+}

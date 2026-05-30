@@ -1,0 +1,19 @@
+{
+  "identifier": "main",
+  "windows": ["main"],
+  "commands": [
+    "sidecar_hello",
+    "sidecar_health",
+    "sidecar_shutdown",
+    "sidecar_cancel",
+    "chat_send",
+    "config_get_all",
+    "logs_query"
+  ],
+  "permissions": [],
+  "security": {
+    "default_deny_external_process": true,
+    "path_scope_source": "runtime_paths_or_user_choice",
+    "url_policy": "http_https_with_runtime_confirmation"
+  }
+}

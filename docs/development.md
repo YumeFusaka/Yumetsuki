@@ -16,6 +16,7 @@
 - 第四阶段：已完成，主实现和文档已收口到当前架构文档。
 - 第五阶段：已完成，进入稳定化维护。
 - 第六阶段：实现、本地自动化验证和 sub agent 复审已完成；真实浏览器、OCR、MCP、STT / TTS / API 实机验收暂缓。
+- Tauri UI 重构：设计已定稿，实施计划已确认并进入 Phase 0 计划冻结与基线；当前主 UI 仍为 PySide6，Tauri / Vue 页面迁移尚未实施。设计入口为 `docs/superpowers/specs/2026-05-28-tauri-ui-migration-design.md`，实施计划为 `docs/superpowers/plans/2026-05-29-tauri-ui-migration-implementation-plan.md`。
 - Phase 7：已完成，实机验收待补；待补记录为 `docs/superpowers/smoke/2026-05-28-phase-7-smoke.md`。
 - Phase 8 / Phase 9：整体已形成阶段设计草案，但尚未整体拆成实施计划；草案入口为 `docs/superpowers/specs/2026-05-28-phase-8-9-design.md`。
 - Phase 8-A：记忆质量治理与可回溯记忆账本已完成，本地自动化验证通过；真实 Mem0 本地向量库写入联调待补；计划入口为 `docs/superpowers/plans/2026-05-28-phase-8-memory-ledger.md`，待补记录为 `docs/superpowers/smoke/2026-05-28-phase-8-memory-ledger-smoke.md`。
@@ -57,6 +58,7 @@ Post-1.0 分类策略：
   - 负责一个主题的设计决策、边界、风险和默认策略
 - 实施计划：
   - 负责把已确认 spec 拆成可执行任务
+  - Tauri UI 重构当前实施计划为 `docs/superpowers/plans/2026-05-29-tauri-ui-migration-implementation-plan.md`
 
 当前文档统一采用上述层级，不建议混写。
 

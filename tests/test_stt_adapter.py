@@ -171,8 +171,10 @@ def test_faster_whisper_adapter_returns_error_for_missing_model_path():
     assert "STT 模型目录不存在" in result.error
 
 
-def test_faster_whisper_adapter_resolves_default_project_model_path(monkeypatch):
+def test_faster_whisper_adapter_resolves_default_project_model_path(monkeypatch, tmp_path):
     captured = {}
+    model_dir = tmp_path / "faster-whisper-large-v3-turbo"
+    model_dir.mkdir()
 
     class _FakeWhisperModel:
         def __init__(self, model_size_or_path, **_kwargs):
@@ -182,13 +184,16 @@ def test_faster_whisper_adapter_resolves_default_project_model_path(monkeypatch)
             return [SimpleNamespace(text="你好")], SimpleNamespace(language="zh")
 
     monkeypatch.setattr("stt.adapters.faster_whisper.WhisperModel", _FakeWhisperModel)
+    monkeypatch.setattr(
+        "stt.adapters.faster_whisper.resolve_model_path",
+        lambda path_text, category_dir: captured.setdefault("resolver_args", (path_text, category_dir)) and model_dir,
+    )
 
     result = STTManager(ASRConfig(engine="faster_whisper")).transcribe_wav(b"RIFF....WAVE")
 
     assert result.text == "你好"
-    assert captured["model_size_or_path"].endswith("data\\models\\faster-whisper-large-v3-turbo") or captured[
-        "model_size_or_path"
-    ].endswith("data/models/faster-whisper-large-v3-turbo")
+    assert captured["resolver_args"][0] == "data/models/stt/faster-whisper-large-v3-turbo"
+    assert captured["model_size_or_path"] == str(model_dir)
 
 
 def test_faster_whisper_adapter_returns_error_for_empty_transcription(monkeypatch, tmp_path):

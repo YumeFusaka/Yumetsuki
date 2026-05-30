@@ -1,0 +1,24 @@
+{
+  "productName": "Yumetsuki",
+  "version": "0.1.0",
+  "identifier": "dev.yumetsuki.desktop",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Yumetsuki",
+        "width": 960,
+        "height": 720
+      }
+    ]
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all"
+  }
+}

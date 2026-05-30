@@ -1,0 +1,29 @@
+:root {
+  --sakura-color-bg: #fff7f5;
+  --sakura-color-surface: #ffffff;
+  --sakura-color-text: #3d3037;
+  --sakura-color-muted: #7f6d75;
+  --sakura-color-primary: #d85b7f;
+  --sakura-color-primary-strong: #b73561;
+  --sakura-color-accent: #277c7a;
+  --sakura-color-warning: #a8661f;
+  --sakura-color-danger: #b73444;
+  --sakura-color-border: #e5c9d1;
+  --sakura-space-1: 4px;
+  --sakura-space-2: 8px;
+  --sakura-space-3: 12px;
+  --sakura-space-4: 16px;
+  --sakura-radius-sm: 4px;
+  --sakura-radius-md: 8px;
+  --sakura-shadow-raised: 0 8px 24px rgba(80, 48, 64, 0.16);
+  --sakura-font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  --sakura-motion-fast: 120ms;
+  --sakura-motion-base: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --sakura-motion-fast: 1ms;
+    --sakura-motion-base: 1ms;
+  }
+}
