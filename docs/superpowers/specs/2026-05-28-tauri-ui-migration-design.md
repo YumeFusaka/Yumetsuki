@@ -659,8 +659,8 @@ clean
 | Python Core | `python -m pytest tests/ -q` 和聚焦测试 | 现有领域逻辑不回退 |
 | RPC Contract | `python -m pytest tests/rpc_contract/ -q` | envelope、状态机、取消、背压、stdout 零污染 |
 | Tauri lifecycle | `cargo test` | sidecar supervisor、RuntimePaths、capability、路径安全 |
-| Vue unit | `pnpm test` | Pinia store、typed client、组件状态机 |
-| E2E smoke | `pnpm e2e:smoke` | 骨架、设置保存、聊天最小闭环、日志查看 |
+| Vue unit | `npm test` | Pinia store、typed client、组件状态机 |
+| E2E smoke | `npm run e2e:smoke` | 骨架、设置保存、聊天最小闭环、日志查看 |
 | Stress / Security | 专用脚本或测试命令 | 高频日志、慢消费者、stderr 洪泛、路径穿越、诊断包脱敏 |
 
 这些命令在对应目录创建前作为设计 gate；目录落地后必须成为阶段阻塞命令。
@@ -1457,11 +1457,11 @@ token 映射：
 |---|---|---|---|---|
 | Phase 1+ | repo root | `python -m pytest tests/rpc_contract/ -q` | 是 | RPC envelope、状态机、取消、stdout 零污染 |
 | Phase 1+ | `apps/desktop/src-tauri` | `cargo test` | 是 | sidecar supervisor、RuntimePaths、capability |
-| Phase 1+ | `apps/desktop/frontend` | `pnpm test` | 是 | Pinia stores、typed client、组件状态 |
-| Phase 1+ | `apps/desktop` | `pnpm e2e:smoke` | 是 | 骨架、聊天最小闭环、日志查看器 |
+| Phase 1+ | `apps/desktop/frontend` | `npm test` | 是 | Pinia stores、typed client、组件状态 |
+| Phase 1+ | `apps/desktop` | `npm run e2e:smoke` | 是 | 骨架、聊天最小闭环、日志查看器 |
 | Phase 3+ | repo root | `python -m pytest tests/test_agent_manager.py tests/test_llm_manager_tools.py tests/test_tts_pipeline.py tests/test_stt_adapter.py tests/test_vision.py -q` | 是 | Python Core 主链路 |
 | Phase 4+ | repo root | `python -m pytest tests/security/ -q` | 是 | 路径穿越、诊断脱敏、权限边界 |
-| Phase 4+ | `apps/desktop` | `pnpm e2e:stress` | 是 | 高频日志、慢消费者、TTS chunk、MCP stderr |
+| Phase 4+ | `apps/desktop` | `npm run e2e:stress` | 是 | 高频日志、慢消费者、TTS chunk、MCP stderr |
 | Phase 5 | repo root | `python scripts/check_no_pyside6_in_sidecar.py` | 是 | sidecar 无 PySide6 |
 | Phase 5 | repo root | `python scripts/check_release_manifest.py` | 是 | 发布包排除真实运行期数据 |
 
@@ -1490,13 +1490,13 @@ token 映射：
 
 | 旧测试 | 替代层 / 命令 | 双跑阶段 | 删除条件 |
 |---|---|---|---|
-| `test_settings_window.py` | `apps/desktop/frontend pnpm test` + `apps/desktop pnpm e2e:settings` | Phase 2-4 | 设置 parity 连续两个阶段通过 |
+| `test_settings_window.py` | `apps/desktop/frontend npm test` + `apps/desktop npm run e2e:settings` | Phase 2-4 | 设置 parity 连续两个阶段通过 |
 | `test_agent_page_events.py` | `tests/rpc_contract/` + Vue Agent store test | Phase 2-4 | RPC event publisher 和 Agent 页面替代测试通过 |
 | `test_diagnostics_page.py` | Vue diagnostics page test + `diagnostics.run` RPC contract | Phase 4 | 诊断页 E2E 通过 |
-| `test_conversation_log_page.py`、`test_system_log_page.py` | Vue VirtualLogList tests + `pnpm e2e:logs-tools` | Phase 4 | 日志压测和选择/滚动 parity 通过 |
+| `test_conversation_log_page.py`、`test_system_log_page.py` | Vue VirtualLogList tests + `npm run e2e:logs-tools` | Phase 4 | 日志压测和选择/滚动 parity 通过 |
 | `test_feedback_toast.py` | Sakura `Toast` component unit + visual snapshot | Phase 1-4 | 组件矩阵测试通过 |
 | `test_plugin_import.py` | Vue plugin page + plugin worker/capability tests | Phase 4 | 插件导入、权限、stdout 隔离通过 |
-| `test_chat_tts_flow.py`、`test_chat_stt_flow.py`、`test_chat_passive_bubble.py`、`test_chat_window_scale.py` | Python ChatService + Vue chatStore + `pnpm e2e:chat` | Phase 3-4 | 聊天 parity 连续两个阶段通过 |
+| `test_chat_tts_flow.py`、`test_chat_stt_flow.py`、`test_chat_passive_bubble.py`、`test_chat_window_scale.py` | Python ChatService + Vue chatStore + `npm run e2e:chat` | Phase 3-4 | 聊天 parity 连续两个阶段通过 |
 | `test_stt_recorder.py` | Tauri/Rust recorder tests + E2E STT smoke | Phase 3-4 | Rust 录音和超时取消通过 |
 | `test_audio_backends.py` | Tauri/Rust audio playback tests + TTS E2E | Phase 3-4 | Rust 播放和资源清理通过 |
 | `test_sprite_manager.py` | frontend asset/render tests | Phase 3-4 | 立绘渲染 visual gate 通过 |
@@ -1534,11 +1534,11 @@ token 映射：
 | 阶段 | 工作目录 | 阻塞命令 |
 |---|---|---|
 | Phase 0 | repo root | 文档复审矩阵全部 90+ |
-| Phase 1 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python -m pytest tests/rpc_contract/ -q`; `cargo test`; `pnpm test`; `pnpm e2e:smoke` |
-| Phase 2 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python -m pytest tests/test_config.py tests/test_config_agent.py -q`; `cargo test`; `pnpm test`; `pnpm e2e:settings` |
-| Phase 3 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python -m pytest tests/test_agent_manager.py tests/test_llm_manager_tools.py tests/test_tts_pipeline.py tests/test_stt_adapter.py tests/test_vision.py -q`; `cargo test`; `pnpm test`; `pnpm e2e:chat` |
-| Phase 4 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python -m pytest tests/test_log_service.py tests/test_mcp_host.py tests/test_tool_registry.py tests/test_diagnostic_bundle.py -q`; `python -m pytest tests/security/ -q`; `cargo test`; `pnpm test`; `pnpm e2e:logs-tools`; `pnpm e2e:stress` |
-| Phase 5 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python scripts/check_no_pyside6_in_sidecar.py`; `python scripts/check_release_manifest.py`; `python -m pytest tests/ -q`; `cargo test`; `pnpm test`; `pnpm e2e:smoke` |
+| Phase 1 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python -m pytest tests/rpc_contract/ -q`; `cargo test`; `npm test`; `npm run e2e:smoke` |
+| Phase 2 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python -m pytest tests/test_config.py tests/test_config_agent.py -q`; `cargo test`; `npm test`; `npm run e2e:settings` |
+| Phase 3 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python -m pytest tests/test_agent_manager.py tests/test_llm_manager_tools.py tests/test_tts_pipeline.py tests/test_stt_adapter.py tests/test_vision.py -q`; `cargo test`; `npm test`; `npm run e2e:chat` |
+| Phase 4 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python -m pytest tests/test_log_service.py tests/test_mcp_host.py tests/test_tool_registry.py tests/test_diagnostic_bundle.py -q`; `python -m pytest tests/security/ -q`; `cargo test`; `npm test`; `npm run e2e:logs-tools`; `npm run e2e:stress` |
+| Phase 5 | repo root / `apps/desktop/src-tauri` / `apps/desktop/frontend` / `apps/desktop` | `python scripts/check_no_pyside6_in_sidecar.py`; `python scripts/check_release_manifest.py`; `python -m pytest tests/ -q`; `cargo test`; `npm test`; `npm run e2e:smoke` |
 
 ### 文档入口更新矩阵
 
@@ -1937,7 +1937,7 @@ created
 - Toast 不抢焦点，但通过 `aria-live="polite"` 暴露状态。
 - 错误、状态条、诊断进度使用节流后的 live region；流式回复不逐 token 朗读。
 - 支持 `prefers-reduced-motion`，动态效果提供降级。
-- `pnpm test` 或 E2E 必须包含 axe 或等价 a11y 检查，至少覆盖聊天、设置、日志、诊断和确认弹窗。
+- `npm test` 或 E2E 必须包含 axe 或等价 a11y 检查，至少覆盖聊天、设置、日志、诊断和确认弹窗。
 
 ### Tauri capability manifest 契约
 
@@ -2001,13 +2001,13 @@ block_new_requests
 
 | 项 | 预算候选 | 测量命令 / 场景 |
 |---|---|---|
-| 前端首屏到 shell ready | 冷启动 3s 内，热启动 1.5s 内 | `pnpm e2e:startup` |
+| 前端首屏到 shell ready | 冷启动 3s 内，热启动 1.5s 内 | `npm run e2e:startup` |
 | sidecar hello | 10s 内返回或进入 degraded | Tauri lifecycle test |
 | sidecar 常驻内存 | 基线后 500 MiB 内，模型加载另计 | diagnostics perf check |
 | 空闲 CPU | 2% 以下持续 60s | diagnostics perf check |
-| 聊天首字延迟 | mock 300ms 内，真实 LLM 单独记录 | `pnpm e2e:chat` |
+| 聊天首字延迟 | mock 300ms 内，真实 LLM 单独记录 | `npm run e2e:chat` |
 | TTS 首段可播 | mock 500ms 内，真实服务单独记录 | TTS smoke |
-| 10k 平台日志 | 滚动、筛选、详情 30 FPS 以上 | `pnpm e2e:stress` |
+| 10k 平台日志 | 滚动、筛选、详情 30 FPS 以上 | `npm run e2e:stress` |
 | 透明窗口渲染 | 拖拽和缩放无明显掉帧 | visual smoke |
 | OCR 单次识别 | 默认超时内返回摘要或 timeout | OCR contract |
 | 发布包体积 | manifest 记录并设回归阈值 | `check_release_manifest.py` |
@@ -2017,7 +2017,7 @@ block_new_requests
 可重复打包必须冻结：
 
 - Python 版本来源和 `requirements-sidecar.txt`。
-- Node / pnpm 版本来源。
+- Node / pnpm 或 npm 版本来源。
 - Rust toolchain 来源。
 - Tauri sidecar 构建方式和资源目录。
 - native DLL / wheel / onnxruntime / faster-whisper / Playwright browser 策略。

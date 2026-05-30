@@ -1,90 +1,328 @@
-from __future__ import annotations
+import time
+from unittest.mock import MagicMock
 
-from typing import Any
+import pytest
 
-from python_core.rpc.envelope import validate_event_envelope, validate_request_envelope, validate_response_envelope
-from python_core.rpc.registry import MethodRegistry, SidecarRuntime
-from python_core.runtime_paths import RuntimePaths
-
-
-class RpcHarness:
-    def __init__(self) -> None:
-        self.registry = MethodRegistry()
-        self.runtime = SidecarRuntime.create(RuntimePaths.temporary())
-
-    def dispatch(
-        self,
-        method: str,
-        params: dict[str, Any] | None = None,
-        request_id: str | None = None,
-    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        payload = {
-            "kind": "request",
-            "request_id": request_id or f"req_{method.replace('.', '_')}",
-            "method": method,
-            "params": params or {},
-            "protocol_version": 1,
-            "trace_id": "trace_proactive",
-            "parent_trace_id": None,
-            "session_id": "sess_proactive",
-            "deadline_ms": 30000,
-        }
-        response = self.registry.dispatch(validate_request_envelope(payload), self.runtime)
-        validate_response_envelope(response)
-        events = self.runtime.task_registry.event_publisher.drain()
-        for event in events:
-            validate_event_envelope(event)
-        return response, events
+from config.schema import ProactiveConfig, ProactiveEventConfig
 
 
-def test_chat_and_proactive_short_methods_publish_status_events() -> None:
-    harness = RpcHarness()
+# Qt 测试需要 QApplication
+@pytest.fixture(scope="module")
+def qapp():
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    yield app
 
-    proactive_state, proactive_state_events = harness.dispatch(
-        "chat.proactive_state",
-        {"passive_state": True, "window_visible": False, "last_interaction_ms": 1},
+
+class FakeLLMHelper:
+    def __init__(self, response: str = "你好呀"):
+        self.response = response
+        self.calls = []
+
+    def judge(self, system_prompt, user_prompt, max_tokens=80):
+        self.calls.append({"system": system_prompt, "user": user_prompt})
+        return self.response
+
+
+def test_proactive_disabled_no_emit(qapp):
+    """禁用时不产生任何主动消息。"""
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(enabled=False),
+        llm_helper=FakeLLMHelper(),
     )
-    start_response, start_events = harness.dispatch("proactive.start", {})
-    notify_response, notify_events = harness.dispatch(
-        "proactive.notify_interaction",
-        {"interaction_type": "chat", "timestamp_ms": 1},
+    received = []
+    scheduler.proactive_message.connect(lambda msg, src: received.append((msg, src)))
+
+    # 即使强制 tick，也不应触发（因为禁用）
+    # 注意：disabled 状态下 start() 不启动，但 _tick 仍可手动调用
+    scheduler._last_interaction_time = 0  # 模拟很久没交互
+    scheduler._tick()
+
+    # disabled 时 _tick 仍会检查并触发——这是设计选择
+    # 但若 start() 不启动，实际场景下 _tick 不会被调用
+    # 这里测试 enabled=False 不会从 start() 启动 worker
+    assert scheduler._worker is None
+    scheduler.start()
+    assert scheduler._worker is None
+
+
+def test_proactive_idle_triggers(qapp):
+    """闲置超时触发主动闲聊。"""
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=0,  # 立即触发
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+        ),
+        llm_helper=FakeLLMHelper("好久不见呀"),
     )
-    update_response, update_events = harness.dispatch("proactive.update_context", {"character_summary": {"name": "test"}})
-    stop_response, stop_events = harness.dispatch("proactive.stop", {"reason": "test"})
+    received = []
+    scheduler.proactive_message.connect(lambda msg, src: received.append((msg, src)))
 
-    assert proactive_state["result"]["accepted_state"] is True
-    assert proactive_state_events[-1]["type"] == "chat.proactive_state_changed"
-    assert start_response["result"]["started"] is True
-    assert start_events[-1]["type"] == "proactive.status"
-    assert notify_response["result"]["accepted"] is True
-    assert notify_events == []
-    assert update_response["result"]["accepted"] is True
-    assert update_events[-1]["type"] == "proactive.context_updated"
-    assert stop_response["result"]["stopped"] is True
-    assert stop_events[-1]["type"] == "proactive.status"
+    scheduler._last_interaction_time = time.time() - 100  # 100秒前交互
+    scheduler._tick()
 
-
-def test_proactive_notify_interaction_rejects_missing_required_fields() -> None:
-    response, _events = RpcHarness().dispatch("proactive.notify_interaction", {"interaction_type": "chat"})
-
-    assert response["ok"] is False
-    assert response["error"]["code"] == "rpc.invalid_params"
+    qapp.processEvents()  # 处理 Qt 信号
+    assert len(received) == 1
+    assert received[0][1] == "idle_chat"
+    assert received[0][0] == "好久不见呀"
+    assert "任选一个具体角度" in scheduler._llm.calls[-1]["user"]
+    assert "不要总是打招呼" in scheduler._llm.calls[-1]["user"]
 
 
-def test_sidecar_cancel_still_routes_through_headless_rpc() -> None:
-    harness = RpcHarness()
-    harness.runtime.task_registry.accept_long_task(
-        request_id="req_pending_chat",
-        task_type="chat.send",
-        context=None,
+def test_proactive_can_fire_false_blocks_before_generation(qapp):
+    """can_fire=False 时不调用 LLM、不 emit、不更新冷却。"""
+    from agent.proactive import ProactiveScheduler
+
+    llm = FakeLLMHelper("不应该生成")
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=0,
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+        ),
+        llm_helper=llm,
+        can_fire=lambda: False,
+    )
+    received = []
+    scheduler.proactive_message.connect(lambda msg, src: received.append((msg, src)))
+
+    scheduler._last_interaction_time = time.time() - 100
+    before_last_proactive_time = scheduler._last_proactive_time
+    scheduler._tick()
+    qapp.processEvents()
+
+    assert llm.calls == []
+    assert received == []
+    assert scheduler._last_proactive_time == before_last_proactive_time
+
+
+def test_proactive_prompt_includes_character_context_and_emotion_rule(qapp):
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=0,
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+        ),
+        llm_helper=FakeLLMHelper("[emotion:温柔]我在。"),
+    )
+    scheduler.set_character_context("角色名：杏铃\n说话方式：嘴硬但关心用户。")
+    scheduler._last_interaction_time = time.time() - 100
+
+    scheduler._tick()
+
+    call = scheduler._llm.calls[-1]
+    assert "角色名：杏铃" in call["system"]
+    assert "必须完全基于给定“角色”" in call["system"]
+    assert "[emotion:情绪名]" in call["system"]
+
+
+def test_proactive_idle_prompt_varies_mood_by_idle_duration(qapp):
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=0,
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+        ),
+        llm_helper=FakeLLMHelper("哼。"),
     )
 
-    response, events = harness.dispatch(
-        "sidecar.cancel",
-        {"request_id": "req_pending_chat", "reason": "user"},
-        request_id="req_cancel_chat",
+    scheduler._last_interaction_time = time.time() - 4 * 60 * 60
+    scheduler._tick()
+
+    prompt = scheduler._llm.calls[-1]["user"]
+    assert "很久没被理" in prompt
+    assert "委屈" in prompt
+    assert "生气" in prompt
+    assert "不要每次都说同一种句式" in prompt
+
+
+def test_proactive_cooldown_blocks(qapp):
+    """全局冷却时间内不重复触发。"""
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=0,
+            min_interval_minutes=10,  # 10分钟冷却
+            active_hours_start=0,
+            active_hours_end=24,
+        ),
+        llm_helper=FakeLLMHelper("hi"),
+    )
+    received = []
+    scheduler.proactive_message.connect(lambda msg, src: received.append((msg, src)))
+
+    scheduler._last_interaction_time = time.time() - 100
+    scheduler._tick()
+    qapp.processEvents()
+    assert len(received) == 1
+
+    # 再次 tick，应被冷却阻挡
+    scheduler._tick()
+    qapp.processEvents()
+    assert len(received) == 1  # 没增加
+
+
+def test_proactive_active_hours_filter(qapp):
+    """非活跃时段不触发。"""
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=0,
+            min_interval_minutes=0,
+            # 设置一个不可能的时段（同时同分）
+            active_hours_start=25,  # 永远不会满足
+            active_hours_end=26,
+        ),
+        llm_helper=FakeLLMHelper(),
+    )
+    received = []
+    scheduler.proactive_message.connect(lambda msg, src: received.append((msg, src)))
+
+    scheduler._last_interaction_time = 0
+    scheduler._tick()
+    qapp.processEvents()
+
+    assert len(received) == 0
+
+
+def test_proactive_custom_event(qapp):
+    """自定义事件通过注册触发器触发。"""
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=99999,  # 闲置不触发
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+            events=[
+                ProactiveEventConfig(
+                    name="rest_remind",
+                    type="system",
+                    condition="工作60分钟",
+                    prompt_template="提醒主人休息一下",
+                    cooldown_minutes=60,
+                ),
+            ],
+        ),
+        llm_helper=FakeLLMHelper("休息一下吧"),
+    )
+    received = []
+    scheduler.proactive_message.connect(lambda msg, src: received.append((msg, src)))
+
+    # 注册触发器：始终返回 True
+    scheduler.register_trigger("rest_remind", lambda: True)
+
+    scheduler._tick()
+    qapp.processEvents()
+
+    assert len(received) == 1
+    assert received[0][1] == "rest_remind"
+
+
+def test_proactive_event_cooldown(qapp):
+    """每个事件有独立冷却时间。"""
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=99999,
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+            events=[
+                ProactiveEventConfig(
+                    name="test_event",
+                    type="system",
+                    cooldown_minutes=60,
+                    prompt_template="hi",
+                ),
+            ],
+        ),
+        llm_helper=FakeLLMHelper("hi"),
+    )
+    received = []
+    scheduler.proactive_message.connect(lambda msg, src: received.append((msg, src)))
+
+    scheduler.register_trigger("test_event", lambda: True)
+
+    scheduler._tick()
+    qapp.processEvents()
+    assert len(received) == 1
+
+    # 第二次 tick，事件冷却中
+    scheduler._tick()
+    qapp.processEvents()
+    assert len(received) == 1
+
+
+def test_proactive_notify_interaction_resets(qapp):
+    """notify_interaction 重置闲置计时。"""
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(
+            enabled=True,
+            idle_interval_minutes=1,  # 1分钟
+            min_interval_minutes=0,
+            active_hours_start=0,
+            active_hours_end=24,
+        ),
+        llm_helper=FakeLLMHelper(),
+    )
+    received = []
+    scheduler.proactive_message.connect(lambda msg, src: received.append((msg, src)))
+
+    # 模拟 2 分钟前交互
+    scheduler._last_interaction_time = time.time() - 120
+
+    # 用户刚交互
+    scheduler.notify_interaction()
+
+    scheduler._tick()
+    qapp.processEvents()
+
+    assert len(received) == 0  # 刚交互过，不触发
+
+
+def test_proactive_set_config_runtime(qapp):
+    """运行时更新配置。"""
+    from agent.proactive import ProactiveScheduler
+
+    scheduler = ProactiveScheduler(
+        config=ProactiveConfig(enabled=False),
+        llm_helper=FakeLLMHelper(),
     )
 
-    assert response["ok"] is True
-    assert response["result"]["status"] == "cancelled"
-    assert events[-1]["type"] == "chat.cancelled"
+    # 启动时禁用，无 worker
+    scheduler.start()
+    assert scheduler._worker is None
+
+    # 切换到启用
+    scheduler.set_config(ProactiveConfig(enabled=True))
+    assert scheduler._worker is not None
+
+    scheduler.stop()

@@ -1,4 +1,0 @@
-[[permission]]
-identifier = "config-write"
-description = "允许保存系统类非敏感设置。"
-commands.allow = ["config_save_system"]

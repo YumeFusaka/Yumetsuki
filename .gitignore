@@ -36,7 +36,6 @@ coverage.xml
 .pytest_cache/
 cover/
 *.log
-*.out
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -89,6 +88,3 @@ data/vision/
 .claude/
 .superpowers/
 .worktrees/
-node_modules/
-test-results/
-apps/desktop/frontend/dist/

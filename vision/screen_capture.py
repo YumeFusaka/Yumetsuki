@@ -5,6 +5,8 @@ from itertools import count
 from pathlib import Path
 import time
 
+from PySide6.QtGui import QGuiApplication
+
 from vision.types import ScreenRegion
 
 _SCREENSHOT_COUNTER = count()
@@ -19,23 +21,16 @@ def build_screenshot_path(screenshot_dir: str, now_text: str | None = None) -> P
 
 
 def capture_screen(screenshot_dir: str, region: ScreenRegion | None = None) -> Path:
-    try:
-        from PIL import ImageGrab
-    except ImportError as exc:
-        raise RuntimeError("屏幕截图需要 Pillow ImageGrab 或 Tauri 截图入口") from exc
-
-    bbox = None
+    screen = QGuiApplication.primaryScreen()
+    if screen is None:
+        raise RuntimeError("未找到可用屏幕")
+    pixmap = screen.grabWindow(0)
     if region is not None:
-        x, y, width, height = region.as_tuple()
-        bbox = (x, y, x + width, y + height)
-
+        pixmap = pixmap.copy(*region.as_tuple())
     path = build_screenshot_path(screenshot_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    image = ImageGrab.grab(bbox=bbox)
-    try:
-        image.save(str(path), "PNG")
-    finally:
-        image.close()
+    if not pixmap.save(str(path), "PNG"):
+        raise RuntimeError("屏幕截图保存失败")
     return path
 
 

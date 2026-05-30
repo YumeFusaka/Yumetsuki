@@ -1,4 +1,0 @@
-[[permission]]
-identifier = "config-read"
-description = "允许读取已脱敏的配置快照。"
-commands.allow = ["config_get_all"]

@@ -274,22 +274,22 @@ Create: `tests/migration/test_inventory.md`
 
 | 旧测试 | Qt / PySide6 依赖点 | 退场动作 | 替代层 | 新测试文件 / 命令 | 双跑阶段 | 删除条件 | 回滚方式 |
 |---|---|---|---|---|---|---|---|
-| `tests/test_settings_window.py` | 设置窗口和 Qt 控件 | 删除 | Vue 设置页 + ConfigService | `apps/desktop/e2e/settings.spec.ts`、`apps/desktop/frontend/src/pages/settings/*.spec.ts`、`pnpm e2e:settings` | Phase 2-4 | replacement status 记录连续两个阶段通过 | 保留旧测试文件并恢复 PySide6 依赖 |
-| `tests/test_agent_page_events.py` | Qt Agent 页事件桥 | 删除 | RPC event publisher + Vue Agent store | `tests/rpc_contract/test_event_publisher.py`、`python -m pytest tests/rpc_contract/test_event_publisher.py -q`、`pnpm test` | Phase 2-4 | replacement status 记录连续两个阶段通过 | 恢复 `core/ui_event_bridge.py` 双跑 |
-| `tests/test_diagnostics_page.py` | Qt 诊断页 | 删除 | Vue diagnostics page + DiagnosticService | `apps/desktop/e2e/logs-tools.spec.ts`、`tests/rpc_contract/test_logs_diagnostics_methods.py`、`pnpm e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧诊断页测试 |
-| `tests/test_conversation_log_page.py` | Qt 对话日志页 | 删除 | Vue ConversationLogPage + LogService | `apps/desktop/e2e/logs-tools.spec.ts`、`pnpm e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧日志页测试 |
-| `tests/test_system_log_page.py` | Qt 平台日志页 | 删除 | Vue SystemLogPage + VirtualLogList | `apps/desktop/e2e/stress.spec.ts`、`pnpm e2e:stress` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧日志页测试 |
-| `tests/test_feedback_toast.py` | Qt toast | 删除 | Sakura Toast | `apps/desktop/e2e/a11y.spec.ts`、`pnpm test`、`pnpm test:a11y` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧 toast 测试 |
-| `tests/test_plugin_import.py` | Qt 插件导入 UI | 删除 | Vue PluginPage + PluginService | `apps/desktop/e2e/logs-tools.spec.ts`、`tests/rpc_contract/test_tools_plugins_mcp_methods.py`、`pnpm e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧插件导入测试 |
-| `tests/test_chat_tts_flow.py` | Qt ChatWindow + TTS 播放 | 删除 | ChatService + SpeechService + Rust audio | `apps/desktop/e2e/chat.spec.ts`、`tests/rpc_contract/test_speech_vision_methods.py`、`pnpm e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧聊天 TTS 测试 |
-| `tests/test_chat_stt_flow.py` | Qt ChatWindow + STT 录音 | 删除 | Rust recorder + SpeechService | `apps/desktop/e2e/chat.spec.ts`、`apps/desktop/src-tauri/tests/media_contract.rs`、`pnpm e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧聊天 STT 测试 |
-| `tests/test_chat_passive_bubble.py` | Qt 被动气泡 | 删除 | Vue PassiveBubble + chatStore | `apps/desktop/e2e/chat.spec.ts`、`pnpm e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧被动气泡测试 |
-| `tests/test_chat_window_scale.py` | Qt 窗口缩放 | 删除 | Tauri window + Vue ChatPanel | `apps/desktop/e2e/chat.spec.ts`、`pnpm e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧窗口缩放测试 |
+| `tests/test_settings_window.py` | 设置窗口和 Qt 控件 | 删除 | Vue 设置页 + ConfigService | `apps/desktop/e2e/settings.spec.ts`、`apps/desktop/frontend/src/pages/settings/*.spec.ts`、`npm run e2e:settings` | Phase 2-4 | replacement status 记录连续两个阶段通过 | 保留旧测试文件并恢复 PySide6 依赖 |
+| `tests/test_agent_page_events.py` | Qt Agent 页事件桥 | 删除 | RPC event publisher + Vue Agent store | `tests/rpc_contract/test_event_publisher.py`、`python -m pytest tests/rpc_contract/test_event_publisher.py -q`、`npm test` | Phase 2-4 | replacement status 记录连续两个阶段通过 | 恢复 `core/ui_event_bridge.py` 双跑 |
+| `tests/test_diagnostics_page.py` | Qt 诊断页 | 删除 | Vue diagnostics page + DiagnosticService | `apps/desktop/e2e/logs-tools.spec.ts`、`tests/rpc_contract/test_logs_diagnostics_methods.py`、`npm run e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧诊断页测试 |
+| `tests/test_conversation_log_page.py` | Qt 对话日志页 | 删除 | Vue ConversationLogPage + LogService | `apps/desktop/e2e/logs-tools.spec.ts`、`npm run e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧日志页测试 |
+| `tests/test_system_log_page.py` | Qt 平台日志页 | 删除 | Vue SystemLogPage + VirtualLogList | `apps/desktop/e2e/stress.spec.ts`、`npm run e2e:stress` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧日志页测试 |
+| `tests/test_feedback_toast.py` | Qt toast | 删除 | Sakura Toast | `apps/desktop/e2e/a11y.spec.ts`、`npm test`、`npm run test:a11y` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧 toast 测试 |
+| `tests/test_plugin_import.py` | Qt 插件导入 UI | 删除 | Vue PluginPage + PluginService | `apps/desktop/e2e/logs-tools.spec.ts`、`tests/rpc_contract/test_tools_plugins_mcp_methods.py`、`npm run e2e:logs-tools` | Phase 4 | replacement status 记录连续两个阶段通过 | 恢复旧插件导入测试 |
+| `tests/test_chat_tts_flow.py` | Qt ChatWindow + TTS 播放 | 删除 | ChatService + SpeechService + Rust audio | `apps/desktop/e2e/chat.spec.ts`、`tests/rpc_contract/test_speech_vision_methods.py`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧聊天 TTS 测试 |
+| `tests/test_chat_stt_flow.py` | Qt ChatWindow + STT 录音 | 删除 | Rust recorder + SpeechService | `apps/desktop/e2e/chat.spec.ts`、`apps/desktop/src-tauri/tests/media_contract.rs`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧聊天 STT 测试 |
+| `tests/test_chat_passive_bubble.py` | Qt 被动气泡 | 删除 | Vue PassiveBubble + chatStore | `apps/desktop/e2e/chat.spec.ts`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧被动气泡测试 |
+| `tests/test_chat_window_scale.py` | Qt 窗口缩放 | 删除 | Tauri window + Vue ChatPanel | `apps/desktop/e2e/chat.spec.ts`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧窗口缩放测试 |
 | `tests/test_stt_recorder.py` | Qt 录音 | 删除 | Rust recorder | `apps/desktop/src-tauri/tests/media_contract.rs`、`cargo test --test media_contract` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧录音测试 |
 | `tests/test_audio_backends.py` | Qt 音频播放 | 删除 | Rust audio playback | `apps/desktop/src-tauri/tests/media_contract.rs`、`cargo test --test media_contract` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧音频后端测试 |
-| `tests/test_sprite_manager.py` | Qt pixmap / 立绘 | 删除 | Vue SpriteView | `apps/desktop/e2e/chat.spec.ts`、`pnpm test`、`pnpm e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧立绘测试 |
-| `tests/test_startup_appearance.py` | Qt 启动窗 | 删除 | Tauri startup view | `apps/desktop/e2e/startup.spec.ts`、`pnpm e2e:startup` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧启动窗测试 |
-| `tests/test_logging_integration.py` | UI 日志桥和 Qt 页面消费 | 同名改写 | Python LogService + RPC logs contract + Vue 日志页 | `tests/test_logging_integration.py`、`tests/rpc_contract/test_logs_diagnostics_methods.py`、`pnpm e2e:logs-tools` | Phase 2-4 | 同名测试不导入 Qt，replacement status 记录连续两个阶段通过 | 恢复旧日志集成测试 |
+| `tests/test_sprite_manager.py` | Qt pixmap / 立绘 | 删除 | Vue SpriteView | `apps/desktop/e2e/chat.spec.ts`、`npm test`、`npm run e2e:chat` | Phase 3-4 | replacement status 记录连续两个阶段通过 | 恢复旧立绘测试 |
+| `tests/test_startup_appearance.py` | Qt 启动窗 | 删除 | Tauri startup view | `apps/desktop/e2e/startup.spec.ts`、`npm run e2e:startup` | Phase 1-4 | replacement status 记录连续两个阶段通过 | 恢复旧启动窗测试 |
+| `tests/test_logging_integration.py` | UI 日志桥和 Qt 页面消费 | 同名改写 | Python LogService + RPC logs contract + Vue 日志页 | `tests/test_logging_integration.py`、`tests/rpc_contract/test_logs_diagnostics_methods.py`、`npm run e2e:logs-tools` | Phase 2-4 | 同名测试不导入 Qt，replacement status 记录连续两个阶段通过 | 恢复旧日志集成测试 |
 | `tests/test_event_bus.py` | `core/ui_event_bridge.py` 路径 | 同名改写 | Python EventBus + RpcEventPublisher | `tests/test_event_bus.py`、`tests/rpc_contract/test_event_publisher.py` | Phase 1-4 | 同名测试不导入 `core/ui_event_bridge.py`、PySide6 或 Qt bridge，replacement status 记录连续两个阶段通过 | 恢复旧 bridge 双跑 |
 | `tests/test_proactive.py` | `QObject/QThread/Signal` scheduler | 同名改写 | ProactiveService headless scheduler | `tests/test_proactive.py`、`tests/rpc_contract/test_chat_methods.py` | Phase 3-4 | 同名测试不导入 Qt，replacement status 记录连续两个阶段通过 | 恢复旧 proactive scheduler |
 ```
@@ -602,7 +602,7 @@ python -m pytest tests/rpc_contract/test_envelope.py tests/rpc_contract/test_err
 Set-Location E:/Project/Yumetsuki/apps/desktop/src-tauri
 cargo test --test error_codes
 Set-Location ..
-pnpm test -- errorCodes
+npm test -- errorCodes
 ```
 
 Expected:
@@ -1040,7 +1040,7 @@ Set-Location apps/desktop/src-tauri
 cargo test --test command_catalog
 cargo test --test runtime_paths_schema
 Set-Location ..
-pnpm test -- catalog
+npm test -- catalog
 ```
 
 Expected:
@@ -1535,7 +1535,7 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-pnpm test
+npm test
 ```
 
 Expected:
@@ -1592,7 +1592,7 @@ Create: `apps/desktop/package.json`
 ```json
 {
   "scripts": {
-    "test": "pnpm --dir frontend test",
+    "test": "npm --prefix frontend test",
     "test:a11y": "playwright test e2e/a11y.spec.ts",
     "e2e:startup": "playwright test e2e/startup.spec.ts",
     "e2e:smoke": "playwright test e2e/smoke.spec.ts",
@@ -1802,11 +1802,11 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-pnpm test
-pnpm test:a11y
-pnpm e2e:startup
-pnpm e2e:smoke
-pnpm e2e:responsive
+npm test
+npm run test:a11y
+npm run e2e:startup
+npm run e2e:smoke
+npm run e2e:responsive
 ```
 
 Expected:
@@ -1830,12 +1830,12 @@ cargo test
 cargo test --test command_catalog
 cargo test --test runtime_paths_schema
 Set-Location ..
-pnpm test
-pnpm test -- catalog
-pnpm test:a11y
-pnpm e2e:startup
-pnpm e2e:smoke
-pnpm e2e:responsive
+npm test
+npm test -- catalog
+npm run test:a11y
+npm run e2e:startup
+npm run e2e:smoke
+npm run e2e:responsive
 ```
 
 Expected:
@@ -1979,9 +1979,9 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-pnpm test
-pnpm test:a11y
-pnpm e2e:settings
+npm test
+npm run test:a11y
+npm run e2e:settings
 ```
 
 Expected:
@@ -2001,12 +2001,12 @@ python -m pytest tests/ -q
 Set-Location apps/desktop/src-tauri
 cargo test
 Set-Location ..
-pnpm test
-pnpm test:a11y
-pnpm e2e:startup
-pnpm e2e:smoke
-pnpm e2e:settings
-pnpm e2e:responsive
+npm test
+npm run test:a11y
+npm run e2e:startup
+npm run e2e:smoke
+npm run e2e:settings
+npm run e2e:responsive
 Set-Location E:/Project/Yumetsuki
 python scripts/check_replacement_status.py --phase 2 --record-from-last-run
 ```
@@ -2040,7 +2040,7 @@ Expected:
 | `vision/screen_capture.py` | Qt / 平台截图入口 | `apps/desktop/src-tauri/src/screenshot.rs` + `python_core/services/vision_service.py` | Python 只识别 image handle，不截图 | `apps/desktop/src-tauri/tests/media_contract.rs` 和 `tests/rpc_contract/test_speech_vision_methods.py` 通过 |
 | `ui/chat/stt_recorder.py` | Qt 录音控件和录音线程 | `apps/desktop/src-tauri/src/recorder.rs` + `sttStore` | Python STT 只收 audio handle | STT stop、timeout、cancel 互斥终态测试通过 |
 | `ui/chat/audio_backends.py` | Qt / 本地音频播放 | `apps/desktop/src-tauri/src/audio.rs` + `audioStore` | Python TTS 不播放音频，只产出 audio handle | 播放、停止、临时文件清理和迟到事件丢弃测试通过 |
-| `ui/chat/web_view.py` | Qt WebView / 聊天窗口容器 | Vue `ChatPanel.vue` + Tauri window | Phase 3 双跑视觉和交互 parity | `pnpm e2e:chat` 截图和交互测试通过 |
+| `ui/chat/web_view.py` | Qt WebView / 聊天窗口容器 | Vue `ChatPanel.vue` + Tauri window | Phase 3 双跑视觉和交互 parity | `npm run e2e:chat` 截图和交互测试通过 |
 | `ui/chat/tts_pipeline.py` | Qt 聊天 UI 对 TTS pipeline 的编排 | `python_core/services/speech_service.py` + `chatStore` + `audioStore` | TTS pipeline 领域代码保留，UI 触发和播放编排迁出 Qt | TTS 首段、取消、播放失败、sidecar restart 测试通过 |
 
 ### Task 3.1：实现 ChatService / ProactiveService
@@ -2222,12 +2222,12 @@ python -m pytest tests/ -q
 Set-Location apps/desktop/src-tauri
 cargo test
 Set-Location ..
-pnpm test
-pnpm test:a11y
-pnpm e2e:startup
-pnpm e2e:smoke
-pnpm e2e:chat
-pnpm e2e:responsive
+npm test
+npm run test:a11y
+npm run e2e:startup
+npm run e2e:smoke
+npm run e2e:chat
+npm run e2e:responsive
 Set-Location E:/Project/Yumetsuki
 python scripts/check_replacement_status.py --phase 3 --record-from-last-run
 ```
@@ -2414,9 +2414,9 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-pnpm test
-pnpm e2e:logs-tools
-pnpm e2e:stress
+npm test
+npm run e2e:logs-tools
+npm run e2e:stress
 ```
 
 Expected:
@@ -2448,8 +2448,8 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-pnpm test
-pnpm e2e:logs-tools
+npm test
+npm run e2e:logs-tools
 ```
 
 Expected:
@@ -2481,8 +2481,8 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-pnpm test
-pnpm e2e:logs-tools
+npm test
+npm run e2e:logs-tools
 ```
 
 Expected:
@@ -2516,9 +2516,9 @@ Run:
 
 ```powershell
 Set-Location E:/Project/Yumetsuki/apps/desktop
-pnpm test
-pnpm test:a11y
-pnpm e2e:logs-tools
+npm test
+npm run test:a11y
+npm run e2e:logs-tools
 ```
 
 Expected:
@@ -2540,13 +2540,13 @@ python -m pytest tests/ -q
 Set-Location apps/desktop/src-tauri
 cargo test
 Set-Location ..
-pnpm test
-pnpm test:a11y
-pnpm e2e:startup
-pnpm e2e:smoke
-pnpm e2e:logs-tools
-pnpm e2e:stress
-pnpm e2e:responsive
+npm test
+npm run test:a11y
+npm run e2e:startup
+npm run e2e:smoke
+npm run e2e:logs-tools
+npm run e2e:stress
+npm run e2e:responsive
 Set-Location E:/Project/Yumetsuki
 python scripts/check_replacement_status.py --phase 4 --record-from-last-run
 ```
@@ -2623,7 +2623,7 @@ Expected:
   "toolchain_versions": {
     "python": "string",
     "node": "string",
-    "pnpm": "string",
+    "npm": "string",
     "rustc": "string",
     "cargo": "string",
     "tauri": "string"
@@ -2758,7 +2758,7 @@ Create: `scripts/check_perf_budgets.py`
 - resource size。
 - installer size。
 
-`apps/desktop/perf/results.json` 必须由 `pnpm e2e:startup`、`pnpm e2e:stress`、诊断 perf report 和发布包扫描结果生成，记录 cold/warm startup、idle CPU、sidecar baseline memory、10k logs FPS、各 artifact size 的实测值；禁止手写空结果。
+`apps/desktop/perf/results.json` 必须由 `npm run e2e:startup`、`npm run e2e:stress`、诊断 perf report 和发布包扫描结果生成，记录 cold/warm startup、idle CPU、sidecar baseline memory、10k logs FPS、各 artifact size 的实测值；禁止手写空结果。
 
 Phase 5 必须把所有 size budget 从 0 调整为真实阈值：
 
@@ -2822,7 +2822,7 @@ Create: `docs/release/desktop-packaging.md`
 
 - Python 版本、Node 版本、Rust toolchain 版本和 Tauri 版本。
 - Python lock 策略：`requirements-sidecar.txt` 为发布依赖入口，禁止发布 gate 从旧 `requirements.txt` 打包 PySide6。
-- Node lock 策略：`apps/desktop/pnpm-lock.yaml` 或项目选定 lockfile 必须提交并由 CI / 本地 gate 使用。
+- Node lock 策略：`apps/desktop/package-lock.json` 或项目选定 lockfile 必须提交并由 CI / 本地 gate 使用。
 - Rust lock 策略：`apps/desktop/src-tauri/Cargo.lock` 必须固定。
 - Python sidecar 构建步骤：生成 artifact、嵌入 schema hash、复制只读 resources。
 - native DLL / wheel 策略：只包含 sidecar 必需依赖，禁止 Qt / PySide6 / QtWebEngine。
@@ -2967,11 +2967,11 @@ python -m pytest tests/rpc_contract/test_logs_diagnostics_methods.py tests/rpc_c
 Set-Location apps/desktop/src-tauri
 cargo test --test media_contract
 Set-Location ..
-pnpm test
-pnpm test:a11y
-pnpm e2e:logs-tools
-pnpm e2e:stress
-pnpm e2e:responsive
+npm test
+npm run test:a11y
+npm run e2e:logs-tools
+npm run e2e:stress
+npm run e2e:responsive
 ```
 
 Expected:
@@ -2992,15 +2992,15 @@ python -m pytest tests/rpc_contract/test_logs_diagnostics_methods.py tests/rpc_c
 Set-Location apps/desktop/src-tauri
 cargo test --test media_contract
 Set-Location ..
-pnpm test
-pnpm test:a11y
-pnpm e2e:startup
-pnpm e2e:smoke
-pnpm e2e:settings
-pnpm e2e:chat
-pnpm e2e:logs-tools
-pnpm e2e:stress
-pnpm e2e:responsive
+npm test
+npm run test:a11y
+npm run e2e:startup
+npm run e2e:smoke
+npm run e2e:settings
+npm run e2e:chat
+npm run e2e:logs-tools
+npm run e2e:stress
+npm run e2e:responsive
 Set-Location E:/Project/Yumetsuki
 python scripts/check_replacement_status.py --phase 5 --record-from-last-run --pre-delete
 python scripts/check_replacement_status.py --phase 5 --pre-delete
@@ -3135,15 +3135,15 @@ python -m pytest tests/ -q
 Set-Location apps/desktop/src-tauri
 cargo test
 Set-Location ..
-pnpm test
-pnpm test:a11y
-pnpm e2e:startup
-pnpm e2e:smoke
-pnpm e2e:settings
-pnpm e2e:chat
-pnpm e2e:logs-tools
-pnpm e2e:stress
-pnpm e2e:responsive
+npm test
+npm run test:a11y
+npm run e2e:startup
+npm run e2e:smoke
+npm run e2e:settings
+npm run e2e:chat
+npm run e2e:logs-tools
+npm run e2e:stress
+npm run e2e:responsive
 powershell -ExecutionPolicy Bypass -File E:/Project/Yumetsuki/scripts/run_no_pyside6_sidecar_smoke.ps1
 $InstalledExe = powershell -ExecutionPolicy Bypass -File E:/Project/Yumetsuki/scripts/install_release_artifact_for_smoke.ps1 -Installer E:/Project/Yumetsuki/apps/desktop/src-tauri/target/release/bundle/nsis/Yumetsuki-setup.exe
 powershell -ExecutionPolicy Bypass -File E:/Project/Yumetsuki/scripts/smoke_windows_clean_machine.ps1 -Exe $InstalledExe

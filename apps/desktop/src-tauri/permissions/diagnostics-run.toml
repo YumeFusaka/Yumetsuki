@@ -1,4 +1,0 @@
-[[permission]]
-identifier = "diagnostics-run"
-description = "允许运行和导出脱敏诊断任务。"
-commands.allow = ["diagnostics_run", "diagnostics_export"]

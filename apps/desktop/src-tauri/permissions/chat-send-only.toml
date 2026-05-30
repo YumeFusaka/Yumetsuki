@@ -1,4 +1,0 @@
-[[permission]]
-identifier = "chat-send-only"
-description = "允许低权限窗口提交聊天任务。"
-commands.allow = ["chat_send"]
